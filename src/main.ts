@@ -1,6 +1,21 @@
+// src/main.ts
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-import store from './store'
+import vuetify from './plugins/vuetify'
+import { useAuthStore } from './store/modules/auth'
 
-createApp(App).use(store).use(router).mount('#app')
+const app = createApp(App)
+const pinia = createPinia()
+
+app.use(pinia)
+app.use(router)
+app.use(vuetify)
+
+// Auth state'i initialize et
+const authStore = useAuthStore()
+authStore.initializeAuth().then(() => {
+    console.log('🎉 Auth başlatma tamamlandı, app mount ediliyor')
+    app.mount('#app')
+})
