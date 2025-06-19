@@ -1,316 +1,352 @@
 <template>
   <div class="student-dashboard">
-    <v-container class="py-8">
-      <!-- Welcome Section -->
+    <v-container fluid class="pa-0">
+      <!-- Enhanced Welcome Section -->
       <div class="welcome-section mb-8">
-        <v-row align="center">
-          <v-col cols="12" md="12">
-            <h1 class="text-h3 font-weight-bold mb-2">
-              Tekrar hoş geldin, {{ authStore.user?.firstName }}!
-            </h1>
-            <p class="text-h6">
-              Tenis akademi kontrol paneliniz
-            </p>
-          </v-col>
-        </v-row>
-      </div>
-
-      <!-- Quick Stats -->
-      <v-row class="mb-8">
-        <v-col cols="12" sm="6" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-6">
-              <v-icon
-                  icon="mdi-calendar-clock"
-                  size="48"
-                  color="primary"
-                  class="mb-3"
-              />
-              <h3 class="text-h4 font-weight-bold text-primary">{{ upcomingReservations }}</h3>
-              <p class="text-body-2">Yaklaşan Dersler</p>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <v-col cols="12" sm="6" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-6">
-              <v-icon
-                  icon="mdi-tennis"
-                  size="48"
-                  color="success"
-                  class="mb-3"
-              />
-              <h3 class="text-h4 font-weight-bold text-success">{{ lessonsThisMonth }}</h3>
-              <p class="text-body-2">Bu Ayki Dersler</p>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <v-col cols="12" sm="6" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-6">
-              <v-icon
-                  icon="mdi-clock"
-                  size="48"
-                  color="warning"
-                  class="mb-3"
-              />
-              <h3 class="text-h4 font-weight-bold text-warning">{{ totalHours }}</h3>
-              <p class="text-body-2">Toplam Saat</p>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <v-col cols="12" sm="6" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-6">
-              <v-icon
-                  icon="mdi-trophy"
-                  size="48"
-                  color="amber"
-                  class="mb-3"
-              />
-              <h3 class="text-h4 font-weight-bold text-amber">{{ getMembershipTitle(currentMembershipType) }}</h3>
-              <p class="text-body-2">Üyelik Türü</p>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
-
-      <!-- Quick Actions -->
-      <v-row class="mb-8">
-        <v-col cols="12">
-          <h2 class="text-h4 font-weight-bold text-primary mb-4">Hızlı İşlemler</h2>
-          <v-row>
-            <v-col cols="12" sm="6" md="3">
-              <v-card
-                  class="action-card"
-                  elevation="4"
-                  hover
-                  :to="{ name: 'Reservations' }"
-              >
-                <v-card-text class="text-center pa-6">
-                  <v-icon
-                      icon="mdi-calendar-plus"
-                      size="64"
-                      color="primary"
-                      class="mb-4"
-                  />
-                  <h3 class="text-h5 font-weight-bold mb-2">Kort Rezervasyonu</h3>
-                  <p class="text-body-2">Bir sonraki oyununuz için kort rezerve edin</p>
-                </v-card-text>
-              </v-card>
+        <v-container>
+          <v-row align="center" class="py-6">
+            <v-col cols="12" md="8">
+              <div class="welcome-content">
+                <h1 class="welcome-title mb-3">
+                  Tekrar hoş geldin, {{ authStore.user?.firstName }}!
+                </h1>
+                <p class="welcome-subtitle">
+                  Tenis akademi kontrol paneliniz - Bugün harika bir gün!
+                </p>
+              </div>
             </v-col>
-
-            <v-col cols="12" sm="6" md="3">
-              <v-card
-                  class="action-card"
-                  elevation="4"
-                  hover
-                  :to="{ name: 'Dues' }"
-              >
-                <v-card-text class="text-center pa-6">
-                  <v-icon
-                      icon="mdi-currency-try"
-                      size="64"
-                      color="info"
-                      class="mb-4"
-                  />
-                  <h3 class="text-h5 font-weight-bold mb-2">Aidat Takibi</h3>
-                  <p class="text-body-2">Ödeme geçmişinizi ve aidat durumunuzu görüntüleyin</p>
-                </v-card-text>
-              </v-card>
-            </v-col>
-
-            <v-col cols="12" sm="6" md="3">
-              <v-card
-                  class="action-card"
-                  elevation="4"
-                  hover
-                  @click="showProfileDialog = true"
-              >
-                <v-card-text class="text-center pa-6">
-                  <v-icon
-                      icon="mdi-account-circle"
-                      size="64"
-                      color="success"
-                      class="mb-4"
-                  />
-                  <h3 class="text-h5 font-weight-bold mb-2">Profil Bilgileri</h3>
-                  <p class="text-body-2">Kişisel bilgilerinizi görüntüleyin ve düzenleyin</p>
-                </v-card-text>
-              </v-card>
-            </v-col>
-
-            <v-col cols="12" sm="6" md="3">
-              <v-card
-                  class="action-card"
-                  elevation="4"
-                  hover
-                  :to="{ name: 'Courts' }"
-              >
-                <v-card-text class="text-center pa-6">
-                  <v-icon
-                      icon="mdi-tennis-ball"
-                      size="64"
-                      color="warning"
-                      class="mb-4"
-                  />
-                  <h3 class="text-h5 font-weight-bold mb-2">Kort Durumu</h3>
-                  <p class="text-body-2">Mevcut kort müsaitlik durumunu kontrol edin</p>
-                </v-card-text>
-              </v-card>
+            <v-col cols="12" md="4" class="text-md-right">
+              <div class="date-time-widget">
+                <div class="current-date">{{ getCurrentDate() }}</div>
+                <div class="current-time">{{ getCurrentTime() }}</div>
+              </div>
             </v-col>
           </v-row>
-        </v-col>
-      </v-row>
+        </v-container>
+      </div>
 
-      <!-- Recent Activity - Now Full Width -->
-      <v-row>
-        <v-col cols="12">
-          <v-card elevation="4">
-            <v-card-title class="text-h5 pa-6 bg-primary text-white">
-              <v-icon icon="mdi-history" class="mr-2" />
-              Yaklaşan Dersler
-            </v-card-title>
-            <v-card-text class="pa-0">
-              <div v-if="loading" class="text-center pa-8">
-                <v-progress-circular indeterminate color="primary" class="mb-4"></v-progress-circular>
-                <p class="text-body-2">Dersler yükleniyor...</p>
-              </div>
+      <v-container>
+        <!-- Enhanced Stats Cards -->
+        <v-row class="mb-8">
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper primary-gradient">
+                  <v-icon icon="mdi-calendar-clock" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number primary--text">{{ upcomingReservations }}</h3>
+                  <p class="stat-label">Yaklaşan Dersler</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="success">mdi-trending-up</v-icon>
+                    <span class="trend-text">Bu hafta</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
 
-              <v-list v-else-if="recentReservations.length > 0">
-                <v-list-item
-                    v-for="reservation in recentReservations"
-                    :key="reservation.id"
-                    class="px-6 py-4"
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper success-gradient">
+                  <v-icon icon="mdi-tennis" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number success--text">{{ lessonsThisMonth }}</h3>
+                  <p class="stat-label">Bu Ayki Dersler</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="success">mdi-calendar-check</v-icon>
+                    <span class="trend-text">Bu ay</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper warning-gradient">
+                  <v-icon icon="mdi-clock" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number warning--text">{{ totalHours }}</h3>
+                  <p class="stat-label">Toplam Saat</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="info">mdi-chart-line</v-icon>
+                    <span class="trend-text">Toplam</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper amber-gradient">
+                  <v-icon icon="mdi-trophy" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number amber--text membership-text">{{ getMembershipTitle(currentMembershipType) }}</h3>
+                  <p class="stat-label">Üyelik Türü</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="amber">mdi-star</v-icon>
+                    <span class="trend-text">Aktif</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Enhanced Quick Actions -->
+        <v-row class="mb-8">
+          <v-col cols="12">
+            <div class="section-header mb-6">
+              <h2 class="section-title">Hızlı İşlemler</h2>
+              <p class="section-subtitle">Size en yakın işlemlere hızlıca erişin</p>
+            </div>
+            <v-row>
+              <v-col cols="12" sm="6" md="3" v-for="(action, index) in quickActions" :key="index">
+                <v-card
+                    class="action-card modern-action-card"
+                    elevation="0"
+                    hover
+                    :to="action.route ? action.route : undefined"
+                    @click="action.action ? action.action() : null"
                 >
-                  <template #prepend>
-                    <v-icon
-                        :icon="getReservationIcon(reservation.status)"
-                        :color="getReservationColor(reservation.status)"
-                    />
-                  </template>
-
-                  <v-list-item-title class="font-weight-medium">
-                    {{ reservation.courtName || reservation.instructorName || 'Ders Programı' }}
-                  </v-list-item-title>
-                  <v-list-item-subtitle>
-                    {{ formatDate(reservation.date) }} saat {{ reservation.startTime }}
-                    <span v-if="reservation.duration"> - {{ reservation.duration }} dakika</span>
-                    <span v-if="reservation.notes" class="text-caption d-block">{{ reservation.notes }}</span>
-                  </v-list-item-subtitle>
-
-                  <template #append>
-                    <div class="text-right">
-                      <v-chip
-                          :color="getReservationColor(reservation.status)"
-                          size="small"
-                          variant="flat"
-                          class="mb-1"
-                      >
-                        {{ getStatusText(reservation.status) }}
-                      </v-chip>
-                      <div class="text-caption text-grey">
-                        {{ reservation.instructorName ? `Eğitmen: ${reservation.instructorName}` : 'Ders Programı' }}
-                      </div>
+                  <div class="action-card-overlay"></div>
+                  <v-card-text class="action-content">
+                    <div class="action-icon-wrapper" :class="action.gradient">
+                      <v-icon :icon="action.icon" size="40" color="white" />
                     </div>
-                  </template>
-                </v-list-item>
-              </v-list>
+                    <div class="action-details">
+                      <h3 class="action-title">{{ action.title }}</h3>
+                      <p class="action-description">{{ action.description }}</p>
+                    </div>
+                    <div class="action-arrow">
+                      <v-icon icon="mdi-arrow-right" size="20" />
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
+          </v-col>
+        </v-row>
 
-              <div v-else class="text-center pa-8">
-                <v-icon
-                    icon="mdi-calendar-blank"
-                    size="64"
-                    color="grey-lighten-1"
-                    class="mb-4"
-                />
-                <p class="text-h6 text-grey">Yaklaşan ders yok</p>
-                <p class="text-body-2 text-grey">Gelecek tarihli hiçbir ders programınız bulunmuyor.</p>
-
-                <!-- Add New Reservation Button when no reservations -->
+        <!-- Enhanced Recent Activity -->
+        <v-row>
+          <v-col cols="12">
+            <v-card class="activity-card modern-card" elevation="0">
+              <div class="activity-header">
+                <div class="activity-header-content">
+                  <v-icon icon="mdi-history" class="header-icon" />
+                  <div class="header-text">
+                    <h3 class="header-title">Yaklaşan Dersler</h3>
+                    <p class="header-subtitle">Gelecek derslerin ve programların</p>
+                  </div>
+                </div>
                 <v-btn
-                    color="primary"
                     variant="outlined"
-                    class="mt-4"
+                    color="primary"
+                    size="small"
                     :to="{ name: 'Reservations' }"
-                    prepend-icon="mdi-calendar-plus"
+                    prepend-icon="mdi-plus"
                 >
-                  Yeni Rezervasyon Yap
+                  Yeni Rezervasyon
                 </v-btn>
               </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
+
+              <v-divider />
+
+              <v-card-text class="activity-content">
+                <div v-if="loading" class="loading-state">
+                  <v-progress-circular indeterminate color="primary" size="48" />
+                  <p class="loading-text">Dersler yükleniyor...</p>
+                </div>
+
+                <div v-else-if="recentReservations.length > 0" class="reservations-list">
+                  <div
+                      v-for="(reservation, index) in recentReservations"
+                      :key="reservation.id"
+                      class="reservation-item"
+                      :class="{ 'last-item': index === recentReservations.length - 1 }"
+                  >
+                    <div class="reservation-timeline">
+                      <div class="timeline-dot" :class="getReservationColor(reservation.status)"></div>
+                      <div v-if="index !== recentReservations.length - 1" class="timeline-line"></div>
+                    </div>
+
+                    <div class="reservation-content">
+                      <div class="reservation-main">
+                        <div class="reservation-info">
+                          <h4 class="reservation-title">
+                            {{ reservation.courtName || reservation.instructorName || 'Ders Programı' }}
+                          </h4>
+                          <p class="reservation-details">
+                            <span class="detail-item">
+                              <v-icon size="16" color="grey-darken-1">mdi-calendar</v-icon>
+                              {{ formatDate(reservation.date) }}
+                            </span>
+                            <span class="detail-item">
+                              <v-icon size="16" color="grey-darken-1">mdi-clock</v-icon>
+                              {{ reservation.startTime }}
+                            </span>
+                            <span v-if="reservation.duration" class="detail-item">
+                              <v-icon size="16" color="grey-darken-1">mdi-timer</v-icon>
+                              {{ reservation.duration }} dakika
+                            </span>
+                          </p>
+                          <p v-if="reservation.notes" class="reservation-notes">
+                            {{ reservation.notes }}
+                          </p>
+                        </div>
+
+                        <div class="reservation-meta">
+                          <v-chip
+                              :color="getReservationColor(reservation.status)"
+                              size="small"
+                              variant="flat"
+                              class="status-chip"
+                          >
+                            {{ getStatusText(reservation.status) }}
+                          </v-chip>
+                          <div v-if="reservation.instructorName" class="instructor-info">
+                            <v-icon size="16" color="grey">mdi-account</v-icon>
+                            <span>{{ reservation.instructorName }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else class="empty-state">
+                  <div class="empty-icon">
+                    <v-icon icon="mdi-calendar-blank" size="80" color="grey-lighten-2" />
+                  </div>
+                  <div class="empty-content">
+                    <h3 class="empty-title">Yaklaşan ders yok</h3>
+                    <p class="empty-description">Gelecek tarihli hiçbir ders programınız bulunmuyor.</p>
+                    <v-btn
+                        color="primary"
+                        variant="elevated"
+                        class="mt-4"
+                        :to="{ name: 'Reservations' }"
+                        prepend-icon="mdi-calendar-plus"
+                        size="large"
+                    >
+                      Yeni Rezervasyon Yap
+                    </v-btn>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-container>
     </v-container>
 
-    <!-- Profile Dialog -->
-    <v-dialog v-model="showProfileDialog" max-width="600">
-      <v-card>
-        <v-card-title class="text-h5 pa-6 bg-primary text-white">
-          <v-icon icon="mdi-account-circle" class="mr-2" />
-          Profil Bilgileri
-        </v-card-title>
+    <!-- Enhanced Profile Dialog -->
+    <v-dialog v-model="showProfileDialog" max-width="700" persistent>
+      <v-card class="profile-dialog">
+        <div class="profile-header">
+          <div class="profile-header-content">
+            <v-icon icon="mdi-account-circle" class="profile-icon" />
+            <div class="profile-header-text">
+              <h3 class="profile-title">Profil Bilgileri</h3>
+              <p class="profile-subtitle">Kişisel bilgilerinizi görüntüleyin</p>
+            </div>
+          </div>
+          <v-btn icon="mdi-close" variant="text" @click="showProfileDialog = false" />
+        </div>
 
-        <v-card-text class="pa-6">
+        <v-divider />
+
+        <v-card-text class="profile-content">
           <v-row>
             <v-col cols="12" sm="6">
-              <v-text-field
-                  v-model="userProfile.firstName"
-                  label="Ad"
-                  variant="outlined"
-                  readonly
-              />
+              <div class="profile-field">
+                <label class="field-label">Ad</label>
+                <v-text-field
+                    v-model="userProfile.firstName"
+                    variant="outlined"
+                    readonly
+                    density="comfortable"
+                />
+              </div>
             </v-col>
             <v-col cols="12" sm="6">
-              <v-text-field
-                  v-model="userProfile.lastName"
-                  label="Soyad"
-                  variant="outlined"
-                  readonly
-              />
+              <div class="profile-field">
+                <label class="field-label">Soyad</label>
+                <v-text-field
+                    v-model="userProfile.lastName"
+                    variant="outlined"
+                    readonly
+                    density="comfortable"
+                />
+              </div>
             </v-col>
             <v-col cols="12">
-              <v-text-field
-                  v-model="userProfile.email"
-                  label="E-posta"
-                  variant="outlined"
-                  readonly
-              />
+              <div class="profile-field">
+                <label class="field-label">E-posta</label>
+                <v-text-field
+                    v-model="userProfile.email"
+                    variant="outlined"
+                    readonly
+                    density="comfortable"
+                />
+              </div>
             </v-col>
             <v-col cols="12" sm="6">
-              <v-text-field
-                  v-model="userProfile.phone"
-                  label="Telefon"
-                  variant="outlined"
-                  readonly
-              />
+              <div class="profile-field">
+                <label class="field-label">Telefon</label>
+                <v-text-field
+                    v-model="userProfile.phone"
+                    variant="outlined"
+                    readonly
+                    density="comfortable"
+                />
+              </div>
             </v-col>
             <v-col cols="12" sm="6">
-              <v-text-field
-                  v-model="userProfile.membershipType"
-                  label="Üyelik Türü"
-                  variant="outlined"
-                  readonly
-              />
+              <div class="profile-field">
+                <label class="field-label">Üyelik Türü</label>
+                <v-text-field
+                    v-model="userProfile.membershipType"
+                    variant="outlined"
+                    readonly
+                    density="comfortable"
+                />
+              </div>
             </v-col>
             <v-col cols="12">
-              <v-text-field
-                  v-model="userProfile.joinDate"
-                  label="Kayıt Tarihi"
-                  variant="outlined"
-                  readonly
-              />
+              <div class="profile-field">
+                <label class="field-label">Kayıt Tarihi</label>
+                <v-text-field
+                    v-model="userProfile.joinDate"
+                    variant="outlined"
+                    readonly
+                    density="comfortable"
+                />
+              </div>
             </v-col>
           </v-row>
         </v-card-text>
 
-        <v-card-actions class="pa-6">
+        <v-divider />
+
+        <v-card-actions class="profile-actions">
           <v-spacer />
-          <v-btn color="primary" @click="showProfileDialog = false">Kapat</v-btn>
+          <v-btn color="primary" variant="elevated" @click="showProfileDialog = false">
+            Kapat
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -422,6 +458,55 @@ const userProfile = computed(() => {
         }) : '15 Ocak 2024'
   }
 })
+
+// Quick Actions Data
+const quickActions = computed(() => [
+  {
+    title: 'Kort Rezervasyonu',
+    description: 'Bir sonraki oyununuz için kort rezerve edin',
+    icon: 'mdi-calendar-plus',
+    gradient: 'primary-gradient',
+    route: { name: 'Reservations' }
+  },
+  {
+    title: 'Aidat Takibi',
+    description: 'Ödeme geçmişinizi ve aidat durumunuzu görüntüleyin',
+    icon: 'mdi-currency-try',
+    gradient: 'info-gradient',
+    route: { name: 'Dues' }
+  },
+  {
+    title: 'Profil Bilgileri',
+    description: 'Kişisel bilgilerinizi görüntüleyin ve düzenleyin',
+    icon: 'mdi-account-circle',
+    gradient: 'success-gradient',
+    action: () => showProfileDialog.value = true
+  },
+  {
+    title: 'Kort Durumu',
+    description: 'Mevcut kort müsaitlik durumunu kontrol edin',
+    icon: 'mdi-tennis-ball',
+    gradient: 'warning-gradient',
+    route: { name: 'Courts' }
+  }
+])
+
+// Date and Time functions
+const getCurrentDate = () => {
+  return new Date().toLocaleDateString('tr-TR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+const getCurrentTime = () => {
+  return new Date().toLocaleTimeString('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 
 // Helper function to calculate duration from startTime and endTime
 const calculateDurationFromTimes = (startTime: string, endTime: string): number => {
