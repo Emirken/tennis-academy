@@ -155,39 +155,5 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.login-page {
-  background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
-  min-height: 100vh;
-}
 
-.login-card {
-  border-radius: 16px;
-  background: white;
-}
-
-.gap-2 > * {
-  margin-bottom: 8px;
-}
-
-.gap-2 > *:last-child {
-  margin-bottom: 0;
-}
-
-:deep(.v-field--outlined) {
-  border-radius: 8px;
-}
-
-:deep(.v-field--focused .v-field__outline) {
-  border-color: #2E7D32;
-}
-
-@media (max-width: 600px) {
-  .login-card {
-    margin: 16px;
-  }
-
-  .pa-8 {
-    padding: 24px !important;
-  }
-}
 </style>

@@ -5,7 +5,7 @@ import App from './App.vue'
 import router from './router'
 import vuetify from './plugins/vuetify'
 import { useAuthStore } from './store/modules/auth'
-
+import './assets/styles/main.css'
 const app = createApp(App)
 const pinia = createPinia()
 

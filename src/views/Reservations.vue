@@ -725,48 +725,5 @@ watch(() => authStore.user, async (newUser, oldUser) => {
 </script>
 
 <style scoped>
-.reservations-page {
-  background-color: #fafafa;
-  min-height: calc(100vh - 140px);
-}
 
-.page-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #2E7D32;
-}
-
-.page-subtitle {
-  font-size: 1.1rem;
-  color: #666;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.reservation-form-card {
-  border-radius: 12px;
-  background: white;
-}
-
-.cost-display {
-  border-radius: 12px;
-}
-
-.cursor-pointer {
-  cursor: pointer;
-}
-
-:deep(.v-field--outlined) {
-  border-radius: 8px;
-}
-
-:deep(.v-field--focused .v-field__outline) {
-  border-color: #2E7D32;
-}
-
-@media (max-width: 960px) {
-  .page-title {
-    font-size: 2rem;
-  }
-}
 </style>

@@ -732,52 +732,5 @@ const getReservationColor = (status: string): string => {
 </script>
 
 <style scoped>
-.student-dashboard {
-  background-color: #fafafa;
-  min-height: calc(100vh - 140px);
-}
 
-.welcome-section {
-  background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);
-  color: white;
-  padding: 40px;
-  border-radius: 16px;
-}
-
-.welcome-section h1,
-.welcome-section p {
-  color: white;
-}
-
-.stat-card,
-.action-card {
-  border-radius: 12px;
-  transition: transform 0.3s ease;
-  height: 100%;
-}
-
-.action-card:hover {
-  transform: translateY(-4px);
-  cursor: pointer;
-}
-
-.stats-item {
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 12px;
-}
-
-.stats-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-@media (max-width: 960px) {
-  .welcome-section {
-    padding: 24px;
-  }
-
-  .welcome-section h1 {
-    font-size: 2rem;
-  }
-}
 </style>

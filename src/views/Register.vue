@@ -193,31 +193,5 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-.register-page {
-  background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
-  min-height: 100vh;
-}
 
-.register-card {
-  border-radius: 16px;
-  background: white;
-}
-
-:deep(.v-field--outlined) {
-  border-radius: 8px;
-}
-
-:deep(.v-field--focused .v-field__outline) {
-  border-color: #2E7D32;
-}
-
-@media (max-width: 600px) {
-  .register-card {
-    margin: 16px;
-  }
-
-  .pa-8 {
-    padding: 24px !important;
-  }
-}
 </style>
