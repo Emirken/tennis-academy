@@ -593,7 +593,7 @@ const fetchUserReservations = () => {
             date: reservationDate
           }
         })
-        .filter(reservation => {
+        .filter((reservation:any) => {
           const resMonth = reservation.date.getMonth()
           const resYear = reservation.date.getFullYear()
           const isThisMonth = resMonth === thisMonth && resYear === thisYear
@@ -619,7 +619,7 @@ const fetchUserReservations = () => {
 
     console.log('📊 Bu ayki ders sayısı:', {
       thisMonthReservations: thisMonthReservations.length,
-      totalReservationsThisMonth: thisMonthReservations.map(r => ({
+      totalReservationsThisMonth: thisMonthReservations.map((r:any) => ({
         date: r.date.toLocaleDateString('tr-TR'),
         status: r.status,
         courtName: r.courtName
