@@ -1,397 +1,475 @@
 <template>
   <div class="pricing-page">
-    <v-container class="py-8">
-      <!-- Page Header -->
-      <div class="text-center mb-12">
-        <h1 class="page-title mb-4">2025 Yılı Fiyat Listesi</h1>
-        <!-- Admin Controls -->
-        <div v-if="authStore.isAdmin" class="admin-controls mb-4">
-          <v-btn
-              v-if="!editMode"
-              color="primary"
-              variant="outlined"
-              prepend-icon="mdi-pencil"
-              @click="enableEditMode"
-          >
-            Fiyatları Düzenle
-          </v-btn>
-          <div v-else class="d-flex gap-2 justify-center">
-            <v-btn
-                color="success"
-                variant="flat"
-                prepend-icon="mdi-check"
-                @click="savePrices"
-                :loading="saving"
-            >
-              Değişiklikleri Kaydet
-            </v-btn>
-            <v-btn
-                color="error"
-                variant="outlined"
-                prepend-icon="mdi-close"
-                @click="cancelEdit"
-            >
-              İptal
-            </v-btn>
-          </div>
-        </div>
+    <v-container fluid class="pa-0">
+      <!-- Enhanced Welcome Section -->
+      <div class="welcome-section mt-8 mx-15 mb-8">
+        <v-container>
+          <v-row align="center" class="py-6">
+            <v-col cols="12" md="8">
+              <div class="welcome-content">
+                <h1 class="welcome-title mb-3">
+                  2025 Yılı Fiyat Listesi
+                </h1>
+                <p class="welcome-subtitle">
+                  Tenis akademi ders fiyatlarımız - En uygun paketlerimizi keşfedin!
+                </p>
+              </div>
+            </v-col>
+            <v-col cols="12" md="4" class="text-md-right">
+              <div class="date-time-widget" v-if="authStore.isAdmin">
+                <div class="current-date">Admin Kontrolü</div>
+                <div class="current-time">{{ getCurrentTime() }}</div>
+              </div>
+            </v-col>
+          </v-row>
+        </v-container>
       </div>
 
-      <!-- Main Pricing Grid -->
-      <v-row>
-        <!-- Özel Dersler -->
-        <v-col cols="12" md="6" class="mb-6">
-          <v-card class="pricing-card h-100" elevation="8">
-            <v-card-title class="section-title">Özel Dersler</v-card-title>
-            <v-card-text class="pa-6">
-              <v-list class="pricing-list">
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>1 Kişi (45 dk)</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.ozelDers1Kisi45dk }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.ozelDers1Kisi45dk"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>2 Kişi (60 dk)</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.ozelDers2Kisi60dk }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.ozelDers2Kisi60dk"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- Özel Grup Dersler -->
-        <v-col cols="12" md="6" class="mb-6">
-          <v-card class="pricing-card h-100" elevation="8">
-            <v-card-title class="section-title">Özel Grup Dersler</v-card-title>
-            <v-card-text class="pa-6">
-              <v-list class="pricing-list">
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>3 Kişi (8 Ders)</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.ozelGrup3Kisi }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.ozelGrup3Kisi"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>4 Kişi (8 Ders)</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.ozelGrup4Kisi }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.ozelGrup4Kisi"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- Özel Paket Dersler -->
-        <v-col cols="12" md="6" class="mb-6">
-          <v-card class="pricing-card h-100 featured-card" elevation="12">
-            <v-card-title class="section-title">Özel Paket Dersler</v-card-title>
-            <v-card-text class="pa-6">
-              <v-list class="pricing-list">
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>1 Kişi (8 Ders)</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.ozelPaket1Kisi }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.ozelPaket1Kisi"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>2 Kişi (8 Ders)</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.ozelPaket2Kisi }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.ozelPaket2Kisi"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- Yetişkin Grup Dersleri -->
-        <v-col cols="12" md="6" class="mb-6">
-          <v-card class="pricing-card h-100" elevation="8">
-            <v-card-title class="section-title">Yetişkin Grup Dersleri</v-card-title>
-            <v-card-text class="pa-6">
-              <v-list class="pricing-list">
-                <v-list-item class="pricing-item">
-                  <v-list-item-subtitle class="text-caption text-grey mb-2">Seviye</v-list-item-subtitle>
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>Başlangıç - Orta - İleri</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.yetiskinGrup }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.yetiskinGrup"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- Tenis Okulu -->
-        <v-col cols="12" md="6" class="mb-6">
-          <v-card class="pricing-card h-100" elevation="8">
-            <v-card-title class="section-title">Tenis Okulu</v-card-title>
-            <v-card-text class="pa-6">
-              <v-list class="pricing-list">
-                <v-list-item class="pricing-item">
-                  <v-list-item-subtitle class="text-caption text-grey mb-2">5-7 | 8-9 | 10-12 | 12-14 | 15-17</v-list-item-subtitle>
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>Yaş grupları</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.tenisOkuluYas }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.tenisOkuluYas"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-
-                <v-list-item class="pricing-item">
-                  <v-list-item-subtitle class="text-caption text-grey mb-2">4 Gün</v-list-item-subtitle>
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>Performans</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.tenisOkuluPerformans }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.tenisOkuluPerformans"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- Kort Rezervasyon -->
-        <v-col cols="12" md="6" class="mb-6">
-          <v-card class="pricing-card h-100" elevation="8">
-            <v-card-title class="section-title">Kort Rezervasyon</v-card-title>
-            <v-card-text class="pa-6">
-              <v-list class="pricing-list">
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>1 Saat</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.kortRezervasyonSaat }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.kortRezervasyonSaat"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-
-                <v-list-item class="pricing-item">
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>10 Saat (paket)</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.kortRezervasyonPaket }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.kortRezervasyonPaket"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-
-                <v-list-item class="pricing-item">
-                  <v-list-item-subtitle class="text-caption text-grey mb-2">1 saat</v-list-item-subtitle>
-                  <v-list-item-title class="d-flex justify-space-between">
-                    <span>Raket & Top</span>
-                    <span v-if="!editMode || !authStore.isAdmin" class="price">{{ pricing.raketTop }} ₺</span>
-                    <v-text-field
-                        v-else
-                        v-model.number="editPricing.raketTop"
-                        type="number"
-                        suffix="₺"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        class="price-input"
-                    />
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
-
-      <!-- Important Notes -->
-      <v-row justify="center" class="mt-8">
-        <v-col cols="12" md="10">
-          <v-card class="info-card" elevation="4">
-            <v-card-text class="pa-6">
-              <div class="important-notes">
-                <div class="note-item mb-4">
-                  <div class="d-flex align-start">
-                    <v-icon
-                        icon="mdi-information"
-                        color="#2E7D32"
-                        class="me-3 mt-1 flex-shrink-0"
-                    />
-                    <div class="note-text">
-                      <p class="text-body-1 mb-0">
-                        Paket dersler kayıt tarihinden itibaren maksimum 45 gün içinde tamamlanmalıdır
-                      </p>
+      <v-container>
+        <!-- Admin Controls -->
+        <div v-if="authStore.isAdmin" class="mb-8">
+          <v-row>
+            <v-col cols="12">
+              <v-card class="modern-card admin-controls-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="pa-6">
+                  <div class="d-flex justify-center">
+                    <v-btn
+                        v-if="!editMode"
+                        color="primary"
+                        variant="flat"
+                        prepend-icon="mdi-pencil"
+                        @click="enableEditMode"
+                        class="nav-btn"
+                    >
+                      Fiyatları Düzenle
+                    </v-btn>
+                    <div v-else class="d-flex gap-2">
+                      <v-btn
+                          color="success"
+                          variant="flat"
+                          prepend-icon="mdi-check"
+                          @click="savePrices"
+                          :loading="saving"
+                          class="nav-btn"
+                      >
+                        Değişiklikleri Kaydet
+                      </v-btn>
+                      <v-btn
+                          color="error"
+                          variant="outlined"
+                          prepend-icon="mdi-close"
+                          @click="cancelEdit"
+                          class="nav-btn"
+                      >
+                        İptal
+                      </v-btn>
                     </div>
                   </div>
-                </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+        </div>
 
-                <div class="note-item">
-                  <div class="d-flex align-start">
-                    <v-icon
-                        icon="mdi-information"
-                        color="#2E7D32"
-                        class="me-3 mt-1 flex-shrink-0"
-                    />
-                    <div class="note-text">
-                      <p class="text-body-1 mb-0">
-                        Grup çalışmalarımız 5-6 kişi ile sınırlı olup, haftada 2 gün, ayda 8 ders olarak yapılmaktadır.
-                        Bir ders süremiz 60 dakikadır. Yeni başlayan kursiyerlerimiz için raket, top vb. ihtiyaçlar
-                        kulübümüz tarafından karşılanmaktadır.
-                      </p>
-                    </div>
+        <!-- Main Pricing Grid -->
+        <v-row class="mb-8">
+          <!-- Özel Dersler -->
+          <v-col cols="12" md="6" class="mb-6">
+            <v-card class="modern-card h-100" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper primary-gradient">
+                  <v-icon icon="mdi-account" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number primary--text">Özel Dersler</h3>
+                  <p class="stat-label">Bireysel ve ikili dersler</p>
+                </div>
+              </v-card-text>
+              <v-card-text class="pa-6 pt-0">
+                <v-list class="pricing-list">
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">1 Kişi (45 dk)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.ozelDers1Kisi45dk }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.ozelDers1Kisi45dk"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">2 Kişi (60 dk)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.ozelDers2Kisi60dk }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.ozelDers2Kisi60dk"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <!-- Özel Paket Dersler -->
+          <v-col cols="12" md="6" class="mb-6">
+            <v-card class="modern-card h-100 featured-card" elevation="0">
+              <div class="stat-card-overlay success-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper success-gradient">
+                  <v-icon icon="mdi-star" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number success--text">Özel Paket Dersler</h3>
+                  <p class="stat-label">8 dersten oluşan paketler</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="success">mdi-trending-up</v-icon>
+                    <span class="trend-text">Popüler seçim</span>
                   </div>
                 </div>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
+              </v-card-text>
+              <v-card-text class="pa-6 pt-0">
+                <v-list class="pricing-list">
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">1 Kişi (8 Ders)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display featured">{{ pricing.ozelPaket1Kisi }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.ozelPaket1Kisi"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
 
-      <!-- Contact Information -->
-      <v-row justify="center" class="mt-6">
-        <v-col cols="12" md="8">
-          <v-card class="contact-card" elevation="4">
-            <v-card-text class="pa-6 text-center">
-              <h3 class="text-h5 mb-4">İletişim</h3>
-              <div class="d-flex justify-center align-center gap-4 flex-wrap">
-                <div class="d-flex align-center">
-                  <v-icon icon="mdi-phone" class="me-2" />
-                  <span class="text-h6">0551 850 8486</span>
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">2 Kişi (8 Ders)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display featured">{{ pricing.ozelPaket2Kisi }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.ozelPaket2Kisi"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <!-- Özel Grup Dersler -->
+          <v-col cols="12" md="6" class="mb-6">
+            <v-card class="modern-card h-100" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper info-gradient">
+                  <v-icon icon="mdi-account-group" size="32" color="white" />
                 </div>
-                <div class="d-flex align-center">
-                  <v-icon icon="mdi-instagram" class="me-2" />
-                  <span class="text-h6">urlatenis</span>
+                <div class="stat-details">
+                  <h3 class="stat-number info--text">Özel Grup Dersler</h3>
+                  <p class="stat-label">3-4 kişilik grup dersleri</p>
                 </div>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
+              </v-card-text>
+              <v-card-text class="pa-6 pt-0">
+                <v-list class="pricing-list">
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">3 Kişi (8 Ders)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.ozelGrup3Kisi }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.ozelGrup3Kisi"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
 
-      <!-- Success/Error Snackbars -->
-      <v-snackbar
-          v-model="showSuccessMessage"
-          color="success"
-          timeout="3000"
-          location="top"
-      >
-        <v-icon icon="mdi-check-circle" class="me-2" />
-        Fiyatlar başarıyla güncellendi!
-      </v-snackbar>
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">4 Kişi (8 Ders)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.ozelGrup4Kisi }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.ozelGrup4Kisi"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
 
-      <v-snackbar
-          v-model="showErrorMessage"
-          color="error"
-          timeout="4000"
-          location="top"
-      >
-        <v-icon icon="mdi-alert-circle" class="me-2" />
-        {{ errorMessage }}
-      </v-snackbar>
+          <!-- Yetişkin Grup Dersleri -->
+          <v-col cols="12" md="6" class="mb-6">
+            <v-card class="modern-card h-100" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper warning-gradient">
+                  <v-icon icon="mdi-account-multiple" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number warning--text">Yetişkin Grup Dersleri</h3>
+                  <p class="stat-label">Grup halinde dersler</p>
+                </div>
+              </v-card-text>
+              <v-card-text class="pa-6 pt-0">
+                <v-list class="pricing-list">
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">Yetişkin Grup (Aylık)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.yetiskinGrup }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.yetiskinGrup"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">Çocuk Grup (Aylık)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.cocukGrupAylik }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.cocukGrupAylik"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <!-- Tenis Okulu -->
+          <v-col cols="12" md="6" class="mb-6">
+            <v-card class="modern-card h-100" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper amber-gradient">
+                  <v-icon icon="mdi-school" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number amber--text">Tenis Okulu</h3>
+                  <p class="stat-label">Yaş ve performans grupları</p>
+                </div>
+              </v-card-text>
+              <v-card-text class="pa-6 pt-0">
+                <v-list class="pricing-list">
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">Yaş Grubu</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.tenisOkuluYas }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.tenisOkuluYas"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">Performans</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.tenisOkuluPerformans }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.tenisOkuluPerformans"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <!-- Kort Rezervasyon -->
+          <v-col cols="12" md="6" class="mb-6">
+            <v-card class="modern-card h-100" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper court-gradient">
+                  <v-icon icon="mdi-tennis-ball" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number success--text">Kort Rezervasyon</h3>
+                  <p class="stat-label">Saatlik kort kiralamaları</p>
+                </div>
+              </v-card-text>
+              <v-card-text class="pa-6 pt-0">
+                <v-list class="pricing-list">
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">1 Saat</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.kortRezervasyonSaat }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.kortRezervasyonSaat"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+
+                  <v-list-item class="pricing-item">
+                    <v-list-item-title class="d-flex justify-space-between align-center">
+                      <span class="service-name">10 Saat (paket)</span>
+                      <span v-if="!editMode || !authStore.isAdmin" class="price-display">{{ pricing.kortRezervasyonPaket }} ₺</span>
+                      <v-text-field
+                          v-else
+                          v-model.number="editPricing.kortRezervasyonPaket"
+                          type="number"
+                          suffix="₺"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="price-input"
+                      />
+                    </v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Additional Info Section -->
+        <v-row>
+          <v-col cols="12">
+            <v-card class="modern-card info-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper info-gradient">
+                  <v-icon icon="mdi-information" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number info--text">Önemli Bilgiler</h3>
+                  <p class="stat-label">Fiyatlar ve koşullar hakkında</p>
+                </div>
+              </v-card-text>
+              <v-card-text class="pa-6 pt-0">
+                <div class="info-text">
+                  <p>
+                    <v-icon icon="mdi-check-circle" color="success" class="mr-2" />
+                    Yeni başlayan kursiyerlerimiz için raket, top vb. ihtiyaçlar kulübümüz tarafından karşılanmaktadır.
+                  </p>
+                  <p>
+                    <v-icon icon="mdi-check-circle" color="success" class="mr-2" />
+                    Bir ders süremiz 60 dakikadır.
+                  </p>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Contact Information -->
+        <v-row justify="center" class="mt-6">
+          <v-col cols="12" md="8">
+            <v-card class="modern-card contact-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="pa-6 text-center">
+                <h3 class="text-h5 mb-4">İletişim</h3>
+                <div class="d-flex justify-center align-center gap-4 flex-wrap">
+                  <div class="d-flex align-center">
+                    <v-icon icon="mdi-phone" class="me-2" />
+                    <span class="text-h6">0551 850 8486</span>
+                  </div>
+                  <div class="d-flex align-center">
+                    <v-icon icon="mdi-instagram" class="me-2" />
+                    <span class="text-h6">urlatenis</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Success/Error Snackbars -->
+        <v-snackbar
+            v-model="showSuccessMessage"
+            color="success"
+            timeout="3000"
+            location="top"
+        >
+          <v-icon icon="mdi-check-circle" class="me-2" />
+          Fiyatlar başarıyla güncellendi!
+        </v-snackbar>
+
+        <v-snackbar
+            v-model="showErrorMessage"
+            color="error"
+            timeout="4000"
+            location="top"
+        >
+          <v-icon icon="mdi-alert-circle" class="me-2" />
+          {{ errorMessage }}
+        </v-snackbar>
+      </v-container>
     </v-container>
   </div>
 </template>
@@ -428,6 +506,15 @@ const pricing = reactive({
 
   // Yetişkin Grup Dersleri
   yetiskinGrup: 6000,
+  cocukGrupAylik: 6000,
+
+  // Kort Kiralama
+  kortKiralamaGunduz: 1000,
+  kortKiralamaAksam: 1200,
+
+  // Diğer Hizmetler
+  raketKiralama: 100,
+  topSatisi: 50,
 
   // Tenis Okulu
   tenisOkuluYas: 6000,
@@ -448,6 +535,11 @@ const editPricing = reactive({
   ozelPaket1Kisi: 15000,
   ozelPaket2Kisi: 25000,
   yetiskinGrup: 6000,
+  cocukGrupAylik: 6000,
+  kortKiralamaGunduz: 1000,
+  kortKiralamaAksam: 1200,
+  raketKiralama: 100,
+  topSatisi: 50,
   tenisOkuluYas: 6000,
   tenisOkuluPerformans: 10000,
   kortRezervasyonSaat: 1000,
@@ -456,6 +548,13 @@ const editPricing = reactive({
 })
 
 // Methods
+const getCurrentTime = () => {
+  return new Date().toLocaleTimeString('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 const enableEditMode = () => {
   editMode.value = true
   // Copy current prices to edit mode
@@ -538,7 +637,3 @@ onMounted(() => {
   loadPrices()
 })
 </script>
-
-<style scoped>
-
-</style>

@@ -1057,3 +1057,139 @@
 .modern-card:nth-child(2) { animation-delay: 0.2s; }
 .modern-card:nth-child(3) { animation-delay: 0.3s; }
 .modern-card:nth-child(4) { animation-delay: 0.4s; }
+
+/* Pricing Page Specific Styles */
+.pricing-list {
+    background: transparent;
+}
+
+.pricing-item {
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.pricing-item:last-child {
+    border-bottom: none;
+}
+
+.service-name {
+    font-weight: 600;
+    color: #374151;
+    font-size: 1rem;
+}
+
+.price-display {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #2E7D32;
+    background: rgba(46, 125, 50, 0.1);
+    padding: 8px 16px;
+    border-radius: 12px;
+    min-width: 100px;
+    text-align: center;
+}
+
+.price-display.featured {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    font-size: 1.3rem;
+}
+
+.price-input {
+    max-width: 120px;
+}
+
+.featured-card {
+    position: relative;
+}
+
+.featured-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-left: 50px solid transparent;
+    border-top: 50px solid #11998e;
+    z-index: 3;
+}
+
+.featured-card::after {
+    content: '★';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    color: white;
+    font-size: 20px;
+    z-index: 4;
+}
+
+.success-overlay {
+    background: linear-gradient(135deg, rgba(17,153,142, 0.05) 0%, rgba(56,239,125, 0.05) 100%);
+}
+
+.info-card {
+    border-left: 4px solid #4facfe;
+}
+
+.contact-card {
+    border-left: 4px solid #11998e;
+}
+
+.info-text {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #374151;
+}
+
+.info-text p {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.info-text p:last-child {
+    margin-bottom: 0;
+}
+
+/* Pricing Page Responsive Adjustments */
+@media (max-width: 960px) {
+    .welcome-section {
+        margin: 16px !important;
+        border-radius: 24px;
+    }
+
+    .welcome-title {
+        font-size: 2rem;
+    }
+
+    .stat-number {
+        font-size: 1.8rem;
+    }
+
+    .price-display {
+        font-size: 1rem;
+        padding: 6px 12px;
+        min-width: 80px;
+    }
+
+    .price-display.featured {
+        font-size: 1.1rem;
+    }
+
+    .service-name {
+        font-size: 0.9rem;
+    }
+
+    .stat-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+    }
+
+    .stat-icon-wrapper {
+        margin-bottom: 8px;
+    }
+}
