@@ -36,11 +36,10 @@
                   <div class="d-flex justify-center">
                     <v-btn
                         v-if="!editMode"
-                        color="primary"
                         variant="flat"
                         prepend-icon="mdi-pencil"
                         @click="enableEditMode"
-                        class="nav-btn"
+                        class="text-white view-color nav-btn"
                     >
                       Fiyatları Düzenle
                     </v-btn>
@@ -60,7 +59,7 @@
                           variant="outlined"
                           prepend-icon="mdi-close"
                           @click="cancelEdit"
-                          class="nav-btn"
+                          class="ml-2 nav-btn"
                       >
                         İptal
                       </v-btn>

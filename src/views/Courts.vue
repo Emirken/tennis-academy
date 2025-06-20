@@ -39,11 +39,10 @@
                   <div class="admin-action-buttons">
                     <v-btn
                         v-if="!editMode"
-                        color="primary"
                         variant="flat"
                         prepend-icon="mdi-pencil"
                         @click="enableEditMode"
-                        class="mr-2"
+                        class="text-white view-color mr-2"
                     >
                       Kort Durumlarını Düzenle
                     </v-btn>
