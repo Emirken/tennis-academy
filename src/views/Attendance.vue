@@ -1,61 +1,175 @@
 <template>
   <div class="attendance-page">
-    <v-container class="py-8">
-      <!-- Page Header -->
-      <div class="text-center mb-8">
-        <h1 class="page-title mb-4">Yoklama Yönetimi</h1>
-        <p class="page-subtitle">
-          Öğrenci devam durumlarını takip edin ve yönetin
-        </p>
-      </div>
-
-      <!-- Month/Class Selection -->
-      <v-card class="filter-card mb-6" elevation="4">
-        <v-card-title class="section-title">
-          Dönem Seçimi
-        </v-card-title>
-        <v-card-text class="pa-6">
-          <v-row>
-            <v-col cols="12" md="6">
-              <v-select
-                  v-model="selectedMonth"
-                  label="Ay"
-                  :items="months"
-                  item-title="text"
-                  item-value="value"
-                  variant="outlined"
-                  @update:model-value="loadAttendanceData"
-              />
+    <v-container fluid class="pa-0">
+      <!-- Enhanced Welcome Section -->
+      <div class="welcome-section mt-8 mx-15 mb-8">
+        <v-container>
+          <v-row align="center" class="py-6">
+            <v-col cols="12" md="8">
+              <div class="welcome-content">
+                <h1 class="welcome-title mb-3">
+                  <v-icon icon="mdi-clipboard-check" class="mr-3" color="white" />
+                  Yoklama Yönetimi
+                </h1>
+                <p class="welcome-subtitle">
+                  Öğrenci devam durumlarını takip edin ve yönetin
+                </p>
+              </div>
             </v-col>
-            <v-col cols="12" md="6">
-              <v-select
-                  v-model="selectedYear"
-                  label="Yıl"
-                  :items="years"
-                  variant="outlined"
-                  @update:model-value="loadAttendanceData"
-              />
+            <v-col cols="12" md="4" class="text-md-right">
+              <div class="date-time-widget">
+                <div class="current-date">{{ getMonthTitle() }}</div>
+                <div class="current-time">{{ selectedYear }} - {{ getTotalLessons() }} Ders</div>
+              </div>
             </v-col>
           </v-row>
-        </v-card-text>
-      </v-card>
+        </v-container>
+      </div>
 
-      <!-- Attendance Sheet -->
-      <v-card elevation="6" class="attendance-sheet mb-6">
-        <v-card-title class="attendance-title">
-          <div class="d-flex justify-space-between align-center w-100">
-            <div>
-              <v-icon icon="mdi-clipboard-check" class="me-2" />
-              Yoklama Listesi - {{ getMonthTitle() }} {{ selectedYear }}
+      <v-container>
+        <!-- Enhanced Stats Cards -->
+        <v-row class="mb-8">
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper primary-gradient">
+                  <v-icon icon="mdi-account-group" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number primary--text">{{ classStudents.length }}</h3>
+                  <p class="stat-label">Toplam Öğrenci</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="primary">mdi-account-multiple</v-icon>
+                    <span class="trend-text">Aktif sınıf</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper success-gradient">
+                  <v-icon icon="mdi-calendar-check" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number success--text">{{ getTotalLessons() }}</h3>
+                  <p class="stat-label">Toplam Ders</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="success">mdi-check-circle</v-icon>
+                    <span class="trend-text">Bu dönem</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper warning-gradient">
+                  <v-icon icon="mdi-check-all" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number warning--text">{{ getTotalAttendance() }}</h3>
+                  <p class="stat-label">Toplam Katılım</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="warning">mdi-trending-up</v-icon>
+                    <span class="trend-text">Devam eden</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper info-gradient">
+                  <v-icon icon="mdi-percent" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number info--text">{{ getOverallPercentage() }}%</h3>
+                  <p class="stat-label">Genel Devam</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="info">mdi-chart-line</v-icon>
+                    <span class="trend-text">Ortalama</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Enhanced Month/Year Selection -->
+        <v-card class="modern-card mb-8" elevation="0">
+          <div class="action-card-overlay"></div>
+          <v-card-title class="pa-6">
+            <div class="d-flex align-center">
+              <div class="stat-icon-wrapper primary-gradient mr-4" style="width: 48px; height: 48px;">
+                <v-icon icon="mdi-calendar" size="24" color="white" />
+              </div>
+              <div>
+                <h3 class="text-h6 font-weight-bold mb-0">Dönem Seçimi</h3>
+                <p class="text-body-2 text-grey-600 mb-0">Ay ve yıl seçerek yoklama verilerini görüntüleyin</p>
+              </div>
             </div>
-            <div class="d-flex gap-2">
-              <v-chip color="success" variant="flat" v-if="getTotalLessons() > 0">
+          </v-card-title>
+          <v-card-text class="pa-6">
+            <v-row>
+              <v-col cols="12" md="6">
+                <v-select
+                    v-model="selectedMonth"
+                    label="Ay"
+                    :items="months"
+                    item-title="text"
+                    item-value="value"
+                    variant="outlined"
+                    density="compact"
+                    prepend-inner-icon="mdi-calendar-month"
+                    @update:model-value="loadAttendanceData"
+                />
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-select
+                    v-model="selectedYear"
+                    label="Yıl"
+                    :items="years"
+                    variant="outlined"
+                    density="compact"
+                    prepend-inner-icon="mdi-calendar-range"
+                    @update:model-value="loadAttendanceData"
+                />
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+
+        <!-- Enhanced Attendance Sheet -->
+        <v-card class="modern-card attendance-sheet" elevation="0">
+          <div class="action-card-overlay"></div>
+          <v-card-title class="pa-6 d-flex justify-space-between align-center">
+            <div class="d-flex align-center">
+              <div class="stat-icon-wrapper success-gradient mr-4" style="width: 48px; height: 48px;">
+                <v-icon icon="mdi-clipboard-check" size="24" color="white" />
+              </div>
+              <div>
+                <h3 class="text-h6 font-weight-bold mb-0">Yoklama Listesi</h3>
+                <p class="text-body-2 text-grey-600 mb-0">{{ getMonthTitle() }} {{ selectedYear }} - Devam durumu takibi</p>
+              </div>
+            </div>
+            <div class="d-flex gap-2 align-center">
+              <v-chip color="success" variant="flat" class="mr-2 font-weight-bold" v-if="getTotalLessons() > 0">
                 {{ getTotalLessons() }} Ders
               </v-chip>
               <v-btn
-                  class="ml-3"
                   v-if="authStore.isAdmin"
-                  color="primary"
+                  class="view-color"
                   variant="flat"
                   prepend-icon="mdi-plus"
                   @click="showAddStudentDialog = true"
@@ -64,247 +178,230 @@
                 Öğrenci Ekle
               </v-btn>
             </div>
+          </v-card-title>
+
+          <v-card-text class="pa-0">
+            <div class="attendance-table-wrapper">
+              <table class="attendance-table">
+                <!-- Header Row -->
+                <thead>
+                <tr class="attendance-header-row">
+                  <th class="student-name-header">
+                    <strong>ÖĞRENCİ ADI SOYADI</strong>
+                  </th>
+                  <th
+                      v-for="(lesson, index) in monthLessons"
+                      :key="index"
+                      class="lesson-header-cell"
+                      :class="{ 'clickable': authStore.isAdmin }"
+                      @click="authStore.isAdmin ? openDatePicker(index) : null"
+                  >
+                    <div class="lesson-header-content">
+                      <div class="lesson-date">{{ formatLessonDate(lesson.date) }}</div>
+                      <div class="lesson-day">{{ formatLessonDay(lesson.date) }}</div>
+                      <v-icon v-if="authStore.isAdmin" size="12" class="edit-icon">mdi-pencil</v-icon>
+                    </div>
+                  </th>
+                  <th class="stats-header-cell">
+                    <div class="stats-header-grid">
+                      <div class="stat-header-cell"><strong>TOPLAM</strong></div>
+                      <div class="stat-header-cell"><strong>GELDİ</strong></div>
+                      <div class="stat-header-cell"><strong>GELMEDİ</strong></div>
+                      <div class="stat-header-cell"><strong>%</strong></div>
+                    </div>
+                  </th>
+                </tr>
+                </thead>
+
+                <tbody>
+                <!-- Student Rows -->
+                <tr
+                    v-for="student in classStudents"
+                    :key="student.id"
+                    class="student-row"
+                >
+                  <!-- Student Name -->
+                  <td class="student-name-cell">
+                    <div class="student-info">
+                      <v-avatar size="24" class="me-2" color="primary">
+                          <span class="text-white text-caption font-weight-bold">
+                            {{ getInitials(student.name) }}
+                          </span>
+                      </v-avatar>
+                      <span class="student-name">{{ student.name }}</span>
+                      <v-btn
+                          v-if="authStore.isAdmin"
+                          icon="mdi-delete"
+                          size="x-small"
+                          color="error"
+                          variant="text"
+                          class="ml-2"
+                          @click="removeStudent(student.id)"
+                      />
+                    </div>
+                  </td>
+
+                  <!-- Attendance Checkboxes -->
+                  <td
+                      v-for="(lesson, lessonIndex) in monthLessons"
+                      :key="lessonIndex"
+                      class="attendance-cell"
+                  >
+                    <v-checkbox
+                        :model-value="getAttendanceValue(student.id, lessonIndex)"
+                        color="success"
+                        hide-details
+                        density="compact"
+                        :disabled="!authStore.isAdmin"
+                        @update:model-value="(value) => updateAttendanceValue(student.id, lessonIndex, value)"
+                    />
+                  </td>
+
+                  <!-- Statistics -->
+                  <td class="stats-cell">
+                    <div class="stats-grid">
+                      <div class="stat-value total">{{ monthLessons.length }}</div>
+                      <div class="stat-value attended">{{ getAttendedCount(student.id) }}</div>
+                      <div class="stat-value absent">{{ getAbsentCount(student.id) }}</div>
+                      <div class="stat-value percentage">{{ getAttendancePercentage(student.id) }}%</div>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Summary Row -->
+                <tr class="summary-row">
+                  <td class="summary-name-cell">
+                    <strong>TOPLAM</strong>
+                  </td>
+                  <td
+                      v-for="(lesson, index) in monthLessons"
+                      :key="index"
+                      class="summary-attendance-cell"
+                  >
+                    <strong>{{ getLessonAttendanceCount(index) }}</strong>
+                  </td>
+                  <td class="summary-stats-cell">
+                    <div class="stats-grid">
+                      <div class="stat-value total"><strong>{{ getTotalPossibleAttendance() }}</strong></div>
+                      <div class="stat-value attended"><strong>{{ getTotalAttendance() }}</strong></div>
+                      <div class="stat-value absent"><strong>{{ getTotalAbsent() }}</strong></div>
+                      <div class="stat-value percentage"><strong>{{ getOverallPercentage() }}%</strong></div>
+                    </div>
+                  </td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-container>
+    </v-container>
+
+    <!-- Enhanced Date Picker Dialog -->
+    <v-dialog v-model="showDatePicker" max-width="400">
+      <v-card class="modern-card" elevation="8">
+        <v-card-title class="pa-6 bg-primary text-white">
+          <div class="d-flex align-center">
+            <v-icon icon="mdi-calendar" class="mr-3" />
+            <div>
+              <h3 class="text-h6 font-weight-bold mb-0">Ders Tarihi Seç</h3>
+              <p class="text-body-2 opacity-90 mb-0">{{ selectedLessonIndex + 1 }}. Ders için tarih belirleyin</p>
+            </div>
           </div>
         </v-card-title>
-
-        <v-card-text class="pa-0">
-          <div class="attendance-table-wrapper">
-            <table class="attendance-table">
-              <!-- Header Row -->
-              <thead>
-              <tr class="attendance-header-row">
-                <th class="student-name-header">
-                  <strong>ÖĞRENCİ ADI SOYADI</strong>
-                </th>
-                <th
-                    v-for="(lesson, index) in monthLessons"
-                    :key="index"
-                    class="lesson-header-cell"
-                    :class="{ 'clickable': authStore.isAdmin }"
-                    @click="authStore.isAdmin ? openDatePicker(index) : null"
-                >
-                  <div class="lesson-header-content">
-                    <div class="lesson-date">{{ formatLessonDate(lesson.date) }}</div>
-                    <div class="lesson-day">{{ formatLessonDay(lesson.date) }}</div>
-                    <v-icon v-if="authStore.isAdmin" size="12" class="edit-icon">mdi-pencil</v-icon>
-                  </div>
-                </th>
-                <th class="stats-header-cell">
-                  <div class="stats-header-grid">
-                    <div class="stat-header-cell"><strong>TOPLAM</strong></div>
-                    <div class="stat-header-cell"><strong>GELDİ</strong></div>
-                    <div class="stat-header-cell"><strong>GELMEDİ</strong></div>
-                    <div class="stat-header-cell"><strong>%</strong></div>
-                  </div>
-                </th>
-              </tr>
-              </thead>
-
-              <!-- Student Rows -->
-              <tbody>
-              <tr
-                  v-for="student in classStudents"
-                  :key="student.id"
-                  class="student-row"
-              >
-                <!-- Student Name -->
-                <td class="student-name-cell">
-                  <div class="student-info">
-                    <v-avatar size="24" class="me-2" color="primary">
-                        <span class="text-white text-caption font-weight-bold">
-                          {{ getInitials(student.name) }}
-                        </span>
-                    </v-avatar>
-                    <span class="student-name">{{ student.name }}</span>
-                    <v-btn
-                        v-if="authStore.isAdmin"
-                        icon="mdi-delete"
-                        size="x-small"
-                        color="error"
-                        variant="text"
-                        class="ml-2"
-                        @click="removeStudent(student.id)"
-                    />
-                  </div>
-                </td>
-
-                <!-- Attendance Checkboxes -->
-                <td
-                    v-for="(lesson, lessonIndex) in monthLessons"
-                    :key="lessonIndex"
-                    class="attendance-cell"
-                >
-                  <v-checkbox
-                      :model-value="getAttendanceValue(student.id, lessonIndex)"
-                      color="success"
-                      hide-details
-                      density="compact"
-                      :disabled="!authStore.isAdmin"
-                      @update:model-value="(value) => updateAttendanceValue(student.id, lessonIndex, value)"
-                  />
-                </td>
-
-                <!-- Statistics -->
-                <td class="stats-cell">
-                  <div class="stats-grid">
-                    <div class="stat-value total">{{ monthLessons.length }}</div>
-                    <div class="stat-value attended">{{ getAttendedCount(student.id) }}</div>
-                    <div class="stat-value absent">{{ getAbsentCount(student.id) }}</div>
-                    <div class="stat-value percentage">{{ getAttendancePercentage(student.id) }}%</div>
-                  </div>
-                </td>
-              </tr>
-
-              <!-- Summary Row -->
-              <tr class="summary-row">
-                <td class="summary-name-cell">
-                  <strong>TOPLAM</strong>
-                </td>
-                <td
-                    v-for="(lesson, index) in monthLessons"
-                    :key="index"
-                    class="summary-attendance-cell"
-                >
-                  <strong>{{ getLessonAttendanceCount(index) }}</strong>
-                </td>
-                <td class="summary-stats-cell">
-                  <div class="stats-grid">
-                    <div class="stat-value total"><strong>{{ getTotalPossibleAttendance() }}</strong></div>
-                    <div class="stat-value attended"><strong>{{ getTotalAttendance() }}</strong></div>
-                    <div class="stat-value absent"><strong>{{ getTotalAbsent() }}</strong></div>
-                    <div class="stat-value percentage"><strong>{{ getOverallPercentage() }}%</strong></div>
-                  </div>
-                </td>
-              </tr>
-              </tbody>
-            </table>
-          </div>
+        <v-card-text class="pa-6">
+          <v-date-picker
+              v-model="selectedDate"
+              color="primary"
+              full-width
+          />
         </v-card-text>
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn @click="closeDatePicker" variant="text">İptal</v-btn>
+          <v-btn color="primary" @click="updateSelectedDate" variant="flat">Kaydet</v-btn>
+        </v-card-actions>
       </v-card>
+    </v-dialog>
 
-      <!-- Class Statistics -->
-      <v-row class="mt-6">
-        <v-col cols="12" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-4">
-              <div class="stat-number">{{ classStudents.length }}</div>
-              <div class="stat-label">Toplam Öğrenci</div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-        <v-col cols="12" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-4">
-              <div class="stat-number">{{ monthLessons.length }}</div>
-              <div class="stat-label">Aylık Ders</div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-        <v-col cols="12" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-4">
-              <div class="stat-number">{{ getTotalAttendance() }}</div>
-              <div class="stat-label">Toplam Katılım</div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-        <v-col cols="12" md="3">
-          <v-card class="stat-card" elevation="4">
-            <v-card-text class="text-center pa-4">
-              <div class="stat-number">{{ getOverallPercentage() }}%</div>
-              <div class="stat-label">Genel Devam</div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
-
-      <!-- Date Picker Dialog -->
-      <v-dialog v-model="showDatePicker" max-width="400">
-        <v-card>
-          <v-card-title class="text-h6">
-            {{ selectedLessonIndex + 1 }}. Ders Tarihi Seç
-          </v-card-title>
-          <v-card-text class="pa-6">
-            <v-text-field
-                v-model="selectedDate"
-                label="Tarih"
+    <!-- Enhanced Add Student Dialog -->
+    <v-dialog v-model="showAddStudentDialog" max-width="500">
+      <v-card class="modern-card" elevation="8">
+        <v-card-title class="pa-6 bg-success text-white">
+          <div class="d-flex align-center">
+            <v-icon icon="mdi-account-plus" class="mr-3" />
+            <div>
+              <h3 class="text-h6 font-weight-bold mb-0">Öğrenci Ekle</h3>
+              <p class="text-body-2 opacity-90 mb-0">Sınıfa yeni öğrenci ekleyin</p>
+            </div>
+          </div>
+        </v-card-title>
+        <v-card-text class="pa-6">
+          <v-form v-model="formValid" ref="addStudentForm">
+            <v-select
+                v-model="selectedStudentId"
+                label="Öğrenci Seçin"
+                :items="availableStudents"
+                item-title="name"
+                item-value="id"
                 variant="outlined"
-                type="date"
-                hide-details
-            />
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn @click="closeDatePicker">İptal</v-btn>
-            <v-btn color="primary" @click="updateSelectedDate">Kaydet</v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
-
-      <!-- Add Student Dialog -->
-      <v-dialog v-model="showAddStudentDialog" max-width="500">
-        <v-card>
-          <v-card-title class="text-h5">Öğrenci Ekle</v-card-title>
-          <v-card-text>
-            <v-form ref="studentForm" v-model="formValid">
-              <v-select
-                  v-model="selectedStudentId"
-                  label="Öğrenci Seç"
-                  :items="availableStudents"
-                  item-title="name"
-                  item-value="id"
-                  variant="outlined"
-                  :rules="[v => !!v || 'Öğrenci seçimi gereklidir']"
-                  :loading="loadingStudents"
-                  class="mb-4"
-                  required
-              >
-                <template v-slot:no-data>
-                  <v-list-item>
-                    <v-list-item-title>
-                      {{ loadingStudents ? 'Öğrenciler yükleniyor...' : 'Eklenebilecek öğrenci bulunamadı' }}
-                    </v-list-item-title>
-                  </v-list-item>
-                </template>
-              </v-select>
-            </v-form>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn @click="closeAddStudentDialog">İptal</v-btn>
-            <v-btn
-                color="primary"
-                :disabled="!formValid || !selectedStudentId"
-                @click="addStudent"
-                :loading="addingStudent"
+                density="compact"
+                prepend-inner-icon="mdi-account"
+                :rules="[v => !!v || 'Öğrenci seçimi gereklidir']"
+                :loading="loadingStudents"
+                class="mb-4"
+                required
             >
-              Ekle
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
+              <template v-slot:no-data>
+                <v-list-item>
+                  <v-list-item-title>
+                    {{ loadingStudents ? 'Öğrenciler yükleniyor...' : 'Eklenebilecek öğrenci bulunamadı' }}
+                  </v-list-item-title>
+                </v-list-item>
+              </template>
+            </v-select>
+          </v-form>
+        </v-card-text>
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn @click="closeAddStudentDialog" variant="text">İptal</v-btn>
+          <v-btn
+              color="success"
+              :disabled="!formValid || !selectedStudentId"
+              @click="addStudent"
+              :loading="addingStudent"
+              variant="flat"
+          >
+            Ekle
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-      <!-- Success Messages -->
-      <v-snackbar
-          v-model="showSuccessMessage"
-          color="success"
-          timeout="3000"
-          location="top"
-      >
-        <v-icon icon="mdi-check-circle" class="me-2" />
+    <!-- Enhanced Success Messages -->
+    <v-snackbar
+        v-model="showSuccessMessage"
+        color="success"
+        timeout="3000"
+        location="top"
+    >
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-check-circle" class="mr-2" />
         {{ successMessage }}
-      </v-snackbar>
+      </div>
+    </v-snackbar>
 
-      <v-snackbar
-          v-model="showErrorMessage"
-          color="error"
-          timeout="4000"
-          location="top"
-      >
-        <v-icon icon="mdi-alert-circle" class="me-2" />
+    <v-snackbar
+        v-model="showErrorMessage"
+        color="error"
+        timeout="4000"
+        location="top"
+    >
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-alert-circle" class="mr-2" />
         {{ errorMessage }}
-      </v-snackbar>
-    </v-container>
+      </div>
+    </v-snackbar>
   </div>
 </template>
 
@@ -355,18 +452,18 @@ const months = [
   { text: 'Aralık', value: 12 }
 ]
 
-// Year options
+// Year options (ORİJİNAL)
 const years = ref([2024, 2025, 2026])
 
-// Students data by class - will be loaded from Firebase
+// Students data by class - will be loaded from Firebase (ORİJİNAL)
 const studentsData = reactive<Record<string, Array<{id: string, name: string}>>>({
   'baslangic-a': []
 })
 
-// Lesson dates - now editable
+// Lesson dates - now editable (ORİJİNAL)
 const monthLessons = ref<Array<{date: Date, dateString: string, lessonNumber: number}>>([])
 
-// Computed properties
+// Computed properties (ORİJİNAL)
 const classStudents = computed(() => {
   // Tek bir grup kullan - başlangıç grubu A
   return studentsData['baslangic-a'] || []
@@ -377,7 +474,7 @@ const availableStudents = computed(() => {
   return allStudents.value.filter(student => !currentStudentIds.includes(student.id))
 })
 
-// Methods
+// Methods (ORİJİNAL)
 const initializeLessons = () => {
   monthLessons.value = Array.from({ length: 8 }, (_, index) => {
     const today = new Date()
@@ -608,7 +705,7 @@ const updateSelectedDate = async () => {
   closeDatePicker()
 }
 
-// Utility methods
+// Utility methods (ORİJİNAL)
 const getInitials = (name: string): string => {
   return name.split(' ').map(n => n[0]).join('').toUpperCase()
 }
@@ -631,7 +728,7 @@ const getTotalLessons = (): number => {
   return monthLessons.value.length
 }
 
-// Statistics methods
+// Statistics methods (ORİJİNAL)
 const getAttendedCount = (studentId: string): number => {
   if (!attendanceData[studentId]) return 0
   return attendanceData[studentId].filter(Boolean).length || 0
@@ -675,25 +772,21 @@ const getOverallPercentage = (): number => {
   return total > 0 ? Math.round((attended / total) * 100) : 0
 }
 
-// Watch for month/year changes
+// Watch for month/year changes (ORİJİNAL)
 watch([selectedMonth, selectedYear], () => {
   loadAttendanceData()
 })
 
-// Update the click handler
+// Update the click handler (ORİJİNAL)
 watch(showAddStudentDialog, (newValue) => {
   if (newValue) {
     openAddStudentDialog()
   }
 })
 
-// Lifecycle
+// Lifecycle (ORİJİNAL)
 onMounted(() => {
   initializeLessons()
   loadAttendanceData()
 })
 </script>
-
-<style scoped>
-
-</style>
