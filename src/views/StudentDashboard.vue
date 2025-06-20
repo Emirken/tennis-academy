@@ -154,7 +154,7 @@
                 </div>
                 <v-btn
                     variant="outlined"
-                    color="primary"
+                    class="text-white"
                     size="small"
                     :to="{ name: 'Reservations' }"
                     prepend-icon="mdi-plus"

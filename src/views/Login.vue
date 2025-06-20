@@ -77,13 +77,12 @@
 
                   <v-btn
                       type="submit"
-                      color="primary"
                       variant="flat"
                       size="large"
                       :loading="authStore.loading"
                       :disabled="!valid"
                       block
-                      class="auth-submit-btn mb-4"
+                      class="view-color auth-submit-btn mb-4"
                   >
                     <v-icon icon="mdi-login" class="mr-2" />
                     Giriş Yap

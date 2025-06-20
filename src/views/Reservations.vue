@@ -139,13 +139,12 @@
                   <!-- Submit Button -->
                   <v-btn
                       type="submit"
-                      color="primary"
                       variant="flat"
                       size="large"
                       :loading="loading"
                       :disabled="!valid"
                       block
-                      class="reservation-submit-btn"
+                      class="view-color reservation-submit-btn"
                   >
                     <v-icon icon="mdi-calendar-plus" class="mr-2" />
                     Rezervasyon Yap
