@@ -2,7 +2,7 @@
   <v-app>
     <AppHeader />
 
-    <v-main>
+    <v-main class="page-info">
       <router-view />
     </v-main>
 
@@ -16,6 +16,11 @@ import AppFooter from '@/components/common/AppFooter.vue'
 </script>
 
 <style>
+
+.page-info{
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
 .v-application {
   font-family: 'Roboto', sans-serif;
 }

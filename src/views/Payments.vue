@@ -1,7 +1,8 @@
+<!--
 <template>
   <div class="payments-page">
     <v-container class="py-8">
-      <!-- Page Header -->
+      &lt;!&ndash; Page Header &ndash;&gt;
       <div class="text-center mb-8">
         <h1 class="page-title mb-4">Payment Management</h1>
         <p class="page-subtitle">
@@ -9,7 +10,7 @@
         </p>
       </div>
 
-      <!-- Payment Summary Cards -->
+      &lt;!&ndash; Payment Summary Cards &ndash;&gt;
       <v-row class="mb-8">
         <v-col cols="12" sm="6" md="3">
           <v-card class="summary-card" elevation="4">
@@ -73,7 +74,7 @@
       </v-row>
 
       <v-row>
-        <!-- Payment History -->
+        &lt;!&ndash; Payment History &ndash;&gt;
         <v-col cols="12" md="8">
           <v-card elevation="4">
             <v-card-title class="text-h5 pa-6 bg-primary text-white">
@@ -132,7 +133,7 @@
           </v-card>
         </v-col>
 
-        <!-- Payment Actions -->
+        &lt;!&ndash; Payment Actions &ndash;&gt;
         <v-col cols="12" md="4">
           <v-card class="mb-6" elevation="4">
             <v-card-title class="text-h5 pa-6 bg-success text-white">
@@ -174,7 +175,7 @@
             </v-card-text>
           </v-card>
 
-          <!-- Membership Info -->
+          &lt;!&ndash; Membership Info &ndash;&gt;
           <v-card elevation="4">
             <v-card-title class="text-h5 pa-6 bg-warning text-white">
               <v-icon icon="mdi-account-star" class="mr-2" />
@@ -224,7 +225,7 @@
       </v-row>
     </v-container>
 
-    <!-- Payment Dialog -->
+    &lt;!&ndash; Payment Dialog &ndash;&gt;
     <v-dialog v-model="paymentDialog" max-width="500">
       <v-card>
         <v-card-title class="text-h5">Process Payment</v-card-title>
@@ -263,7 +264,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- Upgrade Plan Dialog -->
+    &lt;!&ndash; Upgrade Plan Dialog &ndash;&gt;
     <v-dialog v-model="showUpgradeDialog" max-width="600">
       <v-card>
         <v-card-title class="text-h5">Upgrade Membership</v-card-title>
@@ -302,7 +303,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- Success Snackbar -->
+    &lt;!&ndash; Success Snackbar &ndash;&gt;
     <v-snackbar
         v-model="successSnackbar"
         color="success"
@@ -535,4 +536,4 @@ const selectPlan = (plan: any) => {
 
 <style scoped>
 
-</style>
+</style>-->

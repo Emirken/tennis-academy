@@ -56,11 +56,6 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('@/views/Reservations.vue')
       },
       {
-        path: 'payments',
-        name: 'Payments',
-        component: () => import('@/views/Payments.vue')
-      },
-      {
         path: 'dues',
         name: 'Dues',
         component: () => import('@/views/DuesTracking.vue')

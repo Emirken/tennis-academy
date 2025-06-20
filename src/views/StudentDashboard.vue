@@ -1,8 +1,8 @@
 <template>
   <div class="student-dashboard">
-    <v-container fluid class="pa-0">
+    <v-container fluid class=" pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mb-8">
+      <div class="welcome-section mt-8 mx-15 mb-8">
         <v-container>
           <v-row align="center" class="py-6">
             <v-col cols="12" md="8">
@@ -168,7 +168,7 @@
               <v-card-text class="activity-content">
                 <div v-if="loading" class="loading-state">
                   <v-progress-circular indeterminate color="primary" size="48" />
-                  <p class="loading-text">Dersler yükleniyor...</p>
+                  <p class="loading-text">Rezervasyonlar yükleniyor...</p>
                 </div>
 
                 <div v-else-if="recentReservations.length > 0" class="reservations-list">
@@ -189,20 +189,20 @@
                           <h4 class="reservation-title">
                             {{ reservation.courtName || reservation.instructorName || 'Ders Programı' }}
                           </h4>
-                          <p class="reservation-details">
-                            <span class="detail-item">
+                          <div class="reservation-details">
+                            <div class="detail-item">
                               <v-icon size="16" color="grey-darken-1">mdi-calendar</v-icon>
-                              {{ formatDate(reservation.date) }}
-                            </span>
-                            <span class="detail-item">
+                              <span>{{ formatDate(reservation.date) }}</span>
+                            </div>
+                            <div class="detail-item">
                               <v-icon size="16" color="grey-darken-1">mdi-clock</v-icon>
-                              {{ reservation.startTime }}
-                            </span>
-                            <span v-if="reservation.duration" class="detail-item">
+                              <span>{{ reservation.startTime }}</span>
+                            </div>
+                            <div v-if="reservation.duration" class="detail-item">
                               <v-icon size="16" color="grey-darken-1">mdi-timer</v-icon>
-                              {{ reservation.duration }} dakika
-                            </span>
-                          </p>
+                              <span>{{ reservation.duration }} dakika</span>
+                            </div>
+                          </div>
                           <p v-if="reservation.notes" class="reservation-notes">
                             {{ reservation.notes }}
                           </p>
@@ -226,130 +226,12 @@
                     </div>
                   </div>
                 </div>
-
-                <div v-else class="empty-state">
-                  <div class="empty-icon">
-                    <v-icon icon="mdi-calendar-blank" size="80" color="grey-lighten-2" />
-                  </div>
-                  <div class="empty-content">
-                    <h3 class="empty-title">Yaklaşan ders yok</h3>
-                    <p class="empty-description">Gelecek tarihli hiçbir ders programınız bulunmuyor.</p>
-                    <v-btn
-                        color="primary"
-                        variant="elevated"
-                        class="mt-4"
-                        :to="{ name: 'Reservations' }"
-                        prepend-icon="mdi-calendar-plus"
-                        size="large"
-                    >
-                      Yeni Rezervasyon Yap
-                    </v-btn>
-                  </div>
-                </div>
               </v-card-text>
             </v-card>
           </v-col>
         </v-row>
       </v-container>
     </v-container>
-
-    <!-- Enhanced Profile Dialog -->
-    <v-dialog v-model="showProfileDialog" max-width="700" persistent>
-      <v-card class="profile-dialog">
-        <div class="profile-header">
-          <div class="profile-header-content">
-            <v-icon icon="mdi-account-circle" class="profile-icon" />
-            <div class="profile-header-text">
-              <h3 class="profile-title">Profil Bilgileri</h3>
-              <p class="profile-subtitle">Kişisel bilgilerinizi görüntüleyin</p>
-            </div>
-          </div>
-          <v-btn icon="mdi-close" variant="text" @click="showProfileDialog = false" />
-        </div>
-
-        <v-divider />
-
-        <v-card-text class="profile-content">
-          <v-row>
-            <v-col cols="12" sm="6">
-              <div class="profile-field">
-                <label class="field-label">Ad</label>
-                <v-text-field
-                    v-model="userProfile.firstName"
-                    variant="outlined"
-                    readonly
-                    density="comfortable"
-                />
-              </div>
-            </v-col>
-            <v-col cols="12" sm="6">
-              <div class="profile-field">
-                <label class="field-label">Soyad</label>
-                <v-text-field
-                    v-model="userProfile.lastName"
-                    variant="outlined"
-                    readonly
-                    density="comfortable"
-                />
-              </div>
-            </v-col>
-            <v-col cols="12">
-              <div class="profile-field">
-                <label class="field-label">E-posta</label>
-                <v-text-field
-                    v-model="userProfile.email"
-                    variant="outlined"
-                    readonly
-                    density="comfortable"
-                />
-              </div>
-            </v-col>
-            <v-col cols="12" sm="6">
-              <div class="profile-field">
-                <label class="field-label">Telefon</label>
-                <v-text-field
-                    v-model="userProfile.phone"
-                    variant="outlined"
-                    readonly
-                    density="comfortable"
-                />
-              </div>
-            </v-col>
-            <v-col cols="12" sm="6">
-              <div class="profile-field">
-                <label class="field-label">Üyelik Türü</label>
-                <v-text-field
-                    v-model="userProfile.membershipType"
-                    variant="outlined"
-                    readonly
-                    density="comfortable"
-                />
-              </div>
-            </v-col>
-            <v-col cols="12">
-              <div class="profile-field">
-                <label class="field-label">Kayıt Tarihi</label>
-                <v-text-field
-                    v-model="userProfile.joinDate"
-                    variant="outlined"
-                    readonly
-                    density="comfortable"
-                />
-              </div>
-            </v-col>
-          </v-row>
-        </v-card-text>
-
-        <v-divider />
-
-        <v-card-actions class="profile-actions">
-          <v-spacer />
-          <v-btn color="primary" variant="elevated" @click="showProfileDialog = false">
-            Kapat
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </div>
 </template>
 
