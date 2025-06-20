@@ -1,9 +1,8 @@
-
-/*# new Css*/
 /* Modern Dashboard Styles */
 /* Enhanced Welcome Section */
 .welcome-section {
     background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    backdrop-filter: blur(20px);
     border-radius: 32px;
     position: relative;
     overflow: hidden;
@@ -29,12 +28,13 @@
     font-weight: 800;
     color: white;
     text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    letter-spacing: -0.02em;
 }
 
 .welcome-subtitle {
     font-size: 1.2rem;
     color: rgba(255,255,255,0.9);
-    font-weight: 300;
+    font-weight: 400;
 }
 
 .date-time-widget {
@@ -44,13 +44,14 @@
     padding: 20px;
     text-align: center;
     border: 1px solid rgba(255,255,255,0.2);
+    color: white;
 }
 
 .current-date {
-    font-size: 1rem;
+    font-size: 1.1rem;
     color: rgba(255,255,255,0.9);
     margin-bottom: 8px;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .current-time {
@@ -58,6 +59,7 @@
     color: white;
     font-weight: 700;
     font-family: 'Roboto Mono', monospace;
+    letter-spacing: -0.02em;
 }
 
 /* Modern Stats Cards */
@@ -76,13 +78,19 @@
     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
 }
 
+/* Stat Card Specific Styles */
+.stat-card {
+    position: relative;
+    overflow: hidden;
+}
+
 .stat-card-overlay {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.1) 100%);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
     pointer-events: none;
 }
 
@@ -106,6 +114,7 @@
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
+    margin-bottom: 16px;
 }
 
 .stat-icon-wrapper::before {
@@ -118,6 +127,11 @@
     background: inherit;
     filter: blur(20px);
     opacity: 0.3;
+}
+
+/* Gradient Backgrounds */
+.court-gradient {
+    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
 }
 
 .primary-gradient {
@@ -140,6 +154,28 @@
     background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
+/* Card Types */
+.admin-controls-card {
+    border-left: 4px solid #667eea;
+}
+
+.court-overview-card .court-title {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.date-selection-card {
+    border-left: 4px solid #4CAF50;
+}
+
+.schedule-card .v-card-title {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.legend-card {
+    border-left: 4px solid #FF9800;
+}
+
+/* Stats and Numbers */
 .stat-details {
     flex: 1;
 }
@@ -147,7 +183,7 @@
 .stat-number {
     font-size: 2.2rem;
     font-weight: 800;
-    line-height: 1;
+    line-height: 1.2;
     margin-bottom: 4px;
 }
 
@@ -170,6 +206,16 @@
     margin-bottom: 8px;
 }
 
+.occupancy-percentage {
+    font-size: 1.2rem;
+}
+
+.quick-stats {
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 12px;
+    margin-top: 16px;
+}
+
 .stat-trend {
     display: flex;
     align-items: center;
@@ -180,6 +226,118 @@
     font-size: 0.8rem;
     color: #9ca3af;
     font-weight: 500;
+}
+
+/* Schedule Table Styles */
+.schedule-table-container {
+    overflow-x: auto;
+}
+
+.schedule-table {
+    min-width: 600px;
+}
+
+.table-header th {
+    background: rgba(102, 126, 234, 0.1);
+    font-weight: 600;
+    padding: 16px 12px;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+}
+
+.time-column {
+    width: 100px;
+    min-width: 100px;
+}
+
+.court-column {
+    width: 150px;
+    min-width: 150px;
+    text-align: center;
+}
+
+.time-slot-row:nth-child(even) {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.time-cell {
+    padding: 16px 12px;
+    font-weight: 600;
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.time-display {
+    font-size: 0.9rem;
+    color: #667eea;
+}
+
+.court-cell {
+    padding: 8px;
+    text-align: center;
+}
+
+/* Slot Status Styles */
+.slot-status {
+    padding: 12px 8px;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    min-height: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.slot-status:hover {
+    transform: scale(1.05);
+}
+
+.slot-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-available {
+    background: rgba(76, 175, 80, 0.1);
+    border: 2px solid rgba(76, 175, 80, 0.3);
+    color: #2E7D32;
+}
+
+.status-occupied {
+    background: rgba(244, 67, 54, 0.1);
+    border: 2px solid rgba(244, 67, 54, 0.3);
+    color: #C62828;
+}
+
+.status-maintenance {
+    background: rgba(255, 152, 0, 0.1);
+    border: 2px solid rgba(255, 152, 0, 0.3);
+    color: #E65100;
+}
+
+.status-closed {
+    background: rgba(158, 158, 158, 0.1);
+    border: 2px solid rgba(158, 158, 158, 0.3);
+    color: #424242;
+}
+
+/* Legend Styles */
+.legend-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    font-weight: 500;
+}
+
+/* Admin Action Buttons */
+.admin-action-buttons .v-btn {
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.admin-action-buttons .v-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
 /* Section Headers */
@@ -549,128 +707,6 @@
     background: #f9fafb;
 }
 
-/* Responsive Design */
-@media (max-width: 960px) {
-    .welcome-title {
-        font-size: 2rem;
-    }
-
-    .welcome-subtitle {
-        font-size: 1rem;
-    }
-
-    .date-time-widget {
-        margin-top: 16px;
-    }
-
-    .current-time {
-        font-size: 1.5rem;
-    }
-
-    .stat-content {
-        padding: 20px;
-    }
-
-    .stat-number {
-        font-size: 1.8rem;
-    }
-
-    .action-content {
-        padding: 20px;
-        min-height: 160px;
-    }
-
-    .reservation-main {
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .reservation-meta {
-        align-items: flex-start;
-        width: 100%;
-    }
-
-    .reservation-details {
-        flex-direction: column;
-        gap: 8px;
-    }
-}
-
-@media (max-width: 600px) {
-    .welcome-section {
-        margin: 0 -16px;
-        border-radius: 0;
-    }
-
-    .stat-content {
-        flex-direction: column;
-        text-align: center;
-        gap: 12px;
-    }
-
-    .action-content {
-        min-height: 140px;
-    }
-
-    .activity-header {
-        flex-direction: column;
-        gap: 16px;
-        align-items: flex-start;
-    }
-
-    .activity-content {
-        padding: 24px;
-    }
-
-    .reservation-item {
-        padding: 16px 0;
-    }
-
-    .profile-content {
-        padding: 24px;
-    }
-}
-
-/* Smooth Animations */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.modern-card {
-    animation: fadeInUp 0.6s ease-out forwards;
-}
-
-.modern-card:nth-child(1) { animation-delay: 0.1s; }
-.modern-card:nth-child(2) { animation-delay: 0.2s; }
-.modern-card:nth-child(3) { animation-delay: 0.3s; }
-.modern-card:nth-child(4) { animation-delay: 0.4s; }
-
-/* Custom Scrollbar */
-.reservations-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.reservations-list::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 3px;
-}
-
-.reservations-list::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-.reservations-list::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
-
 /* Modern Header Styles */
 .modern-header {
     position: relative;
@@ -877,9 +913,147 @@
     margin: 0;
 }
 
-/* Responsive adjustments */
+/* Custom Scrollbar */
+.reservations-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.reservations-list::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.reservations-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.reservations-list::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Responsive Design */
 @media (max-width: 960px) {
+    .welcome-title {
+        font-size: 2rem;
+    }
+
+    .welcome-subtitle {
+        font-size: 1rem;
+    }
+
+    .date-time-widget {
+        margin-top: 16px;
+    }
+
+    .current-time {
+        font-size: 1.5rem;
+    }
+
+    .stat-content {
+        padding: 20px;
+    }
+
+    .stat-number {
+        font-size: 1.8rem;
+    }
+
+    .action-content {
+        padding: 20px;
+        min-height: 160px;
+    }
+
+    .reservation-main {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .reservation-meta {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .reservation-details {
+        flex-direction: column;
+        gap: 8px;
+    }
+
     .brand-text {
         display: none;
     }
 }
+
+@media (max-width: 768px) {
+    .welcome-title {
+        font-size: 2rem;
+    }
+
+    .admin-action-buttons {
+        margin-top: 16px;
+    }
+
+    .admin-action-buttons .d-flex {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .admin-action-buttons .v-btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .welcome-section {
+        margin: 0 -16px;
+        border-radius: 0;
+    }
+
+    .stat-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+
+    .action-content {
+        min-height: 140px;
+    }
+
+    .activity-header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+    }
+
+    .activity-content {
+        padding: 24px;
+    }
+
+    .reservation-item {
+        padding: 16px 0;
+    }
+
+    .profile-content {
+        padding: 24px;
+    }
+}
+
+/* Smooth Animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modern-card {
+    animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.modern-card:nth-child(1) { animation-delay: 0.1s; }
+.modern-card:nth-child(2) { animation-delay: 0.2s; }
+.modern-card:nth-child(3) { animation-delay: 0.3s; }
+.modern-card:nth-child(4) { animation-delay: 0.4s; }
