@@ -1,245 +1,441 @@
-<!-- Payment Info Dialog -->
-<v-dialog v-model="showPaymentInfo" max-width="500">
-<v-card>
-  <v-card-title class="text-h6 pa-4 bg-primary text-white">
-    <v-icon icon="mdi-credit-card" class="mr-2" />
-    Ödeme Bilgileri
-  </v-card-title>
-  <v-card-text class="pa-6">
-    <p class="text-body-1 mb-4">
-      Gelecek ay için otomatik ödeme bilgileriniz:
-    </p>
-    <v-list dense>
-      <v-list-item>
-        <v-list-item-title>Tutar:</v-list-item-title>
-        <v-list-item-subtitle>{{ formatCurrency(packageInfo.monthlyPrice) }}</v-list-item-subtitle>
-      </v-list-item>
-      <v-list-item>
-        <v-list-item-title>Ödeme Tarihi:</v-list-item-title>
-        <v-list-item-subtitle>{{ nextMonthStartDate }}</v-list-item-subtitle>
-      </v-list-item>
-      <v-list-item>
-        <v-list-item-title>Ders Sayısı:</v-list-item-title>
-        <v-list-item-subtitle>{{ packageInfo.monthlyLessons }} ders</v-list-item-subtitle>
-      </v-list-item>
-    </v-list>
-  </v-card-text>
-  <v-card-actions>
-    <v-spacer />
-    <v-btn color="primary" @click="showPaymentInfo = false">Tamam</v-btn>
-  </v-card-actions>
-</v-card>
-</v-dialog><template>
+<template>
   <div class="dues-tracking">
-    <v-container class="py-8">
-      <!-- Page Header -->
-      <div class="text-center mb-8">
-        <h1 class="page-title mb-4">Aidat Takibi</h1>
-        <p class="page-subtitle">
-          Ders paketinizi ve ödeme durumunuzu takip edin
-        </p>
+    <v-container fluid class="pa-0">
+      <!-- Enhanced Welcome Section -->
+      <div class="welcome-section mt-8 mx-15 mb-8">
+        <v-container>
+          <v-row align="center" class="py-6">
+            <v-col cols="12" md="8">
+              <div class="welcome-content">
+                <h1 class="welcome-title mb-3">
+                  Aidat Takibi
+                </h1>
+                <p class="welcome-subtitle">
+                  Ders paketinizi ve ödeme durumunuzu takip edin
+                </p>
+              </div>
+            </v-col>
+            <v-col cols="12" md="4" class="text-md-right">
+              <div class="date-time-widget">
+                <div class="current-date">{{ currentMonthName }}</div>
+                <div class="current-time">{{ statusMessage }}</div>
+              </div>
+            </v-col>
+          </v-row>
+        </v-container>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="text-center py-12">
-        <v-progress-circular indeterminate color="primary" size="64" class="mb-4"></v-progress-circular>
-        <p class="text-h6">Verileriniz yükleniyor...</p>
-      </div>
+      <v-container>
+        <!-- Loading State -->
+        <div v-if="loading" class="loading-state">
+          <v-progress-circular indeterminate color="primary" size="64" class="mb-4"></v-progress-circular>
+          <p class="loading-text">Verileriniz yükleniyor...</p>
+        </div>
 
-      <!-- Main Content -->
-      <div v-else>
-        <!-- Current Package Info -->
-        <v-row class="mb-8">
-          <v-col cols="12">
-            <v-card elevation="6" class="package-card">
-              <v-card-title class="text-h5 pa-6 bg-primary text-white">
-                <v-icon icon="mdi-package-variant" class="mr-2" />
-                Mevcut Paketiniz
-              </v-card-title>
-              <v-card-text class="pa-6">
-                <v-row align="center">
-                  <v-col cols="12" md="8">
-                    <h3 class="text-h4 font-weight-bold text-primary mb-2">
-                      {{ packageInfo.name }}
-                    </h3>
-                    <p class="text-h6 text-success font-weight-medium mb-1">
-                      Aylık Ücretiniz: {{ formatCurrency(packageInfo.monthlyPrice) }}
-                    </p>
-                    <p class="text-body-1 text-grey">
-                      {{ packageInfo.description }}
-                    </p>
-                  </v-col>
-                  <v-col cols="12" md="4" class="text-center">
-                    <v-icon
-                        :icon="packageInfo.icon"
-                        size="80"
-                        :color="packageInfo.color"
-                        class="mb-2"
-                    />
-                  </v-col>
-                </v-row>
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
+        <!-- Main Content -->
+        <div v-else>
+          <!-- Current Package Stats -->
+          <v-row class="mb-8">
+            <v-col cols="12" sm="6" md="3">
+              <v-card class="stat-card modern-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="stat-content">
+                  <div class="stat-icon-wrapper primary-gradient">
+                    <v-icon icon="mdi-calendar-clock" size="32" color="white" />
+                  </div>
+                  <div class="stat-details">
+                    <h3 class="stat-number primary--text">{{ currentMonthUsed }}</h3>
+                    <p class="stat-label">Kullanılan Ders</p>
+                    <div class="stat-trend">
+                      <v-icon size="16" color="primary">mdi-trending-up</v-icon>
+                      <span class="trend-text">Bu ay</span>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-        <!-- Current Month Status -->
-        <v-row class="mb-8">
-          <v-col cols="12" md="6">
-            <v-card elevation="4" class="h-100">
-              <v-card-title class="text-h6 pa-4 bg-success text-white">
-                <v-icon icon="mdi-calendar-month" class="mr-2" />
-                Bu Ay ({{ currentMonthName }})
-              </v-card-title>
-              <v-card-text class="pa-6">
-                <div class="mb-4">
-                  <div class="d-flex justify-space-between align-center mb-2">
-                    <span class="text-body-1">Kullanılan Ders:</span>
-                    <span class="text-h6 font-weight-bold text-success">
-                      {{ currentMonthUsed }}
-                    </span>
+            <v-col cols="12" sm="6" md="3">
+              <v-card class="stat-card modern-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="stat-content">
+                  <div class="stat-icon-wrapper success-gradient">
+                    <v-icon icon="mdi-calendar-check" size="32" color="white" />
                   </div>
-                  <div class="d-flex justify-space-between align-center mb-3">
-                    <span class="text-body-1">Kalan Ders:</span>
-                    <span class="text-h6 font-weight-bold" :class="remainingLessonsColor">
-                      {{ currentMonthRemaining }}
-                    </span>
+                  <div class="stat-details">
+                    <h3 class="stat-number success--text">{{ currentMonthRemaining }}</h3>
+                    <p class="stat-label">Kalan Ders</p>
+                    <div class="stat-trend">
+                      <v-chip
+                          size="small"
+                          :color="statusChipColor"
+                          variant="flat"
+                      >
+                        {{ statusMessage }}
+                      </v-chip>
+                    </div>
                   </div>
-                  <v-progress-linear
-                      :model-value="usagePercentage"
-                      height="12"
-                      rounded
-                      :color="progressColor"
-                      class="mb-3"
-                  />
-                  <div class="text-center">
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" sm="6" md="3">
+              <v-card class="stat-card modern-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="stat-content">
+                  <div class="stat-icon-wrapper warning-gradient">
+                    <v-icon icon="mdi-currency-try" size="32" color="white" />
+                  </div>
+                  <div class="stat-details">
+                    <h3 class="stat-number warning--text">{{ formatCurrency(packageInfo.monthlyPrice) }}</h3>
+                    <p class="stat-label">Aylık Ücret</p>
+                    <div class="stat-trend">
+                      <v-icon size="16" color="warning">mdi-credit-card</v-icon>
+                      <span class="trend-text">Otomatik</span>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" sm="6" md="3">
+              <v-card class="stat-card modern-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="stat-content">
+                  <div class="stat-icon-wrapper info-gradient">
+                    <v-icon icon="mdi-package-variant" size="32" color="white" />
+                  </div>
+                  <div class="stat-details">
+                    <h3 class="stat-number info--text">{{ packageInfo.monthlyLessons }}</h3>
+                    <p class="stat-label">Aylık Ders</p>
+                    <div class="stat-trend">
+                      <v-icon size="16" color="info">mdi-calendar-month</v-icon>
+                      <span class="trend-text">Toplam</span>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <!-- Current Package Info -->
+          <v-row class="mb-8">
+            <v-col cols="12">
+              <div class="section-header mb-6">
+                <h2 class="section-title">Mevcut Paketiniz</h2>
+                <p class="section-subtitle">Paket detayları ve özellikleri</p>
+              </div>
+              <v-card class="modern-card package-info-card" elevation="0">
+                <div class="stat-card-overlay package-overlay"></div>
+                <v-card-text class="pa-6">
+                  <v-row align="center">
+                    <v-col cols="12" md="8">
+                      <div class="package-content">
+                        <h3 class="package-title mb-3">{{ packageInfo.name }}</h3>
+                        <p class="package-description mb-4">{{ packageInfo.description }}</p>
+                        <div class="package-details">
+                          <div class="detail-item">
+                            <v-icon icon="mdi-currency-try" color="success" class="mr-2" />
+                            <span class="detail-text">Aylık Ücret: <strong>{{ formatCurrency(packageInfo.monthlyPrice) }}</strong></span>
+                          </div>
+                          <div class="detail-item">
+                            <v-icon icon="mdi-calendar-month" color="primary" class="mr-2" />
+                            <span class="detail-text">Ders Sayısı: <strong>{{ packageInfo.monthlyLessons }} ders/ay</strong></span>
+                          </div>
+                          <div class="detail-item">
+                            <v-icon icon="mdi-calendar-clock" color="info" class="mr-2" />
+                            <span class="detail-text">Yenileme: <strong>{{ nextMonthStartDate }}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+                    </v-col>
+                    <v-col cols="12" md="4" class="text-center">
+                      <div class="package-icon-wrapper">
+                        <v-icon
+                            :icon="packageInfo.icon"
+                            size="80"
+                            :color="packageInfo.color"
+                        />
+                      </div>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <!-- Monthly Usage Progress -->
+          <v-row class="mb-8">
+            <v-col cols="12" md="6">
+              <v-card class="modern-card usage-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="pa-6">
+                  <div class="usage-header mb-4">
+                    <h3 class="usage-title">Bu Ay Kullanım</h3>
                     <v-chip
-                        :color="statusChipColor"
+                        size="large"
+                        :color="progressColor"
                         variant="flat"
-                        size="small"
+                        class="usage-chip"
                     >
-                      {{ statusMessage }}
+                      {{ Math.round(usagePercentage) }}%
                     </v-chip>
                   </div>
+
+                  <v-progress-linear
+                      :model-value="usagePercentage"
+                      :color="progressColor"
+                      height="12"
+                      rounded
+                      class="mb-4"
+                  ></v-progress-linear>
+
+                  <div class="usage-stats">
+                    <div class="usage-stat-item">
+                      <span class="usage-stat-number">{{ currentMonthUsed }}</span>
+                      <span class="usage-stat-label">Kullanılan</span>
+                    </div>
+                    <div class="usage-stat-item">
+                      <span class="usage-stat-number">{{ currentMonthRemaining }}</span>
+                      <span class="usage-stat-label">Kalan</span>
+                    </div>
+                    <div class="usage-stat-item">
+                      <span class="usage-stat-number">{{ packageInfo.monthlyLessons }}</span>
+                      <span class="usage-stat-label">Toplam</span>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" md="6">
+              <v-card class="modern-card payment-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="pa-6">
+                  <div class="payment-header mb-4">
+                    <h3 class="payment-title">Gelecek Ödeme</h3>
+                    <v-btn
+                        color="primary"
+                        variant="outlined"
+                        size="small"
+                        @click="showPaymentInfo = true"
+                        class="payment-info-btn"
+                    >
+                      <v-icon icon="mdi-information" class="mr-1" />
+                      Detay
+                    </v-btn>
+                  </div>
+
+                  <div class="payment-details">
+                    <div class="payment-detail-item">
+                      <v-icon icon="mdi-calendar" color="info" class="mr-3" />
+                      <div>
+                        <p class="payment-detail-title">Tarih</p>
+                        <p class="payment-detail-value">{{ nextMonthStartDate }}</p>
+                      </div>
+                    </div>
+
+                    <div class="payment-detail-item">
+                      <v-icon icon="mdi-currency-try" color="success" class="mr-3" />
+                      <div>
+                        <p class="payment-detail-title">Tutar</p>
+                        <p class="payment-detail-value">{{ formatCurrency(packageInfo.monthlyPrice) }}</p>
+                      </div>
+                    </div>
+
+                    <div class="payment-detail-item">
+                      <v-icon icon="mdi-book-open-page-variant" color="warning" class="mr-3" />
+                      <div>
+                        <p class="payment-detail-title">Ders Sayısı</p>
+                        <p class="payment-detail-value">{{ packageInfo.monthlyLessons }} ders</p>
+                      </div>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <!-- Current Month Reservations -->
+          <v-row class="mb-8">
+            <v-col cols="12">
+              <div class="section-header mb-6">
+                <h2 class="section-title">Bu Ayki Dersleriniz</h2>
+                <p class="section-subtitle">{{ currentMonthName }} dönemi ders kayıtlarınız</p>
+              </div>
+              <v-card class="modern-card reservations-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="pa-6">
+                  <div v-if="currentMonthReservations.length === 0" class="empty-state">
+                    <v-icon icon="mdi-calendar-blank" size="64" color="grey" class="empty-icon" />
+                    <h3 class="empty-title">Bu ay henüz ders kaydınız yok</h3>
+                    <p class="empty-description">
+                      Yeni ders rezervasyonu yapmak için rezervasyon sayfasını ziyaret edin.
+                    </p>
+                  </div>
+
+                  <div v-else class="reservations-list">
+                    <div
+                        v-for="(reservation, index) in currentMonthReservations"
+                        :key="reservation.id"
+                        class="reservation-item"
+                        :class="{ 'last-item': index === currentMonthReservations.length - 1 }"
+                    >
+                      <div class="reservation-timeline">
+                        <div
+                            class="timeline-dot"
+                            :class="getStatusColor(reservation.status)"
+                        ></div>
+                        <div
+                            v-if="index !== currentMonthReservations.length - 1"
+                            class="timeline-line"
+                        ></div>
+                      </div>
+
+                      <div class="reservation-content">
+                        <div class="reservation-main">
+                          <div class="reservation-info">
+                            <h4 class="reservation-title">
+                              {{ reservation.courtName || `Kort ${reservation.courtId}` }}
+                            </h4>
+                            <div class="reservation-details">
+                              <div class="detail-item">
+                                <v-icon icon="mdi-calendar" size="16" />
+                                <span>{{ formatDate(reservation.date) }}</span>
+                              </div>
+                              <div class="detail-item">
+                                <v-icon icon="mdi-clock" size="16" />
+                                <span>{{ reservation.startTime }} - {{ reservation.endTime }}</span>
+                              </div>
+                              <div v-if="reservation.instructorName" class="detail-item">
+                                <v-icon icon="mdi-account-tie" size="16" />
+                                <span>{{ reservation.instructorName }}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="reservation-meta">
+                            <v-chip
+                                size="small"
+                                :color="getStatusColor(reservation.status)"
+                                variant="flat"
+                                class="status-chip"
+                            >
+                              <v-icon
+                                  :icon="getStatusIcon(reservation.status)"
+                                  size="16"
+                                  class="mr-1"
+                              />
+                              {{ getStatusText(reservation.status) }}
+                            </v-chip>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <!-- Overall Statistics -->
+          <v-row>
+            <v-col cols="12">
+              <div class="section-header mb-6">
+                <h2 class="section-title">Genel İstatistikler</h2>
+                <p class="section-subtitle">Tüm zamanlar ders istatistikleriniz</p>
+              </div>
+              <v-card class="modern-card statistics-card" elevation="0">
+                <div class="stat-card-overlay"></div>
+                <v-card-text class="pa-6">
+                  <v-row>
+                    <v-col cols="12" sm="6" md="3">
+                      <div class="statistic-item">
+                        <div class="statistic-icon-wrapper primary-gradient">
+                          <v-icon icon="mdi-calendar-multiple" size="24" color="white" />
+                        </div>
+                        <div class="statistic-content">
+                          <h4 class="statistic-number">{{ totalReservations }}</h4>
+                          <p class="statistic-label">Toplam Rezervasyon</p>
+                        </div>
+                      </div>
+                    </v-col>
+
+                    <v-col cols="12" sm="6" md="3">
+                      <div class="statistic-item">
+                        <div class="statistic-icon-wrapper success-gradient">
+                          <v-icon icon="mdi-check-circle" size="24" color="white" />
+                        </div>
+                        <div class="statistic-content">
+                          <h4 class="statistic-number">{{ completedLessons }}</h4>
+                          <p class="statistic-label">Tamamlanan Ders</p>
+                        </div>
+                      </div>
+                    </v-col>
+
+                    <v-col cols="12" sm="6" md="3">
+                      <div class="statistic-item">
+                        <div class="statistic-icon-wrapper warning-gradient">
+                          <v-icon icon="mdi-close-circle" size="24" color="white" />
+                        </div>
+                        <div class="statistic-content">
+                          <h4 class="statistic-number">{{ cancelledLessons }}</h4>
+                          <p class="statistic-label">İptal Edilen</p>
+                        </div>
+                      </div>
+                    </v-col>
+
+                    <v-col cols="12" sm="6" md="3">
+                      <div class="statistic-item">
+                        <div class="statistic-icon-wrapper info-gradient">
+                          <v-icon icon="mdi-calendar-month-outline" size="24" color="white" />
+                        </div>
+                        <div class="statistic-content">
+                          <h4 class="statistic-number">{{ totalMonths }}</h4>
+                          <p class="statistic-label">Aktif Ay</p>
+                        </div>
+                      </div>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+        </div>
+
+        <!-- Payment Info Dialog -->
+        <v-dialog v-model="showPaymentInfo" max-width="500">
+          <v-card class="modern-dialog">
+            <v-card-title class="dialog-title pa-6">
+              <v-icon icon="mdi-credit-card" class="mr-2" />
+              Ödeme Bilgileri
+            </v-card-title>
+            <v-card-text class="pa-6">
+              <p class="dialog-description mb-4">
+                Gelecek ay için otomatik ödeme bilgileriniz:
+              </p>
+              <div class="payment-info-list">
+                <div class="payment-info-item">
+                  <span class="info-label">Tutar:</span>
+                  <span class="info-value">{{ formatCurrency(packageInfo.monthlyPrice) }}</span>
                 </div>
-
-                <v-alert
-                    v-if="currentMonthRemaining === 0"
-                    type="warning"
-                    variant="tonal"
-                    class="mb-4"
-                >
-                  <strong>Uyarı:</strong> Bu ayki ders hakkınız tükendi!
-                  Gelecek ay {{ packageInfo.monthlyLessons }} yeni ders hakkınız olacak.
-                </v-alert>
-
-                <v-alert
-                    v-else-if="currentMonthRemaining <= 2"
-                    type="info"
-                    variant="tonal"
-                    class="mb-4"
-                >
-                  <strong>Bilgi:</strong> Sadece {{ currentMonthRemaining }} ders hakkınız kaldı.
-                  Planlarınızı buna göre yapın.
-                </v-alert>
-              </v-card-text>
-            </v-card>
-          </v-col>
-
-          <v-col cols="12" md="6">
-            <v-card elevation="4" class="h-100">
-              <v-card-title class="text-h6 pa-4 bg-info text-white">
-                <v-icon icon="mdi-chart-line" class="mr-2" />
-                Genel İstatistikler
-              </v-card-title>
-              <v-card-text class="pa-6">
-                <div class="stats-grid">
-                  <div class="stat-item">
-                    <div class="stat-number text-primary">{{ totalReservations }}</div>
-                    <div class="stat-label">Toplam Ders</div>
-                  </div>
-                  <div class="stat-item">
-                    <div class="stat-number text-success">{{ completedLessons }}</div>
-                    <div class="stat-label">Tamamlanan</div>
-                  </div>
-                  <div class="stat-item">
-                    <div class="stat-number text-warning">{{ cancelledLessons }}</div>
-                    <div class="stat-label">İptal Edilen</div>
-                  </div>
-                  <div class="stat-item">
-                    <div class="stat-number text-info">{{ totalMonths }}</div>
-                    <div class="stat-label">Aktif Ay</div>
-                  </div>
+                <div class="payment-info-item">
+                  <span class="info-label">Ödeme Tarihi:</span>
+                  <span class="info-value">{{ nextMonthStartDate }}</span>
                 </div>
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
-
-        <!-- Next Month Preview -->
-        <v-row class="mb-8">
-          <v-col cols="12">
-            <v-card elevation="4">
-              <v-card-title class="text-h6 pa-4 bg-warning text-white">
-                <v-icon icon="mdi-calendar-arrow-right" class="mr-2" />
-                Gelecek Ay ({{ nextMonthName }})
-              </v-card-title>
-              <v-card-text class="pa-6">
-                <v-row align="center">
-                  <v-col cols="12">
-                    <h4 class="text-h6 mb-2">Yenilenecek Haklarınız</h4>
-                    <p class="text-body-1 mb-1">
-                      <strong>{{ packageInfo.monthlyLessons }} adet</strong> yeni ders hakkı
-                    </p>
-                    <p class="text-body-1 mb-1">
-                      <strong>{{ formatCurrency(packageInfo.monthlyPrice) }}</strong> aylık ücret
-                    </p>
-                    <p class="text-caption text-grey">
-                      {{ nextMonthStartDate }} tarihinde otomatik olarak yenilenecek
-                    </p>
-                  </v-col>
-
-                </v-row>
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
-
-        <!-- End of Main Content -->
-      </div>
-
-      <!-- Payment Info Dialog -->
-      <v-dialog v-model="showPaymentInfo" max-width="500">
-        <v-card>
-          <v-card-title class="text-h6 pa-4 bg-primary text-white">
-            <v-icon icon="mdi-credit-card" class="mr-2" />
-            Ödeme Bilgileri
-          </v-card-title>
-          <v-card-text class="pa-6">
-            <p class="text-body-1 mb-4">
-              Gelecek ay için otomatik ödeme bilgileriniz:
-            </p>
-            <v-list dense>
-              <v-list-item>
-                <v-list-item-title>Tutar:</v-list-item-title>
-                <v-list-item-subtitle>{{ formatCurrency(packageInfo.monthlyPrice) }}</v-list-item-subtitle>
-              </v-list-item>
-              <v-list-item>
-                <v-list-item-title>Ödeme Tarihi:</v-list-item-title>
-                <v-list-item-subtitle>{{ nextMonthStartDate }}</v-list-item-subtitle>
-              </v-list-item>
-              <v-list-item>
-                <v-list-item-title>Ders Sayısı:</v-list-item-title>
-                <v-list-item-subtitle>{{ packageInfo.monthlyLessons }} ders</v-list-item-subtitle>
-              </v-list-item>
-            </v-list>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn color="primary" @click="showPaymentInfo = false">Tamam</v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
+                <div class="payment-info-item">
+                  <span class="info-label">Ders Sayısı:</span>
+                  <span class="info-value">{{ packageInfo.monthlyLessons }} ders</span>
+                </div>
+              </div>
+            </v-card-text>
+            <v-card-actions class="pa-6 pt-0">
+              <v-spacer />
+              <v-btn color="primary" variant="flat" @click="showPaymentInfo = false">Tamam</v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+      </v-container>
     </v-container>
   </div>
 </template>
@@ -380,6 +576,7 @@ const packagePricing = {
 // State
 const loading = ref(true)
 const reservations = ref<any[]>([])
+const showPaymentInfo = ref(false)
 let unsubscribe: (() => void) | null = null
 
 // Computed properties
@@ -580,5 +777,5 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-
+/* Styles are handled in main.css */
 </style>

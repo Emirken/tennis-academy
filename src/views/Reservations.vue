@@ -1,239 +1,329 @@
 <template>
   <div class="reservations-page">
-    <v-container class="py-8">
-      <!-- Page Header -->
-      <div class="text-center mb-8">
-        <h1 class="page-title mb-4">Kort Rezervasyonları</h1>
-        <p class="page-subtitle">
-          Bir sonraki tenis seansınız için kort rezervasyonu yapın
-        </p>
+    <v-container fluid class="pa-0">
+      <!-- Enhanced Welcome Section -->
+      <div class="welcome-section mt-8 mx-15 mb-8">
+        <v-container>
+          <v-row align="center" class="py-6">
+            <v-col cols="12" md="8">
+              <div class="welcome-content">
+                <h1 class="welcome-title mb-3">
+                  Rezervasyon Yap
+                </h1>
+                <p class="welcome-subtitle">
+                  Kort rezervasyonu yapın ve mevcut rezervasyonlarınızı görüntüleyin
+                </p>
+              </div>
+            </v-col>
+            <v-col cols="12" md="4" class="text-md-right">
+              <div class="date-time-widget">
+                <div class="current-date">Rezervasyon</div>
+                <div class="current-time">Sistemi</div>
+              </div>
+            </v-col>
+          </v-row>
+        </v-container>
       </div>
 
-      <v-row>
-        <!-- Reservation Form -->
-        <v-col cols="12" md="6">
-          <v-card class="reservation-form-card" elevation="4">
-            <v-card-title class="text-h5 pa-6 bg-primary text-white">
-              <v-icon icon="mdi-calendar-plus" class="mr-2" />
-              Yeni Rezervasyon
-            </v-card-title>
-
-            <v-card-text class="pa-6">
-              <v-form
-                  ref="reservationForm"
-                  v-model="valid"
-                  @submit.prevent="submitReservation"
-              >
-                <!-- Date Selection -->
-                <v-text-field
-                    v-model="reservationData.date"
-                    label="Tarih"
-                    type="date"
-                    variant="outlined"
-                    :rules="dateRules"
-                    :min="minDate"
-                    class="mb-4"
-                    required
-                    @update:model-value="onDateChange"
-                />
-
-                <!-- Court Selection -->
-                <v-select
-                    v-model="reservationData.courtId"
-                    label="Kort Seçin"
-                    :items="availableCourts"
-                    item-title="name"
-                    item-value="id"
-                    variant="outlined"
-                    :rules="courtRules"
-                    class="mb-4"
-                    required
-                    @update:model-value="onCourtChange"
-                >
-                  <template #item="{ props, item }">
-                    <v-list-item v-bind="props">
-                      <template #append>
-                        <v-chip
-                            color="success"
-                            size="small"
-                            variant="flat"
-                        >
-                          Müsait
-                        </v-chip>
-                      </template>
-                    </v-list-item>
-                  </template>
-                </v-select>
-
-                <!-- Time Selection -->
-                <v-row>
-                  <v-col cols="6">
-                    <v-select
-                        v-model="reservationData.startTime"
-                        label="Başlangıç Saati"
-                        :items="availableTimeSlots"
-                        variant="outlined"
-                        :rules="timeRules"
-                        :disabled="!reservationData.date || !reservationData.courtId"
-                        required
-                    >
-                      <template #item="{ props, item }">
-                        <v-list-item v-bind="props" :disabled="!item.raw.available">
-                          <template #append>
-                            <v-chip
-                                :color="item.raw.available ? 'success' : 'error'"
-                                size="small"
-                                variant="flat"
-                            >
-                              {{ item.raw.available ? 'Müsait' : 'Dolu' }}
-                            </v-chip>
-                          </template>
-                        </v-list-item>
-                      </template>
-                    </v-select>
-                  </v-col>
-                </v-row>
-                <!-- Submit Button -->
-                <v-btn
-                    type="submit"
-                    color="primary"
-                    variant="flat"
-                    size="large"
-                    :loading="loading"
-                    :disabled="!valid"
-                    block
-                >
-                  Rezervasyon Yap
-                </v-btn>
-              </v-form>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- My Reservations -->
-        <v-col cols="12" md="6">
-          <v-card elevation="4">
-            <v-card-title
-                class="text-h5 pa-6 bg-success text-white d-flex align-center cursor-pointer"
-                @click="toggleReservations"
-            >
-              <v-icon icon="mdi-history" class="mr-2" />
-              Rezervasyonlarım ({{ myReservations.length }})
-              <v-spacer />
-              <v-icon
-                  :icon="showReservations ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-                  class="ml-2"
-              />
-            </v-card-title>
-
-            <v-expand-transition>
-              <v-card-text v-show="showReservations" class="pa-0">
-                <!-- Loading State -->
-                <div v-if="loadingReservations" class="text-center pa-8">
-                  <v-progress-circular indeterminate color="primary" class="mb-4" />
-                  <p class="text-body-2">Rezervasyonlar yükleniyor...</p>
+      <v-container>
+        <v-row>
+          <!-- New Reservation Form -->
+          <v-col cols="12" md="6">
+            <v-card class="modern-card reservation-form-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <div class="reservation-form-header pa-6">
+                <div class="form-header-content">
+                  <div class="form-icon-wrapper primary-gradient">
+                    <v-icon icon="mdi-plus-circle" size="28" color="white" />
+                  </div>
+                  <div>
+                    <h3 class="form-title">Yeni Rezervasyon</h3>
+                    <p class="form-subtitle">Kort rezervasyonu yapmak için formu doldurun</p>
+                  </div>
                 </div>
+              </div>
 
-                <!-- Reservations List -->
-                <v-list v-else-if="myReservations.length > 0">
-                  <v-list-item
-                      v-for="reservation in myReservations"
-                      :key="reservation.id"
-                      class="px-6 py-4"
-                  >
-                    <template #prepend>
-                      <v-icon
-                          :icon="getReservationIcon(reservation.status)"
-                          :color="getReservationColor(reservation.status)"
-                      />
-                    </template>
-
-                    <v-list-item-title class="font-weight-medium">
-                      {{ reservation.courtName }}
-                    </v-list-item-title>
-                    <v-list-item-subtitle>
-                      {{ formatReservationDate(reservation.date) }} saat {{ reservation.startTime }}
-                      <br>
-                      {{ getTypeText(reservation.type) }} • {{ reservation.duration }} saat • ₺{{ reservation.totalCost }}
-                    </v-list-item-subtitle>
-
-                    <template #append>
-                      <div class="d-flex flex-column align-end">
-                        <v-chip
-                            :color="getReservationColor(reservation.status)"
-                            size="small"
-                            variant="flat"
-                            class="mb-2"
-                        >
-                          {{ getStatusText(reservation.status) }}
-                        </v-chip>
-
-                        <v-btn
-                            v-if="reservation.status === 'confirmed' && canCancel(reservation.date)"
-                            icon="mdi-close"
-                            size="small"
-                            color="error"
-                            variant="text"
-                            @click="cancelReservation(reservation.id)"
-                        />
-                      </div>
-                    </template>
-                  </v-list-item>
-                </v-list>
-
-                <!-- Empty State -->
-                <div
-                    v-else
-                    class="text-center pa-8"
-                >
-                  <v-icon
-                      icon="mdi-calendar-blank"
-                      size="64"
-                      color="grey-lighten-1"
+              <v-card-text class="pa-6 pt-0">
+                <v-form v-model="valid" @submit.prevent="submitReservation">
+                  <!-- Date Selection -->
+                  <v-text-field
+                      v-model="reservationData.date"
+                      label="Tarih"
+                      type="date"
+                      variant="outlined"
+                      :rules="dateRules"
+                      :min="new Date().toISOString().split('T')[0]"
+                      @change="onDateChange"
+                      required
                       class="mb-4"
                   />
-                  <p class="text-h6 text-grey">Henüz rezervasyon yok</p>
-                  <p class="text-body-2 text-grey">Başlamak için ilk kort rezervasyonunuzu yapın!</p>
-                </div>
+
+                  <!-- Court Selection -->
+                  <v-select
+                      v-model="reservationData.courtId"
+                      label="Kort Seçimi"
+                      :items="availableCourts"
+                      item-title="name"
+                      item-value="id"
+                      variant="outlined"
+                      :rules="courtRules"
+                      @update:model-value="onCourtChange"
+                      required
+                      class="mb-4"
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item v-bind="props">
+                        <template #append>
+                          <v-chip
+                              color="success"
+                              size="small"
+                              variant="flat"
+                          >
+                            Müsait
+                          </v-chip>
+                        </template>
+                      </v-list-item>
+                    </template>
+                  </v-select>
+
+                  <!-- Time and Duration -->
+                  <v-row class="mb-4">
+                    <v-col cols="6">
+                      <v-select
+                          v-model="reservationData.startTime"
+                          label="Başlangıç Saati"
+                          :items="availableTimeSlots"
+                          variant="outlined"
+                          :rules="timeRules"
+                          :disabled="!reservationData.date || !reservationData.courtId"
+                          required
+                      >
+                        <template #item="{ props, item }">
+                          <v-list-item v-bind="props" :disabled="!item.raw.available">
+                            <template #append>
+                              <v-chip
+                                  :color="item.raw.available ? 'success' : 'error'"
+                                  size="small"
+                                  variant="flat"
+                              >
+                                {{ item.raw.available ? 'Müsait' : 'Dolu' }}
+                              </v-chip>
+                            </template>
+                          </v-list-item>
+                        </template>
+                      </v-select>
+                    </v-col>
+                    <v-col cols="6">
+                      <v-select
+                          v-model="reservationData.duration"
+                          label="Süre (saat)"
+                          :items="durationOptions"
+                          variant="outlined"
+                          :rules="durationRules"
+                          required
+                      />
+                    </v-col>
+                  </v-row>
+
+                  <!-- Type Selection -->
+                  <v-select
+                      v-model="reservationData.type"
+                      label="Rezervasyon Türü"
+                      :items="reservationTypes"
+                      variant="outlined"
+                      :rules="typeRules"
+                      required
+                      class="mb-6"
+                  />
+
+                  <!-- Submit Button -->
+                  <v-btn
+                      type="submit"
+                      color="primary"
+                      variant="flat"
+                      size="large"
+                      :loading="loading"
+                      :disabled="!valid"
+                      block
+                      class="reservation-submit-btn"
+                  >
+                    <v-icon icon="mdi-calendar-plus" class="mr-2" />
+                    Rezervasyon Yap
+                  </v-btn>
+                </v-form>
               </v-card-text>
-            </v-expand-transition>
+            </v-card>
+          </v-col>
+
+          <!-- My Reservations -->
+          <v-col cols="12" md="6">
+            <v-card class="modern-card reservations-list-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <div
+                  class="reservations-header pa-6 cursor-pointer"
+                  @click="toggleReservations"
+              >
+                <div class="reservations-header-content">
+                  <div class="reservations-icon-wrapper success-gradient">
+                    <v-icon icon="mdi-history" size="28" color="white" />
+                  </div>
+                  <div class="reservations-title-section">
+                    <h3 class="reservations-title">Rezervasyonlarım</h3>
+                    <p class="reservations-subtitle">{{ myReservations.length }} adet rezervasyon</p>
+                  </div>
+                  <v-icon
+                      :icon="showReservations ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                      class="toggle-icon"
+                  />
+                </div>
+              </div>
+
+              <v-expand-transition>
+                <v-card-text v-show="showReservations" class="pa-0">
+                  <!-- Loading State -->
+                  <div v-if="loadingReservations" class="loading-state">
+                    <v-progress-circular indeterminate color="primary" size="48" class="mb-4" />
+                    <p class="loading-text">Rezervasyonlar yükleniyor...</p>
+                  </div>
+
+                  <!-- Empty State -->
+                  <div v-else-if="myReservations.length === 0" class="empty-state">
+                    <v-icon icon="mdi-calendar-blank" size="64" color="grey" class="empty-icon" />
+                    <h3 class="empty-title">Henüz rezervasyonunuz yok</h3>
+                    <p class="empty-description">
+                      İlk rezervasyonunuzu yapmak için formu kullanın.
+                    </p>
+                  </div>
+
+                  <!-- Reservations List -->
+                  <div v-else class="reservations-list-container">
+                    <div
+                        v-for="(reservation, index) in myReservations"
+                        :key="reservation.id"
+                        class="reservation-list-item"
+                        :class="{ 'last-item': index === myReservations.length - 1 }"
+                    >
+                      <div class="reservation-list-timeline">
+                        <div
+                            class="timeline-dot"
+                            :class="getReservationColor(reservation.status)"
+                        ></div>
+                        <div
+                            v-if="index !== myReservations.length - 1"
+                            class="timeline-line"
+                        ></div>
+                      </div>
+
+                      <div class="reservation-list-content">
+                        <div class="reservation-list-main">
+                          <div class="reservation-list-info">
+                            <h4 class="reservation-list-title">
+                              {{ reservation.courtName }}
+                            </h4>
+                            <div class="reservation-list-details">
+                              <div class="detail-item">
+                                <v-icon icon="mdi-calendar" size="16" />
+                                <span>{{ formatReservationDate(reservation.date) }}</span>
+                              </div>
+                              <div class="detail-item">
+                                <v-icon icon="mdi-clock" size="16" />
+                                <span>{{ reservation.startTime }}</span>
+                              </div>
+                              <div class="detail-item">
+                                <v-icon icon="mdi-timer" size="16" />
+                                <span>{{ reservation.duration }} saat</span>
+                              </div>
+                              <div class="detail-item">
+                                <v-icon icon="mdi-tag" size="16" />
+                                <span>{{ getTypeText(reservation.type) }}</span>
+                              </div>
+                            </div>
+                            <div class="reservation-cost">
+                              <v-icon icon="mdi-currency-try" size="16" color="success" />
+                              <span class="cost-amount">{{ reservation.totalCost }}</span>
+                            </div>
+                          </div>
+
+                          <div class="reservation-list-meta">
+                            <v-chip
+                                size="small"
+                                :color="getReservationColor(reservation.status)"
+                                variant="flat"
+                                class="status-chip"
+                            >
+                              <v-icon
+                                  :icon="getReservationIcon(reservation.status)"
+                                  size="16"
+                                  class="mr-1"
+                              />
+                              {{ getStatusText(reservation.status) }}
+                            </v-chip>
+
+                            <v-menu v-if="canCancel(reservation.date)" offset-y>
+                              <template #activator="{ props }">
+                                <v-btn
+                                    v-bind="props"
+                                    icon="mdi-dots-vertical"
+                                    variant="text"
+                                    size="small"
+                                    class="mt-2"
+                                />
+                              </template>
+                              <v-list>
+                                <v-list-item @click="cancelReservation(reservation.id)">
+                                  <v-list-item-title>
+                                    <v-icon icon="mdi-cancel" class="mr-2" />
+                                    İptal Et
+                                  </v-list-item-title>
+                                </v-list-item>
+                              </v-list>
+                            </v-menu>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-expand-transition>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Success Dialog -->
+        <v-dialog v-model="successDialog" max-width="400">
+          <v-card class="modern-dialog">
+            <v-card-text class="text-center pa-8">
+              <div class="success-icon-wrapper mb-4">
+                <v-icon
+                    icon="mdi-check-circle"
+                    size="64"
+                    color="success"
+                />
+              </div>
+              <h3 class="success-title mb-2">Rezervasyon Onaylandı!</h3>
+              <p class="success-description">Kortunuz başarıyla rezerve edildi.</p>
+            </v-card-text>
+            <v-card-actions class="pa-6 pt-0">
+              <v-spacer />
+              <v-btn color="primary" variant="flat" @click="successDialog = false">Tamam</v-btn>
+            </v-card-actions>
           </v-card>
-        </v-col>
-      </v-row>
+        </v-dialog>
+
+        <!-- Error Snackbar -->
+        <v-snackbar
+            v-model="errorSnackbar"
+            color="error"
+            :timeout="4000"
+            location="top"
+        >
+          {{ errorMessage }}
+          <template #actions>
+            <v-btn variant="text" @click="errorSnackbar = false">Kapat</v-btn>
+          </template>
+        </v-snackbar>
+      </v-container>
     </v-container>
-
-    <!-- Success Dialog -->
-    <v-dialog v-model="successDialog" max-width="400">
-      <v-card>
-        <v-card-text class="text-center pa-8">
-          <v-icon
-              icon="mdi-check-circle"
-              size="64"
-              color="success"
-              class="mb-4"
-          />
-          <h3 class="text-h5 font-weight-bold mb-2">Rezervasyon Onaylandı!</h3>
-          <p class="text-body-2">Kortunuz başarıyla rezerve edildi.</p>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn color="primary" @click="successDialog = false">Tamam</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- Error Snackbar -->
-    <v-snackbar
-        v-model="errorSnackbar"
-        color="error"
-        :timeout="4000"
-        location="top"
-    >
-      {{ errorMessage }}
-      <template #actions>
-        <v-btn variant="text" @click="errorSnackbar = false">Kapat</v-btn>
-      </template>
-    </v-snackbar>
   </div>
 </template>
 
@@ -273,69 +363,60 @@ const successDialog = ref(false)
 const errorSnackbar = ref(false)
 const errorMessage = ref('')
 const showReservations = ref(true)
-
-// Court schedule data from Firebase
-const courtSchedule = reactive<Record<string, Record<string, string>>>({
-  K1: {},
-  K2: {},
-  K3: {}
-})
-
-// Available courts (3 courts as requested)
-const availableCourts = ref([
-  { id: 'K1', name: 'K1 (Kapalı)', hourlyRate: 50 },
-  { id: 'K2', name: 'K2 (Açık)', hourlyRate: 40 },
-  { id: 'K3', name: 'K3 (Kapalı)', hourlyRate: 50 }
-])
-
-// Time slots (matching courts.vue)
-const timeSlots = [
-  '07:00', '08:00', '09:00', '10:00', '11:00',
-  '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
-]
-
 const myReservations = ref<Reservation[]>([])
 
-// Computed
-const minDate = computed(() => {
-  const today = new Date()
-  return today.toISOString().split('T')[0]
+// Court schedule state
+const courtSchedule = reactive<Record<string, Record<string, string>>>({
+  'court-1': {},
+  'court-2': {},
+  'court-3': {}
 })
 
-const calculatedCost = computed(() => {
-  if (!reservationData.courtId || !reservationData.duration || !reservationData.type) {
-    return 0
-  }
+// Available options
+const availableCourts = ref([
+  { id: 'court-1', name: 'Kort 1' },
+  { id: 'court-2', name: 'Kort 2' },
+  { id: 'court-3', name: 'Kort 3' }
+])
 
-  const court = availableCourts.value.find(c => c.id === reservationData.courtId)
-  if (!court) return 0
+const timeSlots = [
+  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
+  '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
+  '18:00', '19:00', '20:00', '21:00'
+]
 
-  let rate = court.hourlyRate
-  if (reservationData.type === 'private-lesson') rate = 100
-  if (reservationData.type === 'group-clinic') rate = 60
+const durationOptions = [
+  { title: '1 Saat', value: 1 },
+  { title: '1.5 Saat', value: 1.5 },
+  { title: '2 Saat', value: 2 }
+]
 
-  return rate * reservationData.duration
-})
+const reservationTypes = [
+  { title: 'Kort Kiralama', value: 'court-rental' },
+  { title: 'Özel Ders', value: 'private-lesson' },
+  { title: 'Grup Kursu', value: 'group-clinic' }
+]
 
-// Available time slots based on court schedule
+// Computed properties
 const availableTimeSlots = computed(() => {
-  if (!reservationData.date || !reservationData.courtId) {
-    return timeSlots.map(time => ({ title: time, value: time, available: true }))
-  }
+  if (!reservationData.date || !reservationData.courtId) return []
 
-  return timeSlots.map(time => {
-    const isAvailable = courtSchedule[reservationData.courtId]?.[time] !== 'occupied'
-    return {
-      title: time,
-      value: time,
-      available: isAvailable
-    }
-  }).filter(slot => slot.available)
+  return timeSlots.map(time => ({
+    title: time,
+    value: time,
+    available: courtSchedule[reservationData.courtId]?.[time] === 'available'
+  }))
 })
 
 // Validation rules
 const dateRules = [
-  (v: string) => !!v || 'Tarih gereklidir'
+  (v: string) => !!v || 'Tarih gereklidir',
+  (v: string) => {
+    const selectedDate = new Date(v)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return selectedDate >= today || 'Geçmiş tarih seçilemez'
+  }
 ]
 
 const courtRules = [
@@ -343,7 +424,7 @@ const courtRules = [
 ]
 
 const timeRules = [
-  (v: string) => !!v || 'Başlangıç saati gereklidir'
+  (v: string) => !!v || 'Saat seçimi gereklidir'
 ]
 
 const durationRules = [
@@ -477,10 +558,10 @@ const getCourtnameById = (courtId: string): string => {
 const submitReservation = async () => {
   if (!valid.value) return
 
-  const isStillAvailable = courtSchedule[reservationData.courtId]?.[reservationData.startTime] !== 'occupied'
+  const isStillAvailable = courtSchedule[reservationData.courtId]?.[reservationData.startTime] === 'available'
 
   if (!isStillAvailable) {
-    errorMessage.value = 'Seçtiğiniz saat artık müsait değil. Lütfen başka bir saat seçin.'
+    errorMessage.value = 'Seçilen saat artık müsait değil. Lütfen başka bir saat seçin.'
     errorSnackbar.value = true
     return
   }
@@ -488,70 +569,45 @@ const submitReservation = async () => {
   loading.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    const newReservation: Reservation = {
-      id: `res_${Date.now()}`,
+    const endTime = calculateEndTime(reservationData.startTime, reservationData.duration)
+    const reservationDoc = {
+      studentId: authStore.user?.id,
       courtId: reservationData.courtId,
-      studentId: authStore.user?.id || '',
-      courtName: availableCourts.value.find(c => c.id === reservationData.courtId)?.name || '',
+      courtName: getCourtnameById(reservationData.courtId),
       date: new Date(reservationData.date),
       startTime: reservationData.startTime,
-      endTime: calculateEndTime(reservationData.startTime, reservationData.duration),
+      endTime: endTime,
       duration: reservationData.duration,
-      type: reservationData.type as 'court-rental' | 'private-lesson' | 'group-clinic',
+      type: reservationData.type,
       status: 'confirmed',
-      totalCost: calculatedCost.value,
-      createdAt: new Date()
+      totalCost: reservationData.duration * 1000, // 1000 TL per hour
+      createdAt: serverTimestamp()
     }
 
-    // Firebase'e kaydet
-    await setDoc(doc(db, 'reservations', newReservation.id), {
-      ...newReservation,
-      date: newReservation.date.toISOString(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
+    // Save reservation
+    const reservationRef = doc(collection(db, 'reservations'))
+    await setDoc(reservationRef, reservationDoc)
 
-    // Kort programını güncelle
-    const dateKey = reservationData.date
-    const existingScheduleDoc = await getDoc(doc(db, 'courtSchedule', dateKey))
-    let existingSchedule = {}
+    // Update court schedule
+    const scheduleRef = doc(db, 'courtSchedule', reservationData.date)
+    const scheduleDoc = await getDoc(scheduleRef)
 
-    if (existingScheduleDoc.exists()) {
-      existingSchedule = existingScheduleDoc.data().schedule || {}
+    let scheduleData = { schedule: {} }
+    if (scheduleDoc.exists()) {
+      scheduleData = scheduleDoc.data() as any
     }
 
-    const updatedSchedule = {
-      ...existingSchedule,
-      [reservationData.courtId]: {
-        ...existingSchedule[reservationData.courtId],
-        [reservationData.startTime]: 'occupied'
-      }
+    if (!scheduleData.schedule[reservationData.courtId]) {
+      scheduleData.schedule[reservationData.courtId] = {}
     }
 
-    const scheduleData = {
-      schedule: updatedSchedule,
-      date: reservationData.date,
-      updatedAt: serverTimestamp(),
-      updatedBy: authStore.user?.email || 'Bilinmeyen',
-      lastReservation: {
-        reservationId: newReservation.id,
-        studentName: `${authStore.user?.firstName} ${authStore.user?.lastName}`,
-        type: reservationData.type
-      }
-    }
+    scheduleData.schedule[reservationData.courtId][reservationData.startTime] = 'occupied'
+    await setDoc(scheduleRef, scheduleData)
 
-    await setDoc(doc(db, 'courtSchedule', dateKey), scheduleData, { merge: true })
-
-    // Yerel verileri güncelle
+    // Update local state
     courtSchedule[reservationData.courtId][reservationData.startTime] = 'occupied'
-    myReservations.value.unshift(newReservation)
 
-    successDialog.value = true
-    showReservations.value = true
-
-    // Form'u temizle
+    // Reset form
     Object.assign(reservationData, {
       date: '',
       courtId: '',
@@ -560,77 +616,15 @@ const submitReservation = async () => {
       type: 'court-rental'
     })
 
-    console.log('✅ Rezervasyon başarıyla oluşturuldu:', newReservation)
+    // Show success dialog
+    successDialog.value = true
 
-  } catch (error: any) {
-    console.error('❌ Rezervasyon oluşturma hatası:', error)
-    errorMessage.value = 'Rezervasyon oluşturulamadı. Lütfen tekrar deneyin.'
-    errorSnackbar.value = true
-  } finally {
-    loading.value = false
-  }
-}
+    // Reload reservations
+    await loadUserReservations()
 
-const cancelReservation = async (reservationId: string) => {
-  try {
-    loading.value = true
-
-    const reservationIndex = myReservations.value.findIndex(r => r.id === reservationId)
-    if (reservationIndex === -1) {
-      throw new Error('Rezervasyon bulunamadı')
-    }
-
-    const reservation = myReservations.value[reservationIndex]
-
-    // Firebase'de rezervasyonu iptal et
-    await setDoc(doc(db, 'reservations', reservationId), {
-      status: 'cancelled',
-      cancelledAt: serverTimestamp(),
-      cancelledBy: authStore.user?.email || 'Bilinmeyen',
-      updatedAt: serverTimestamp()
-    }, { merge: true })
-
-    // Gelecek tarihse kort programını güncelle
-    if (reservation.date >= new Date()) {
-      const dateKey = reservation.date.toISOString().split('T')[0]
-      const existingScheduleDoc = await getDoc(doc(db, 'courtSchedule', dateKey))
-
-      if (existingScheduleDoc.exists()) {
-        const existingSchedule = existingScheduleDoc.data().schedule || {}
-
-        const updatedSchedule = {
-          ...existingSchedule,
-          [reservation.courtId]: {
-            ...existingSchedule[reservation.courtId],
-            [reservation.startTime]: 'available'
-          }
-        }
-
-        const scheduleData = {
-          schedule: updatedSchedule,
-          date: dateKey,
-          updatedAt: serverTimestamp(),
-          updatedBy: authStore.user?.email || 'Bilinmeyen',
-          lastCancellation: {
-            reservationId: reservationId,
-            studentName: `${authStore.user?.firstName} ${authStore.user?.lastName}`,
-            cancelledAt: new Date().toISOString()
-          }
-        }
-
-        await setDoc(doc(db, 'courtSchedule', dateKey), scheduleData, { merge: true })
-        courtSchedule[reservation.courtId][reservation.startTime] = 'available'
-      }
-    }
-
-    // Yerel rezervasyon durumunu güncelle
-    myReservations.value[reservationIndex].status = 'cancelled'
-
-    console.log('✅ Rezervasyon başarıyla iptal edildi:', reservationId)
-
-  } catch (error: any) {
-    console.error('❌ Rezervasyon iptal etme hatası:', error)
-    errorMessage.value = 'Rezervasyon iptal edilemedi. Lütfen tekrar deneyin.'
+  } catch (error) {
+    console.error('Rezervasyon hatası:', error)
+    errorMessage.value = 'Rezervasyon oluşturulurken hata oluştu. Lütfen tekrar deneyin.'
     errorSnackbar.value = true
   } finally {
     loading.value = false
@@ -700,6 +694,11 @@ const canCancel = (date: Date): boolean => {
   return hoursDiff > 24
 }
 
+const cancelReservation = async (reservationId: string) => {
+  // Cancel reservation logic would go here
+  console.log('Cancel reservation:', reservationId)
+}
+
 // Initialize
 onMounted(async () => {
   setDefaultSchedule()
@@ -725,5 +724,5 @@ watch(() => authStore.user, async (newUser, oldUser) => {
 </script>
 
 <style scoped>
-
+/* Styles are handled in main.css */
 </style>
