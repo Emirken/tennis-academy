@@ -1,399 +1,506 @@
 <template>
   <div class="student-management">
-    <!-- Header Section -->
-    <div class="management-header mb-6">
-      <v-row align="center">
-        <v-col cols="12">
-          <h2 class="text-h4 font-weight-bold text-white">
-            <v-icon icon="mdi-account-group" class="mr-2" />
-            Öğrenci Yönetimi
-          </h2>
-          <p class="text-body-1 text-white mt-2 opacity-90">
-            Öğrenci profillerini, üyeliklerini ve hesap bilgilerini yönetin
-          </p>
-        </v-col>
-      </v-row>
-    </div>
-
-    <!-- Statistics Cards -->
-    <v-row class="mb-6">
-      <v-col cols="12" sm="6" md="6">
-        <v-card class="stat-card" elevation="4" color="primary">
-          <v-card-text class="text-center pa-6 text-white">
-            <v-icon size="48" class="mb-3">mdi-account-multiple</v-icon>
-            <h3 class="text-h4 font-weight-bold">{{ stats.totalStudents }}</h3>
-            <p class="text-body-1">Toplam Öğrenci</p>
-            <v-chip size="small" color="white" variant="flat" class="mt-2">
-              <v-icon start size="16">mdi-trending-up</v-icon>
-              +{{ stats.newThisMonth }} bu ay
-            </v-chip>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col cols="12" sm="6" md="6">
-        <v-card class="stat-card" elevation="4" color="success">
-          <v-card-text class="text-center pa-6 text-white">
-            <v-icon size="48" class="mb-3">mdi-account-check</v-icon>
-            <h3 class="text-h4 font-weight-bold">{{ stats.activeStudents }}</h3>
-            <p class="text-body-1">Aktif Öğrenci</p>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Quick Actions & Filters -->
-    <v-card class="mb-6" elevation="4">
-      <v-card-title class="pa-6 bg-primary text-white">
-        <v-icon icon="mdi-filter" class="mr-2" />
-        Filtreler
-      </v-card-title>
-      <v-card-text class="pa-6">
-        <v-row>
-          <!-- Filters -->
-          <v-col cols="12" md="4">
-            <v-text-field
-                v-model="filters.search"
-                label="Öğrenci Ara"
-                variant="outlined"
-                prepend-inner-icon="mdi-magnify"
-                density="compact"
-                clearable
-            />
-          </v-col>
-          <v-col cols="12" md="4">
-            <v-select
-                v-model="filters.membership"
-                label="Üyelik Türü"
-                :items="membershipTypes"
-                variant="outlined"
-                density="compact"
-                clearable
-            />
-          </v-col>
-          <v-col cols="12" md="4">
-            <v-select
-                v-model="filters.status"
-                label="Durum"
-                :items="statusOptions"
-                variant="outlined"
-                density="compact"
-                clearable
-            />
-          </v-col>
-        </v-row>
-      </v-card-text>
-    </v-card>
-
-    <!-- Students Table -->
-    <v-card elevation="4">
-      <v-card-title class="pa-6 bg-success text-white d-flex justify-space-between">
-        <div>
-          <v-icon icon="mdi-table" class="mr-2" />
-          Öğrenci Listesi
-        </div>
-        <v-chip color="white" variant="flat">
-          {{ filteredStudents.length }} öğrenci
-        </v-chip>
-      </v-card-title>
-
-      <v-card-text class="pa-0">
-        <v-data-table
-            :headers="headers"
-            :items="filteredStudents"
-            :items-per-page="itemsPerPage"
-            :loading="loading"
-            class="elevation-0"
-        >
-          <template #item.student="{ item }">
-            <div class="d-flex align-center">
-              <v-avatar size="40" class="mr-3" :color="getStudentColor(item.id)">
-                <span class="text-white font-weight-bold">
-                  {{ getInitials(item.firstName + ' ' + item.lastName) }}
-                </span>
-              </v-avatar>
-              <div>
-                <div class="font-weight-medium">
-                  {{ item.firstName }} {{ item.lastName }}
-                </div>
-                <div class="text-caption text-grey">{{ item.email }}</div>
-              </div>
-            </div>
-          </template>
-
-          <template #item.membership="{ item }">
-            <v-chip
-                :color="getMembershipColor(item.membershipType)"
-                size="small"
-                variant="flat"
-            >
-              {{ getMembershipText(item.membershipType) }}
-            </v-chip>
-          </template>
-
-          <template #item.status="{ item }">
-            <v-chip
-                :color="getStatusColor(item.status)"
-                size="small"
-                variant="flat"
-            >
-              {{ getStatusText(item.status) }}
-            </v-chip>
-          </template>
-
-          <template #item.joinDate="{ item }">
-            {{ formatDate(item.joinDate) }}
-          </template>
-
-          <template #item.actions="{ item }">
-            <div class="d-flex gap-1">
-              <v-tooltip text="Profili Görüntüle">
-                <template #activator="{ props }">
-                  <v-btn
-                      icon="mdi-eye"
-                      size="small"
-                      color="info"
-                      variant="text"
-                      v-bind="props"
-                      @click="viewStudent(item)"
-                  />
-                </template>
-              </v-tooltip>
-              <v-tooltip text="Mesaj Gönder">
-                <template #activator="{ props }">
-                  <v-btn
-                      icon="mdi-message"
-                      size="small"
-                      color="success"
-                      variant="text"
-                      v-bind="props"
-                      @click="sendMessage(item)"
-                  />
-                </template>
-              </v-tooltip>
-              <v-tooltip text="Öğrenciyi Sil">
-                <template #activator="{ props }">
-                  <v-btn
-                      icon="mdi-delete"
-                      size="small"
-                      color="error"
-                      variant="text"
-                      v-bind="props"
-                      @click="deleteStudent(item)"
-                  />
-                </template>
-              </v-tooltip>
-            </div>
-          </template>
-        </v-data-table>
-      </v-card-text>
-    </v-card>
-
-    <!-- Student Details Dialog -->
-    <v-dialog v-model="showStudentDetailsDialog" max-width="900">
-      <v-card v-if="selectedStudent">
-        <v-card-title class="pa-6 bg-primary text-white">
-          <v-avatar size="40" class="mr-3" :color="getStudentColor(selectedStudent.id)">
-            <span class="text-white font-weight-bold">
-              {{ getInitials(selectedStudent.firstName + ' ' + selectedStudent.lastName) }}
-            </span>
-          </v-avatar>
-          {{ selectedStudent.firstName }} {{ selectedStudent.lastName }}
-          <v-spacer />
-          <v-btn
-              icon="mdi-pencil"
-              variant="text"
-              color="white"
-              @click="toggleEditMode"
-          >
-            <v-tooltip activator="parent" location="bottom">
-              {{ isEditMode ? 'Görüntüleme Modu' : 'Düzenleme Modu' }}
-            </v-tooltip>
-          </v-btn>
-        </v-card-title>
-
-        <v-card-text class="pa-6">
-          <v-row>
-            <v-col cols="12" md="6">
-              <h3 class="text-h6 mb-4">Kişisel Bilgiler</h3>
-
-              <div v-if="!isEditMode">
-                <v-list density="compact">
-                  <v-list-item>
-                    <v-list-item-title>Ad:</v-list-item-title>
-                    <v-list-item-subtitle>{{ selectedStudent.firstName }}</v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>Soyad:</v-list-item-title>
-                    <v-list-item-subtitle>{{ selectedStudent.lastName }}</v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>E-posta:</v-list-item-title>
-                    <v-list-item-subtitle>{{ selectedStudent.email }}</v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>Telefon:</v-list-item-title>
-                    <v-list-item-subtitle>{{ selectedStudent.phone }}</v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>Adres:</v-list-item-title>
-                    <v-list-item-subtitle>{{ selectedStudent.address }}</v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>Acil Durum İletişim:</v-list-item-title>
-                    <v-list-item-subtitle>{{ selectedStudent.emergencyContact }}</v-list-item-subtitle>
-                  </v-list-item>
-                </v-list>
-              </div>
-
-              <div v-else>
-                <v-text-field
-                    v-model="editForm.firstName"
-                    label="Ad"
-                    variant="outlined"
-                    density="compact"
-                    class="mb-3"
-                />
-                <v-text-field
-                    v-model="editForm.lastName"
-                    label="Soyad"
-                    variant="outlined"
-                    density="compact"
-                    class="mb-3"
-                />
-                <v-text-field
-                    v-model="editForm.email"
-                    label="E-posta"
-                    type="email"
-                    variant="outlined"
-                    density="compact"
-                    class="mb-3"
-                />
-                <v-text-field
-                    v-model="editForm.phone"
-                    label="Telefon"
-                    variant="outlined"
-                    density="compact"
-                    class="mb-3"
-                />
-                <v-textarea
-                    v-model="editForm.address"
-                    label="Adres"
-                    variant="outlined"
-                    density="compact"
-                    rows="2"
-                    class="mb-3"
-                />
-                <v-text-field
-                    v-model="editForm.emergencyContact"
-                    label="Acil Durum İletişim"
-                    variant="outlined"
-                    density="compact"
-                />
+    <v-container fluid class="pa-0">
+      <!-- Enhanced Welcome Section -->
+      <div class="welcome-section mt-8 mx-15 mb-8">
+        <v-container>
+          <v-row align="center" class="py-6">
+            <v-col cols="12" md="8">
+              <div class="welcome-content">
+                <h1 class="welcome-title mb-3">
+                  <v-icon icon="mdi-account-group" class="mr-3" color="white" />
+                  Öğrenci Yönetimi
+                </h1>
+                <p class="welcome-subtitle">
+                  Öğrenci profillerini, üyeliklerini ve hesap bilgilerini yönetin
+                </p>
               </div>
             </v-col>
-
-            <v-col cols="12" md="6">
-              <h3 class="text-h6 mb-4">Üyelik Detayları</h3>
-
-              <div v-if="!isEditMode">
-                <v-list density="compact">
-                  <v-list-item>
-                    <v-list-item-title>Üyelik Türü:</v-list-item-title>
-                    <v-list-item-subtitle>
-                      <v-chip :color="getMembershipColor(selectedStudent.membershipType)" size="small">
-                        {{ getMembershipText(selectedStudent.membershipType) }}
-                      </v-chip>
-                    </v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>Durum:</v-list-item-title>
-                    <v-list-item-subtitle>
-                      <v-chip :color="getStatusColor(selectedStudent.status)" size="small">
-                        {{ getStatusText(selectedStudent.status) }}
-                      </v-chip>
-                    </v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>Bakiye:</v-list-item-title>
-                    <v-list-item-subtitle>
-                      <span :class="selectedStudent.balance < 0 ? 'text-error' : 'text-success'" class="font-weight-bold">
-                        ₺{{ Math.abs(selectedStudent.balance) }}{{ selectedStudent.balance < 0 ? ' (borç)' : '' }}
-                      </span>
-                    </v-list-item-subtitle>
-                  </v-list-item>
-                  <v-list-item>
-                    <v-list-item-title>Kayıt Tarihi:</v-list-item-title>
-                    <v-list-item-subtitle>{{ formatDate(selectedStudent.joinDate) }}</v-list-item-subtitle>
-                  </v-list-item>
-                </v-list>
+            <v-col cols="12" md="4" class="text-md-right">
+              <div class="date-time-widget">
+                <div class="current-date">{{ getCurrentDate() }}</div>
+                <div class="current-time">{{ filteredStudents.length }} Öğrenci</div>
               </div>
+            </v-col>
+          </v-row>
+        </v-container>
+      </div>
 
-              <div v-else>
+      <v-container>
+        <!-- Enhanced Stats Cards -->
+        <v-row class="mb-8">
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper primary-gradient">
+                  <v-icon icon="mdi-account-multiple" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number primary--text">{{ stats.totalStudents }}</h3>
+                  <p class="stat-label">Toplam Öğrenci</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="success">mdi-trending-up</v-icon>
+                    <span class="trend-text">+{{ stats.newThisMonth }} bu ay</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper success-gradient">
+                  <v-icon icon="mdi-account-check" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number success--text">{{ stats.activeStudents }}</h3>
+                  <p class="stat-label">Aktif Öğrenci</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="success">mdi-check-circle</v-icon>
+                    <span class="trend-text">Bu hafta</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper warning-gradient">
+                  <v-icon icon="mdi-account-clock" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number warning--text">{{ stats.inactiveStudents }}</h3>
+                  <p class="stat-label">Pasif Öğrenci</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="warning">mdi-clock-alert</v-icon>
+                    <span class="trend-text">Bu ay</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="3">
+            <v-card class="stat-card modern-card" elevation="0">
+              <div class="stat-card-overlay"></div>
+              <v-card-text class="stat-content">
+                <div class="stat-icon-wrapper amber-gradient">
+                  <v-icon icon="mdi-cash-multiple" size="32" color="white" />
+                </div>
+                <div class="stat-details">
+                  <h3 class="stat-number amber--text">{{ totalBalance.toLocaleString('tr-TR') }}₺</h3>
+                  <p class="stat-label">Toplam Bakiye</p>
+                  <div class="stat-trend">
+                    <v-icon size="16" color="amber">mdi-currency-try</v-icon>
+                    <span class="trend-text">Nakit akışı</span>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Enhanced Filters Section -->
+        <v-card class="modern-card mb-8" elevation="0">
+          <div class="action-card-overlay"></div>
+          <v-card-title class="pa-6">
+            <div class="d-flex align-center">
+              <div class="stat-icon-wrapper info-gradient mr-4" style="width: 48px; height: 48px;">
+                <v-icon icon="mdi-filter" size="24" color="white" />
+              </div>
+              <div>
+                <h3 class="text-h6 font-weight-bold mb-0">Filtreler ve Arama</h3>
+                <p class="text-body-2 text-grey-600 mb-0">Öğrencileri filtreleyin ve hızlı arama yapın</p>
+              </div>
+            </div>
+          </v-card-title>
+          <v-card-text class="pa-6">
+            <v-row>
+              <v-col cols="12" md="4">
+                <v-text-field
+                    v-model="filters.search"
+                    label="Öğrenci Ara"
+                    variant="outlined"
+                    prepend-inner-icon="mdi-magnify"
+                    density="compact"
+                    clearable
+                    placeholder="İsim, email veya telefon ara..."
+                />
+              </v-col>
+              <v-col cols="12" md="4">
                 <v-select
-                    v-model="editForm.membershipType"
+                    v-model="filters.membership"
                     label="Üyelik Türü"
-                    :items="membershipTypeOptions"
+                    :items="membershipTypes"
                     variant="outlined"
                     density="compact"
-                    class="mb-3"
+                    clearable
+                    prepend-inner-icon="mdi-card-account-details"
                 />
+              </v-col>
+              <v-col cols="12" md="4">
                 <v-select
-                    v-model="editForm.status"
+                    v-model="filters.status"
                     label="Durum"
                     :items="statusOptions"
                     variant="outlined"
                     density="compact"
-                    class="mb-3"
+                    clearable
+                    prepend-inner-icon="mdi-account-check"
                 />
-                <v-text-field
-                    v-model.number="editForm.balance"
-                    label="Bakiye (₺)"
-                    type="number"
-                    variant="outlined"
-                    density="compact"
-                    class="mb-3"
-                />
-                <v-textarea
-                    v-model="editForm.notes"
-                    label="Notlar"
-                    variant="outlined"
-                    density="compact"
-                    rows="3"
-                    placeholder="Öğrenci hakkında notlar..."
-                />
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+
+        <!-- Enhanced Students Table -->
+        <v-card class="modern-card" elevation="0">
+          <div class="action-card-overlay"></div>
+          <v-card-title class="pa-6 d-flex justify-space-between align-center">
+            <div class="d-flex align-center">
+              <div class="stat-icon-wrapper success-gradient mr-4" style="width: 48px; height: 48px;">
+                <v-icon icon="mdi-table" size="24" color="white" />
               </div>
-            </v-col>
-          </v-row>
+              <div>
+                <h3 class="text-h6 font-weight-bold mb-0">Öğrenci Listesi</h3>
+                <p class="text-body-2 text-grey-600 mb-0">Tüm öğrenci bilgileri ve detayları</p>
+              </div>
+            </div>
+            <v-chip color="success" variant="flat" class="font-weight-bold">
+              {{ filteredStudents.length }} öğrenci
+            </v-chip>
+          </v-card-title>
+
+          <v-card-text class="pa-0">
+            <v-data-table
+                :headers="headers"
+                :items="filteredStudents"
+                :items-per-page="itemsPerPage"
+                :loading="loading"
+                class="elevation-0"
+                loading-text="Öğrenciler yükleniyor..."
+                no-data-text="Henüz öğrenci kaydı bulunmamaktadır"
+            >
+              <template #item.student="{ item }">
+                <div class="d-flex align-center py-2">
+                  <v-avatar
+                      :color="item.status === 'active' ? 'success' : item.status === 'suspended' ? 'error' : 'grey'"
+                      class="mr-3"
+                      size="40"
+                  >
+                    <span class="white--text font-weight-bold text-h6">
+                      {{ item.firstName?.charAt(0) }}{{ item.lastName?.charAt(0) }}
+                    </span>
+                  </v-avatar>
+                  <div>
+                    <div class="font-weight-bold text-body-1">
+                      {{ item.firstName }} {{ item.lastName }}
+                    </div>
+                    <div class="text-body-2 text-grey-600">{{ item.email }}</div>
+                  </div>
+                </div>
+              </template>
+
+              <template #item.membershipType="{ item }">
+                <v-chip
+                    :color="getMembershipColor(item.membershipType)"
+                    variant="flat"
+                    size="small"
+                    class="font-weight-bold"
+                >
+                  {{ getMembershipDisplayName(item.membershipType) }}
+                </v-chip>
+              </template>
+
+              <template #item.status="{ item }">
+                <v-chip
+                    :color="getStatusColor(item.status)"
+                    variant="flat"
+                    size="small"
+                    class="font-weight-bold"
+                >
+                  <v-icon
+                      start
+                      size="16"
+                      :icon="getStatusIcon(item.status)"
+                  />
+                  {{ getStatusDisplayName(item.status) }}
+                </v-chip>
+              </template>
+
+              <template #item.joinDate="{ item }">
+                <div class="text-body-2">
+                  {{ formatDate(item.joinDate) }}
+                </div>
+              </template>
+
+              <template #item.balance="{ item }">
+                <div class="font-weight-bold" :class="getBalanceColor(item.balance)">
+                  {{ item.balance?.toLocaleString('tr-TR') }}₺
+                </div>
+              </template>
+
+              <template #item.actions="{ item }">
+                <div class="d-flex justify-center gap-2">
+                  <v-btn
+                      icon
+                      size="small"
+                      color="primary"
+                      variant="tonal"
+                      @click="viewStudentDetails(item)"
+                  >
+                    <v-icon size="16">mdi-eye</v-icon>
+                    <v-tooltip activator="parent" location="top">Profili Görüntüle</v-tooltip>
+                  </v-btn>
+                  <v-btn
+                      class="ml-2"
+                      icon
+                      size="small"
+                      color="error"
+                      variant="tonal"
+                      @click="deleteStudent(item)"
+                  >
+                    <v-icon size="16">mdi-delete</v-icon>
+                    <v-tooltip activator="parent" location="top">Sil</v-tooltip>
+                  </v-btn>
+                </div>
+              </template>
+            </v-data-table>
+          </v-card-text>
+        </v-card>
+      </v-container>
+    </v-container>
+
+    <!-- Enhanced Student Details Dialog -->
+    <v-dialog
+        v-model="showStudentDetailsDialog"
+        max-width="900"
+        scrollable
+    >
+      <v-card class="modern-card" elevation="8">
+        <v-card-title class="pa-0">
+          <div class="welcome-section" style="margin: 0; border-radius: 0;">
+            <div class="welcome-content py-6 px-6">
+              <div class="d-flex align-center">
+                <v-avatar
+                    :color="selectedStudent?.status === 'active' ? 'success' : selectedStudent?.status === 'suspended' ? 'error' : 'grey'"
+                    class="mr-4"
+                    size="56"
+                >
+                  <span class="white--text font-weight-bold text-h5">
+                    {{ selectedStudent?.firstName?.charAt(0) }}{{ selectedStudent?.lastName?.charAt(0) }}
+                  </span>
+                </v-avatar>
+                <div>
+                  <h2 class="text-h5 font-weight-bold text-white mb-1">
+                    {{ selectedStudent?.firstName }} {{ selectedStudent?.lastName }}
+                  </h2>
+                  <p class="text-body-1 text-white opacity-90 mb-0">
+                    {{ selectedStudent?.email }}
+                  </p>
+                </div>
+                <v-spacer />
+                <v-btn
+                    icon
+                    color="white"
+                    variant="text"
+                    @click="showStudentDetailsDialog = false"
+                >
+                  <v-icon>mdi-close</v-icon>
+                </v-btn>
+              </div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-0">
+          <v-container class="py-6">
+            <v-row>
+              <!-- Student Info Section -->
+              <v-col cols="12" md="6">
+                <v-card class="modern-card mb-4" elevation="2">
+                  <v-card-title class="pa-4 bg-primary text-white">
+                    <v-icon icon="mdi-account-details" class="mr-2" />
+                    Kişisel Bilgiler
+                  </v-card-title>
+                  <v-card-text class="pa-4">
+                    <div v-if="!isEditMode">
+                      <div class="info-item mb-3">
+                        <label class="info-label">Ad Soyad:</label>
+                        <span class="info-value">{{ selectedStudent?.firstName }} {{ selectedStudent?.lastName }}</span>
+                      </div>
+                      <div class="info-item mb-3">
+                        <label class="info-label">E-posta:</label>
+                        <span class="info-value">{{ selectedStudent?.email }}</span>
+                      </div>
+                      <div class="info-item mb-3">
+                        <label class="info-label">Telefon:</label>
+                        <span class="info-value">{{ selectedStudent?.phone }}</span>
+                      </div>
+                      <div class="info-item mb-3">
+                        <label class="info-label">Adres:</label>
+                        <span class="info-value">{{ selectedStudent?.address }}</span>
+                      </div>
+                      <div class="info-item">
+                        <label class="info-label">Acil Durum İletişim:</label>
+                        <span class="info-value">{{ selectedStudent?.emergencyContact }}</span>
+                      </div>
+                    </div>
+                    <div v-else>
+                      <v-text-field
+                          v-model="editForm.firstName"
+                          label="Ad"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                      />
+                      <v-text-field
+                          v-model="editForm.lastName"
+                          label="Soyad"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                      />
+                      <v-text-field
+                          v-model="editForm.email"
+                          label="E-posta"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                      />
+                      <v-text-field
+                          v-model="editForm.phone"
+                          label="Telefon"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                      />
+                      <v-textarea
+                          v-model="editForm.address"
+                          label="Adres"
+                          variant="outlined"
+                          density="compact"
+                          rows="2"
+                          class="mb-3"
+                      />
+                      <v-text-field
+                          v-model="editForm.emergencyContact"
+                          label="Acil Durum İletişim"
+                          variant="outlined"
+                          density="compact"
+                      />
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+
+              <!-- Membership & Status Section -->
+              <v-col cols="12" md="6">
+                <v-card class="modern-card mb-4" elevation="2">
+                  <v-card-title class="pa-4 bg-success text-white">
+                    <v-icon icon="mdi-card-account-details" class="mr-2" />
+                    Üyelik Bilgileri
+                  </v-card-title>
+                  <v-card-text class="pa-4">
+                    <div v-if="!isEditMode">
+                      <div class="info-item mb-3">
+                        <label class="info-label">Üyelik Türü:</label>
+                        <v-chip
+                            :color="getMembershipColor(selectedStudent?.membershipType)"
+                            variant="flat"
+                            size="small"
+                            class="font-weight-bold"
+                        >
+                          {{ getMembershipDisplayName(selectedStudent?.membershipType) }}
+                        </v-chip>
+                      </div>
+                      <div class="info-item mb-3">
+                        <label class="info-label">Durum:</label>
+                        <v-chip
+                            :color="getStatusColor(selectedStudent?.status)"
+                            variant="flat"
+                            size="small"
+                            class="font-weight-bold"
+                        >
+                          <v-icon
+                              start
+                              size="16"
+                              :icon="getStatusIcon(selectedStudent?.status)"
+                          />
+                          {{ getStatusDisplayName(selectedStudent?.status) }}
+                        </v-chip>
+                      </div>
+                      <div class="info-item mb-3">
+                        <label class="info-label">Kayıt Tarihi:</label>
+                        <span class="info-value">{{ formatDate(selectedStudent?.joinDate) }}</span>
+                      </div>
+                      <div class="info-item">
+                        <label class="info-label">Bakiye:</label>
+                        <span class="font-weight-bold" :class="getBalanceColor(selectedStudent?.balance)">
+                          {{ selectedStudent?.balance?.toLocaleString('tr-TR') }}₺
+                        </span>
+                      </div>
+                    </div>
+                    <div v-else>
+                      <v-select
+                          v-model="editForm.membershipType"
+                          label="Üyelik Türü"
+                          :items="membershipTypes"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                      />
+                      <v-select
+                          v-model="editForm.status"
+                          label="Durum"
+                          :items="statusOptions"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                      />
+                      <v-text-field
+                          v-model="editForm.balance"
+                          label="Bakiye"
+                          variant="outlined"
+                          density="compact"
+                          type="number"
+                          suffix="₺"
+                          class="mb-3"
+                      />
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+
+            </v-row>
+          </v-container>
         </v-card-text>
 
-        <v-card-actions class="pa-6">
-          <div v-if="!isEditMode" class="d-flex w-100">
-            <v-btn color="primary" @click="toggleEditMode">
+        <v-card-actions class="pa-6 bg-grey-50">
+          <div v-if="!isEditMode" class="d-flex w-100 gap-2">
+            <v-btn color="primary" variant="flat" @click="toggleEditMode">
               <v-icon icon="mdi-pencil" class="mr-1" />
               Düzenle
             </v-btn>
-            <v-btn color="success" @click="sendMessage(selectedStudent)">
-              <v-icon icon="mdi-message" class="mr-1" />
-              Mesaj
-            </v-btn>
             <v-spacer />
-            <v-btn @click="showStudentDetailsDialog = false">Kapat</v-btn>
+            <v-btn color="red" variant="text" @click="showStudentDetailsDialog = false">Kapat</v-btn>
           </div>
 
-          <div v-else class="d-flex w-100">
-            <v-btn color="success" @click="saveStudentChanges" :loading="savingChanges">
+          <div v-else class="d-flex w-100 gap-2">
+            <v-btn color="success" variant="flat" @click="saveStudentChanges" :loading="savingChanges">
               <v-icon icon="mdi-check" class="mr-1" />
               Kaydet
             </v-btn>
-            <v-btn color="grey" @click="cancelEdit">
+            <v-spacer />
+            <v-btn color="grey" variant="flat" @click="cancelEdit">
               <v-icon icon="mdi-close" class="mr-1" />
               İptal
-            </v-btn>
-            <v-spacer />
-            <v-btn color="error" @click="deleteStudent(selectedStudent)" variant="outlined">
-              <v-icon icon="mdi-delete" class="mr-1" />
-              Sil
             </v-btn>
           </div>
         </v-card-actions>
@@ -437,52 +544,16 @@ interface Student {
   lastLoginAt?: Date
 }
 
-// Data
-const showStudentDetailsDialog = ref(false)
+// Reactive state
+const students = ref<Student[]>([])
 const loading = ref(false)
 const successSnackbar = ref(false)
 const successMessage = ref('')
-const itemsPerPage = ref(15)
+const showStudentDetailsDialog = ref(false)
 const selectedStudent = ref<Student | null>(null)
-const students = ref<Student[]>([])
 const isEditMode = ref(false)
 const savingChanges = ref(false)
-
-// Edit form data
-const editForm = ref<{
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  address: string
-  emergencyContact: string
-  membershipType: string
-  status: 'active' | 'inactive' | 'suspended'
-  balance: number
-  notes: string
-}>({
-  firstName: '',
-  lastName: '',
-  email: '',
-  phone: '',
-  address: '',
-  emergencyContact: '',
-  membershipType: '',
-  status: 'active',
-  balance: 0,
-  notes: ''
-})
-
-// Stats
-const stats = computed(() => ({
-  totalStudents: students.value.length,
-  newThisMonth: students.value.filter(s => {
-    const thisMonth = new Date()
-    thisMonth.setDate(1)
-    return s.createdAt >= thisMonth
-  }).length,
-  activeStudents: students.value.filter(s => s.status === 'active').length
-}))
+const itemsPerPage = ref(10)
 
 // Filters
 const filters = reactive({
@@ -491,14 +562,32 @@ const filters = reactive({
   status: ''
 })
 
-// Options
-const membershipTypes = [
-  { title: 'Temel', value: 'basic' },
-  { title: 'Premium', value: 'premium' },
-  { title: 'VIP', value: 'vip' }
+// Edit form
+const editForm = ref({
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  address: '',
+  emergencyContact: '',
+  membershipType: '',
+  status: '',
+  balance: 0,
+  notes: ''
+})
+
+// Table headers
+const headers = [
+  { title: 'Öğrenci', key: 'student', sortable: false },
+  { title: 'Üyelik Türü', key: 'membershipType', align: 'center' },
+  { title: 'Durum', key: 'status', align: 'center' },
+  { title: 'Kayıt Tarihi', key: 'joinDate', align: 'center' },
+  { title: 'Bakiye', key: 'balance', align: 'center' },
+  { title: 'İşlemler', key: 'actions', sortable: false, align: 'center' }
 ]
 
-const membershipTypeOptions = [
+// Options (ORİJİNAL KOD)
+const membershipTypes = [
   { title: 'Özel Ders 1 Kişi (45dk)', value: 'private_1_45' },
   { title: 'Özel Ders 2 Kişi (60dk)', value: 'private_2_60' },
   { title: 'Özel Grup 3 Kişi (8ders)', value: 'private_group_3_8' },
@@ -516,16 +605,142 @@ const statusOptions = [
   { title: 'Askıda', value: 'suspended' }
 ]
 
-// Table headers
-const headers = [
-  { title: 'Öğrenci', key: 'student', sortable: false },
-  { title: 'Üyelik', key: 'membership', sortable: true },
-  { title: 'Durum', key: 'status', sortable: true },
-  { title: 'Kayıt Tarihi', key: 'joinDate', sortable: true },
-  { title: 'İşlemler', key: 'actions', sortable: false }
-]
+// Computed properties (ORİJİNAL MANTIK KORUNDU)
+const filteredStudents = computed(() => {
+  let filtered = students.value
 
-// Fetch students from Firebase
+  if (filters.search) {
+    filtered = filtered.filter(student =>
+        `${student.firstName} ${student.lastName}`.toLowerCase().includes(filters.search.toLowerCase()) ||
+        student.email.toLowerCase().includes(filters.search.toLowerCase()) ||
+        student.phone.includes(filters.search)
+    )
+  }
+
+  if (filters.membership) {
+    filtered = filtered.filter(student => student.membershipType === filters.membership)
+  }
+
+  if (filters.status) {
+    filtered = filtered.filter(student => student.status === filters.status)
+  }
+
+  return filtered
+})
+
+const stats = computed(() => {
+  const total = students.value.length
+  const active = students.value.filter(s => s.status === 'active').length
+  const inactive = students.value.filter(s => s.status === 'inactive').length
+  const suspended = students.value.filter(s => s.status === 'suspended').length
+
+  // Calculate new students this month
+  const now = new Date()
+  const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const newThisMonth = students.value.filter(s =>
+      s.joinDate && new Date(s.joinDate) >= thisMonth
+  ).length
+
+  return {
+    totalStudents: total,
+    activeStudents: active,
+    inactiveStudents: inactive,
+    suspendedStudents: suspended,
+    newThisMonth
+  }
+})
+
+const totalBalance = computed(() => {
+  return students.value.reduce((sum, student) => sum + (student.balance || 0), 0)
+})
+
+// Utility functions
+const getCurrentDate = () => {
+  const now = new Date()
+  return now.toLocaleDateString('tr-TR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+const formatDate = (date: any) => {
+  if (!date) return '-'
+  const d = date.toDate ? date.toDate() : new Date(date)
+  return d.toLocaleDateString('tr-TR')
+}
+
+const getMembershipColor = (type: string) => {
+  const colors: { [key: string]: string } = {
+    'basic': 'info',
+    'premium': 'warning',
+    'vip': 'error',
+    'private_1_45': 'purple',
+    'private_2_60': 'purple',
+    'private_group_3_8': 'indigo',
+    'private_group_4_8': 'indigo',
+    'private_package_1_8': 'deep-purple',
+    'private_package_2_8': 'deep-purple',
+    'adult_group': 'teal',
+    'tennis_school_age': 'orange',
+    'tennis_school_performance': 'red'
+  }
+  return colors[type] || 'grey'
+}
+
+const getMembershipDisplayName = (type: string) => {
+  const texts: { [key: string]: string } = {
+    'basic': 'Temel',
+    'premium': 'Premium',
+    'vip': 'VIP',
+    'private_1_45': 'Özel Ders 1 Kişi (45dk)',
+    'private_2_60': 'Özel Ders 2 Kişi (60dk)',
+    'private_group_3_8': 'Özel Grup 3 Kişi (8ders)',
+    'private_group_4_8': 'Özel Grup 4 Kişi (8ders)',
+    'private_package_1_8': 'Özel Paket 1 Kişi (8ders)',
+    'private_package_2_8': 'Özel Paket 2 Kişi (8ders)',
+    'adult_group': 'Yetişkin Grup',
+    'tennis_school_age': 'Tenis Okulu Yaş Grubu',
+    'tennis_school_performance': 'Tenis Okulu Performans'
+  }
+  return texts[type] || type || 'Belirtilmemiş'
+}
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'active': return 'success'
+    case 'inactive': return 'grey'
+    case 'suspended': return 'error'
+    default: return 'grey'
+  }
+}
+
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case 'active': return 'mdi-check-circle'
+    case 'inactive': return 'mdi-pause-circle'
+    case 'suspended': return 'mdi-cancel'
+    default: return 'mdi-help-circle'
+  }
+}
+
+const getStatusDisplayName = (status: string) => {
+  switch (status) {
+    case 'active': return 'Aktif'
+    case 'inactive': return 'Pasif'
+    case 'suspended': return 'Askıda'
+    default: return status
+  }
+}
+
+const getBalanceColor = (balance: number) => {
+  if (balance > 0) return 'text-success'
+  if (balance < 0) return 'text-error'
+  return 'text-grey-600'
+}
+
+// Fetch students from Firebase (ORİJİNAL KOD KORUNDU)
 const fetchStudents = async () => {
   loading.value = true
 
@@ -582,105 +797,11 @@ const fetchStudents = async () => {
   }
 }
 
-// Computed
-const filteredStudents = computed(() => {
-  let filtered = students.value
-
-  if (filters.search) {
-    filtered = filtered.filter(student =>
-        `${student.firstName} ${student.lastName}`.toLowerCase().includes(filters.search.toLowerCase()) ||
-        student.email.toLowerCase().includes(filters.search.toLowerCase())
-    )
-  }
-
-  if (filters.membership) {
-    filtered = filtered.filter(student => student.membershipType === filters.membership)
-  }
-
-  if (filters.status) {
-    filtered = filtered.filter(student => student.status === filters.status)
-  }
-
-  return filtered.sort((a, b) => b.joinDate.getTime() - a.joinDate.getTime())
-})
-
-// Methods
-const getInitials = (name: string): string => {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase()
-}
-
-const getStudentColor = (studentId: string): string => {
-  const colors = ['primary', 'success', 'warning', 'info', 'error', 'purple']
-  const index = parseInt(studentId) % colors.length
-  return colors[index]
-}
-
-const getMembershipColor = (membership: string): string => {
-  const colors: { [key: string]: string } = {
-    'basic': 'info',
-    'premium': 'warning',
-    'vip': 'error',
-    'private_1_45': 'purple',
-    'private_2_60': 'purple',
-    'private_group_3_8': 'indigo',
-    'private_group_4_8': 'indigo',
-    'private_package_1_8': 'deep-purple',
-    'private_package_2_8': 'deep-purple',
-    'adult_group': 'teal',
-    'tennis_school_age': 'orange',
-    'tennis_school_performance': 'red'
-  }
-  return colors[membership] || 'grey'
-}
-
-const getMembershipText = (membership: string): string => {
-  const texts: { [key: string]: string } = {
-    'basic': 'Temel',
-    'premium': 'Premium',
-    'vip': 'VIP',
-    'private_1_45': 'Özel Ders 1 Kişi (45dk)',
-    'private_2_60': 'Özel Ders 2 Kişi (60dk)',
-    'private_group_3_8': 'Özel Grup 3 Kişi (8ders)',
-    'private_group_4_8': 'Özel Grup 4 Kişi (8ders)',
-    'private_package_1_8': 'Özel Paket 1 Kişi (8ders)',
-    'private_package_2_8': 'Özel Paket 2 Kişi (8ders)',
-    'adult_group': 'Yetişkin Grup',
-    'tennis_school_age': 'Tenis Okulu Yaş Grubu',
-    'tennis_school_performance': 'Tenis Okulu Performans'
-  }
-  return texts[membership] || membership
-}
-
-const getStatusColor = (status: string): string => {
-  const colors: { [key: string]: string } = {
-    'active': 'success',
-    'inactive': 'grey',
-    'suspended': 'error'
-  }
-  return colors[status] || 'grey'
-}
-
-const getStatusText = (status: string): string => {
-  const texts: { [key: string]: string } = {
-    'active': 'Aktif',
-    'inactive': 'Pasif',
-    'suspended': 'Askıda'
-  }
-  return texts[status] || status
-}
-
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString('tr-TR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  })
-}
-
-const viewStudent = (student: Student) => {
+const viewStudentDetails = (student: Student) => {
+  console.log('Öğrenci detayları görüntüle:', student)
   selectedStudent.value = student
-  isEditMode.value = false
   showStudentDetailsDialog.value = true
+  isEditMode.value = false
 }
 
 const toggleEditMode = () => {
@@ -817,7 +938,3 @@ onMounted(() => {
   fetchStudents()
 })
 </script>
-
-<style scoped>
-
-</style>

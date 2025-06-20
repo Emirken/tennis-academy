@@ -3409,3 +3409,303 @@
         font-size: 0.65rem;
     }
 }
+/* StudentManagement Page Specific Styles */
+.student-management {
+    min-height: 100vh;
+}
+
+/* Student Details Dialog Info Items */
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.info-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-value {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #1f2937;
+    line-height: 1.4;
+}
+
+/* Enhanced Data Table Styling */
+.v-data-table .v-data-table__wrapper table tbody tr:hover {
+    background-color: rgba(102, 126, 234, 0.04) !important;
+}
+
+.v-data-table .v-data-table-header__content {
+    font-weight: 600 !important;
+    color: #374151 !important;
+}
+
+.v-data-table .v-data-table__td {
+    padding: 12px 16px !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+.v-data-table .v-data-table__th {
+    padding: 16px !important;
+    background: rgba(102, 126, 234, 0.05) !important;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Student Avatar Styling */
+.v-avatar {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+.v-avatar:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Enhanced Chip Styling */
+.v-chip {
+    font-weight: 600 !important;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.v-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Dialog Enhancements */
+.v-dialog .v-card {
+    border-radius: 24px !important;
+    overflow: hidden;
+}
+
+.v-dialog .v-card-title {
+    border-radius: 0 !important;
+}
+
+.v-dialog .v-card-actions {
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Loading State */
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+}
+
+.loading-text {
+    font-size: 1rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Action Buttons Enhancement */
+.v-btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.v-btn:hover {
+    transform: translateY(-2px);
+}
+
+.v-btn[variant="flat"]:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+}
+
+.v-btn[variant="tonal"]:hover {
+    transform: scale(1.1);
+}
+
+/* Balance Color Classes */
+.text-success {
+    color: #2E7D32 !important;
+}
+
+.text-error {
+    color: #C62828 !important;
+}
+
+.text-grey-600 {
+    color: #6b7280 !important;
+}
+
+/* Enhanced Search and Filter Inputs */
+.v-text-field .v-field {
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.v-text-field .v-field:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.v-text-field .v-field--focused {
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2) !important;
+}
+
+.v-select .v-field {
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.v-select .v-field:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.v-textarea .v-field {
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive Design for Student Management */
+@media (max-width: 960px) {
+    .student-management .welcome-section {
+        margin: 16px !important;
+        border-radius: 24px;
+    }
+
+    .student-management .stat-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+
+    .student-management .stat-icon-wrapper {
+        margin-bottom: 8px;
+    }
+
+    .student-management .info-item {
+        margin-bottom: 16px;
+    }
+
+    .v-dialog .v-card {
+        margin: 16px;
+        max-height: calc(100vh - 32px);
+    }
+}
+
+@media (max-width: 768px) {
+    .student-management .v-data-table__wrapper {
+        overflow-x: auto;
+    }
+
+    .student-management .v-data-table {
+        min-width: 700px;
+    }
+
+    .student-management .date-time-widget {
+        margin-top: 16px;
+    }
+
+    .v-dialog .v-card-actions .d-flex {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .v-dialog .v-card-actions .v-btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .student-management .welcome-section {
+        margin: 0 -16px;
+        border-radius: 0;
+    }
+
+    .student-management .stat-number {
+        font-size: 1.8rem;
+    }
+
+    .student-management .info-label {
+        font-size: 0.8rem;
+    }
+
+    .student-management .info-value {
+        font-size: 0.9rem;
+    }
+
+    .v-dialog {
+        margin: 0;
+    }
+
+    .v-dialog .v-card {
+        margin: 0;
+        border-radius: 0 !important;
+        max-height: 100vh;
+    }
+}
+
+/* Animation Enhancements */
+@keyframes studentCardFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.student-management .modern-card {
+    animation: studentCardFadeIn 0.6s ease-out forwards;
+}
+
+.student-management .modern-card:nth-child(1) { animation-delay: 0.1s; }
+.student-management .modern-card:nth-child(2) { animation-delay: 0.2s; }
+.student-management .modern-card:nth-child(3) { animation-delay: 0.3s; }
+.student-management .modern-card:nth-child(4) { animation-delay: 0.4s; }
+
+/* Table Row Animation */
+.v-data-table tbody tr {
+    transition: all 0.3s ease;
+}
+
+/* Success Snackbar Styling */
+.v-snackbar {
+    border-radius: 12px !important;
+}
+
+.v-snackbar .v-snackbar__wrapper {
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Enhanced Dialog Content Spacing */
+.v-dialog .v-container {
+    max-width: 100%;
+}
+
+.v-dialog .v-card-text .v-container {
+    padding: 24px;
+}
+
+/* Custom scrollbar for dialog */
+.v-dialog .v-card-text::-webkit-scrollbar {
+    width: 6px;
+}
+
+.v-dialog .v-card-text::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.v-dialog .v-card-text::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.v-dialog .v-card-text::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
