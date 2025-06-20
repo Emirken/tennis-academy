@@ -2335,3 +2335,774 @@
         padding: 0 16px 16px 16px;
     }
 }
+/* Login Page Specific Styles */
+.login-page {
+    background: #f9fafb;
+    min-height: 100vh;
+}
+
+/* Auth Welcome Section */
+.auth-welcome-section {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.auth-welcome-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="tennis" patternUnits="userSpaceOnUse" width="20" height="20"><circle cx="10" cy="10" r="2" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23tennis)"/></svg>');
+}
+
+.auth-welcome-content {
+    position: relative;
+    z-index: 2;
+}
+
+.auth-logo-wrapper {
+    background: rgba(255,255,255,0.15);
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+.auth-welcome-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    letter-spacing: -0.02em;
+}
+
+.auth-welcome-subtitle {
+    font-size: 1.2rem;
+    color: rgba(255,255,255,0.9);
+    font-weight: 400;
+}
+
+/* Auth Container */
+.auth-container {
+    margin-top: -60px;
+    position: relative;
+    z-index: 3;
+}
+
+/* Auth Card */
+.auth-card {
+    border-left: 4px solid #667eea;
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+/* Auth Form Header */
+.auth-form-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+
+.auth-form-icon-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.auth-form-icon-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    filter: blur(20px);
+    opacity: 0.3;
+}
+
+.auth-form-content {
+    flex: 1;
+}
+
+.auth-form-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+}
+
+.auth-form-subtitle {
+    font-size: 0.95rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Auth Form Inputs */
+.auth-input .v-field {
+    border-radius: 12px;
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(10px);
+}
+
+.auth-input .v-field:hover {
+    background: rgba(255,255,255,0.9);
+}
+
+.auth-input .v-field--focused {
+    background: white;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+/* Auth Submit Button */
+.auth-submit-btn {
+    border-radius: 12px;
+    font-weight: 600;
+    text-transform: none;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    transition: all 0.3s ease;
+}
+
+.auth-submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+/* Auth Alert */
+.auth-alert {
+    border-radius: 12px;
+    border-left: 4px solid currentColor;
+}
+
+/* Auth Links */
+.auth-links {
+    margin-top: 24px;
+}
+
+.auth-link-card {
+    background: rgba(255,255,255,0.5);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid rgba(0,0,0,0.06);
+    transition: all 0.3s ease;
+}
+
+.auth-link-card:hover {
+    background: rgba(255,255,255,0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.auth-link-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.auth-link-info {
+    flex: 1;
+}
+
+.auth-link-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 2px;
+}
+
+.auth-link-description {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+.auth-link-btn {
+    border-radius: 8px;
+    text-transform: none;
+    font-weight: 500;
+}
+
+/* Features Section */
+.features-section {
+    text-align: center;
+    padding: 48px 0;
+}
+
+.features-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 32px;
+}
+
+.feature-item {
+    text-align: center;
+    padding: 24px 16px;
+    transition: all 0.3s ease;
+}
+
+.feature-item:hover {
+    transform: translateY(-4px);
+}
+
+.feature-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px auto;
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-icon-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    filter: blur(20px);
+    opacity: 0.3;
+}
+
+.feature-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 8px;
+}
+
+.feature-description {
+    font-size: 0.9rem;
+    color: #6b7280;
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 960px) {
+    .auth-welcome-title {
+        font-size: 2rem;
+    }
+
+    .auth-welcome-subtitle {
+        font-size: 1rem;
+    }
+
+    .auth-logo-wrapper {
+        width: 100px;
+        height: 100px;
+    }
+
+    .auth-form-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+
+    .features-title {
+        font-size: 1.5rem;
+    }
+
+    .feature-item {
+        padding: 20px 12px;
+    }
+}
+
+@media (max-width: 600px) {
+    .auth-container {
+        margin-top: -40px;
+        padding: 0 16px;
+    }
+
+    .auth-welcome-title {
+        font-size: 1.8rem;
+    }
+
+    .auth-welcome-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .auth-logo-wrapper {
+        width: 80px;
+        height: 80px;
+    }
+
+    .auth-card .pa-8 {
+        padding: 24px !important;
+    }
+
+    .auth-form-title {
+        font-size: 1.3rem;
+    }
+
+    .auth-form-subtitle {
+        font-size: 0.9rem;
+    }
+
+    .auth-link-content {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .auth-link-btn {
+        width: 100%;
+    }
+
+    .features-section {
+        padding: 32px 0;
+    }
+
+    .features-title {
+        font-size: 1.3rem;
+    }
+
+    .feature-icon-wrapper {
+        width: 56px;
+        height: 56px;
+    }
+
+    .feature-title {
+        font-size: 1rem;
+    }
+
+    .feature-description {
+        font-size: 0.85rem;
+    }
+}
+/* Register Page Specific Styles */
+.register-page {
+    background: #f9fafb;
+    min-height: 100vh;
+}
+
+/* Register Card */
+.register-card {
+    border-left: 4px solid #11998e;
+}
+
+/* Register Submit Button */
+.register-submit-btn {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
+}
+
+.register-submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4);
+}
+
+/* Benefits Section */
+.benefits-section {
+    text-align: center;
+    padding: 48px 0;
+    background: rgba(255,255,255,0.5);
+    border-radius: 24px;
+    backdrop-filter: blur(10px);
+}
+
+.benefits-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 32px;
+}
+
+.benefit-item {
+    text-align: center;
+    padding: 24px 16px;
+    transition: all 0.3s ease;
+}
+
+.benefit-item:hover {
+    transform: translateY(-4px);
+}
+
+.benefit-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px auto;
+    position: relative;
+    overflow: hidden;
+}
+
+.benefit-icon-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    filter: blur(20px);
+    opacity: 0.3;
+}
+
+.benefit-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 8px;
+}
+
+.benefit-description {
+    font-size: 0.9rem;
+    color: #6b7280;
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* Steps Section */
+.steps-section {
+    text-align: center;
+    padding: 48px 0;
+}
+
+.steps-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 32px;
+}
+
+.step-item {
+    text-align: center;
+    padding: 20px;
+    position: relative;
+}
+
+.step-number {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px auto;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: white;
+}
+
+.step-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.step-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.step-info {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.step-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 8px;
+}
+
+.step-description {
+    font-size: 0.9rem;
+    color: #6b7280;
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* Add connector lines between steps */
+.step-item::after {
+    content: '';
+    position: absolute;
+    top: 44px;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, #e5e7eb 0%, transparent 100%);
+    z-index: 1;
+}
+
+.step-item:last-child::after {
+    display: none;
+}
+
+/* Register Page Responsive Design */
+@media (max-width: 960px) {
+    .benefits-section {
+        padding: 32px 16px;
+        margin: 0 16px;
+    }
+
+    .benefits-title {
+        font-size: 1.5rem;
+    }
+
+    .benefit-item {
+        padding: 20px 12px;
+    }
+
+    .steps-section {
+        padding: 32px 16px;
+    }
+
+    .steps-title {
+        font-size: 1.4rem;
+    }
+
+    .step-item::after {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .register-card .pa-8 {
+        padding: 24px !important;
+    }
+
+    .auth-form-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+
+    .benefits-section {
+        padding: 24px 12px;
+        margin: 0 8px;
+    }
+
+    .benefits-title {
+        font-size: 1.3rem;
+    }
+
+    .benefit-icon-wrapper {
+        width: 56px;
+        height: 56px;
+    }
+
+    .benefit-title {
+        font-size: 1rem;
+    }
+
+    .benefit-description {
+        font-size: 0.85rem;
+    }
+
+    .steps-section {
+        padding: 24px 12px;
+    }
+
+    .steps-title {
+        font-size: 1.2rem;
+    }
+
+    .step-number {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+
+    .step-title {
+        font-size: 1rem;
+    }
+
+    .step-description {
+        font-size: 0.85rem;
+    }
+}
+/* AppFooter Specific Styles */
+.modern-footer {
+    position: relative;
+    overflow: hidden;
+    margin-top: auto;
+}
+
+.footer-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    z-index: 1;
+}
+
+.footer-background::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="tennis" patternUnits="userSpaceOnUse" width="20" height="20"><circle cx="10" cy="10" r="2" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23tennis)"/></svg>');
+}
+
+.footer-container {
+    position: relative;
+    z-index: 2;
+}
+
+.footer-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+/* Footer Brand */
+.footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.footer-logo-wrapper {
+    background: rgba(255,255,255,0.15);
+    border-radius: 12px;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.footer-brand-text {
+    color: white;
+}
+
+.footer-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 4px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.footer-subtitle {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.8);
+    margin: 0;
+    font-weight: 400;
+}
+
+/* Footer Credit */
+.footer-credit {
+    display: flex;
+    align-items: center;
+}
+
+.credit-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.1);
+    padding: 8px 16px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+}
+
+.credit-wrapper:hover {
+    background: rgba(255,255,255,0.15);
+    transform: translateY(-2px);
+}
+
+.credit-icon-wrapper {
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.credit-text {
+    font-size: 0.85rem;
+    color: white;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* Footer Responsive Design */
+@media (max-width: 768px) {
+    .footer-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 16px;
+    }
+
+    .footer-brand {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+
+    .footer-title {
+        font-size: 1.2rem;
+    }
+
+    .footer-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .credit-wrapper {
+        padding: 6px 12px;
+    }
+
+    .credit-text {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .footer-logo-wrapper {
+        width: 48px;
+        height: 48px;
+    }
+
+    .footer-title {
+        font-size: 1.1rem;
+    }
+
+    .footer-subtitle {
+        font-size: 0.8rem;
+    }
+
+    .credit-icon-wrapper {
+        width: 24px;
+        height: 24px;
+    }
+
+    .credit-text {
+        font-size: 0.75rem;
+    }
+}

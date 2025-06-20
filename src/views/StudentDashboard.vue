@@ -113,7 +113,7 @@
               <p class="section-subtitle">Size en yakın işlemlere hızlıca erişin</p>
             </div>
             <v-row>
-              <v-col cols="12" sm="6" md="3" v-for="(action, index) in quickActions" :key="index">
+              <v-col cols="12" sm="6" md="4" v-for="(action, index) in quickActions" :key="index">
                 <v-card
                     class="action-card modern-action-card"
                     elevation="0"
@@ -356,13 +356,6 @@ const quickActions = computed(() => [
     icon: 'mdi-currency-try',
     gradient: 'info-gradient',
     route: { name: 'Dues' }
-  },
-  {
-    title: 'Profil Bilgileri',
-    description: 'Kişisel bilgilerinizi görüntüleyin ve düzenleyin',
-    icon: 'mdi-account-circle',
-    gradient: 'success-gradient',
-    action: () => showProfileDialog.value = true
   },
   {
     title: 'Kort Durumu',
