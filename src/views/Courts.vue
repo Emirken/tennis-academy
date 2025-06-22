@@ -288,7 +288,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import {collection, doc, getDoc, getDocs, query, setDoc, where} from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
 const authStore = useAuthStore()
@@ -422,6 +422,7 @@ const fetchCourtSchedule = async (date: Date) => {
     const docRef = doc(db, 'courtSchedule', dateString)
     const docSnap = await getDoc(docRef)
 
+    // Önce courtSchedule'dan var olan durumları al
     if (docSnap.exists()) {
       schedule.value = docSnap.data().schedule || {}
     } else {
@@ -436,6 +437,9 @@ const fetchCourtSchedule = async (date: Date) => {
       schedule.value = defaultSchedule
     }
 
+    // Şimdi rezervasyonları kontrol et ve schedule'ı güncelle
+    await checkReservationsAndUpdateSchedule(date)
+
     updateCourtStats()
   } catch (error) {
     console.error('Error fetching court schedule:', error)
@@ -443,6 +447,58 @@ const fetchCourtSchedule = async (date: Date) => {
   } finally {
     loading.value = false
   }
+}
+
+// Yeni metod: Rezervasyonları kontrol et ve schedule güncelle
+const checkReservationsAndUpdateSchedule = async (date: Date) => {
+  try {
+    // Seçilen tarihin başlangıcı ve bitişi
+    const startOfDay = new Date(date)
+    startOfDay.setHours(0, 0, 0, 0)
+
+    const endOfDay = new Date(date)
+    endOfDay.setHours(23, 59, 59, 999)
+
+    // Sadece tarihe göre sorgu (index gerektirmez)
+    const reservationsQuery = query(
+        collection(db, 'reservations'),
+        where('date', '>=', startOfDay),
+        where('date', '<=', endOfDay)
+    )
+
+    const querySnapshot = await getDocs(reservationsQuery)
+
+    querySnapshot.forEach((doc) => {
+      const reservation = doc.data()
+      const { courtId, startTime, status } = reservation
+
+      // Status kontrolünü client-side'da yapalım
+      if (status !== 'confirmed' && status !== 'active') {
+        return // Bu rezervasyonu atla
+      }
+
+      const mappedCourtId = mapCourtId(courtId)
+
+      if (schedule.value[mappedCourtId] && timeSlots.includes(startTime)) {
+        if (schedule.value[mappedCourtId][startTime] === 'available') {
+          schedule.value[mappedCourtId][startTime] = 'occupied'
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Error checking reservations:', error)
+  }
+}
+
+// 2. mapCourtId metodunu güncelleyin:
+const mapCourtId = (reservationCourtId: string): string => {
+  const mapping: Record<string, string> = {
+    'court-1': 'K1',
+    'court-2': 'K2',
+    'court-3': 'K3',
+  }
+
+  return mapping[reservationCourtId] || reservationCourtId
 }
 
 const updateCourtStats = () => {
