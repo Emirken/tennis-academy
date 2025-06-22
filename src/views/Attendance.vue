@@ -419,7 +419,7 @@ const formValid = ref(false)
 const showAddStudentDialog = ref(false)
 const showDatePicker = ref(false)
 const selectedLessonIndex = ref(0)
-const selectedDate = ref('')
+const selectedDate = ref(new Date())
 const showSuccessMessage = ref(false)
 const showErrorMessage = ref(false)
 const successMessage = ref('')
@@ -510,7 +510,7 @@ const initializeAttendanceData = () => {
   })
 }
 
-const updateAttendanceValue = async (studentId: string, lessonIndex: number, value: boolean) => {
+const updateAttendanceValue = async (studentId: string, lessonIndex: number, value: any) => {
   if (!attendanceData[studentId]) {
     attendanceData[studentId] = new Array(8).fill(false)
   }
@@ -685,19 +685,21 @@ const openAddStudentDialog = async () => {
 
 const openDatePicker = (index: number) => {
   selectedLessonIndex.value = index
-  selectedDate.value = monthLessons.value[index].dateString
+  const currentDateString = monthLessons.value[index].dateString
+  selectedDate.value = currentDateString ? new Date(currentDateString) : new Date()
   showDatePicker.value = true
 }
 
 const closeDatePicker = () => {
   showDatePicker.value = false
-  selectedDate.value = ''
+  selectedDate.value = new Date()
   selectedLessonIndex.value = 0
 }
 
 const updateSelectedDate = async () => {
   if (selectedDate.value) {
-    updateLessonDate(selectedLessonIndex.value, selectedDate.value)
+    const dateString = selectedDate.value.toISOString().split('T')[0]
+    updateLessonDate(selectedLessonIndex.value, dateString)
     await autoSaveAttendance()
     showSuccessMessage.value = true
     successMessage.value = `${selectedLessonIndex.value + 1}. ders tarihi güncellendi!`
