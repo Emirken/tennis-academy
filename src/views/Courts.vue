@@ -525,10 +525,13 @@ const saveCourtSchedule = async () => {
     const dateString = selectedDate.value.toISOString().split('T')[0]
     const docRef = doc(db, 'courtSchedule', dateString)
 
+    // updatedBy alanı için güvenli değer kontrolü
+    const updatedBy = authStore.user?.id || authStore.user?.email || 'unknown'
+
     await setDoc(docRef, {
       schedule: schedule.value,
       lastUpdated: new Date(),
-      updatedBy: authStore.user?.id
+      updatedBy: updatedBy
     })
 
     editMode.value = false
@@ -539,6 +542,7 @@ const saveCourtSchedule = async () => {
     saving.value = false
   }
 }
+
 
 const enableEditMode = () => {
   editMode.value = true
