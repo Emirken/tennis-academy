@@ -420,6 +420,36 @@
                           {{ getMembershipDisplayName(selectedStudent?.membershipType) }}
                         </v-chip>
                       </div>
+                      <!-- Grup bilgisi gösterimi -->
+                      <div v-if="isGroupMembership(selectedStudent?.membershipType) && selectedStudent?.groupAssignment" class="info-item mb-3">
+                        <label class="info-label">Grup:</label>
+                        <v-chip
+                            color="purple"
+                            variant="flat"
+                            size="small"
+                            class="font-weight-bold"
+                        >
+                          <v-icon start size="16">mdi-account-group</v-icon>
+                          {{ getGroupDisplayName(selectedStudent?.membershipType, selectedStudent?.groupAssignment) }}
+                        </v-chip>
+                      </div>
+                      <!-- Grup programı gösterimi -->
+                      <div v-if="isGroupMembership(selectedStudent?.membershipType) && selectedStudent?.groupSchedule?.weeklyPlan?.length" class="info-item mb-3">
+                        <label class="info-label">Haftalık Program:</label>
+                        <div class="mt-2">
+                          <v-chip
+                              v-for="(plan, index) in selectedStudent.groupSchedule.weeklyPlan"
+                              :key="index"
+                              color="indigo"
+                              variant="flat"
+                              size="small"
+                              class="mr-2 mb-2"
+                          >
+                            <v-icon start size="16">mdi-calendar-clock</v-icon>
+                            {{ getDayDisplayName(plan.day) }} {{ plan.time }} - {{ getCourtDisplayName(plan.court) }}
+                          </v-chip>
+                        </div>
+                      </div>
                       <div class="info-item mb-3">
                         <label class="info-label">Durum:</label>
                         <v-chip
@@ -455,7 +485,130 @@
                           variant="outlined"
                           density="compact"
                           class="mb-3"
+                          @update:model-value="onMembershipTypeChange"
                       />
+                      <!-- Grup seçimi - sadece grup üyeliklerinde göster -->
+                      <v-select
+                          v-if="isGroupMembership(editForm.membershipType)"
+                          v-model="editForm.groupAssignment"
+                          label="Grup Seçimi"
+                          :items="getGroupOptions(editForm.membershipType)"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                          clearable
+                          placeholder="Grup seçiniz"
+                      >
+                        <template #prepend-inner>
+                          <v-icon color="purple">mdi-account-group</v-icon>
+                        </template>
+                      </v-select>
+
+                      <!-- Haftalık program düzenleyici -->
+                      <div v-if="isGroupMembership(editForm.membershipType) && editForm.groupAssignment">
+                        <div class="d-flex align-center justify-space-between mb-3">
+                          <label class="text-subtitle-1 font-weight-medium">Haftalık Program</label>
+                          <v-btn
+                              size="small"
+                              color="primary"
+                              variant="tonal"
+                              @click="addDayToPlan"
+                              prepend-icon="mdi-plus"
+                          >
+                            Gün Ekle
+                          </v-btn>
+                        </div>
+
+                        <!-- Her gün için ayrı seçim -->
+                        <v-card
+                            v-for="(dayPlan, index) in editForm.weeklyPlan"
+                            :key="index"
+                            class="mb-3 pa-3"
+                            variant="outlined"
+                        >
+                          <div class="d-flex align-center justify-space-between mb-2">
+                            <span class="text-subtitle-2 font-weight-medium">{{ index + 1 }}. Ders Günü</span>
+                            <v-btn
+                                size="x-small"
+                                color="error"
+                                variant="text"
+                                icon="mdi-delete"
+                                @click="removeDayFromPlan(index)"
+                            />
+                          </div>
+
+                          <v-row dense>
+                            <!-- Gün seçimi -->
+                            <v-col cols="12">
+                              <v-select
+                                  v-model="dayPlan.day"
+                                  label="Gün"
+                                  :items="dayOptions"
+                                  variant="outlined"
+                                  density="compact"
+                                  placeholder="Gün seçiniz"
+                              >
+                                <template #prepend-inner>
+                                  <v-icon color="blue" size="16">mdi-calendar</v-icon>
+                                </template>
+                              </v-select>
+                            </v-col>
+
+                            <!-- Saat seçimi -->
+                            <v-col cols="12">
+                              <v-select
+                                  v-model="dayPlan.time"
+                                  label="Saat"
+                                  :items="timeOptions"
+                                  variant="outlined"
+                                  density="compact"
+                                  placeholder="Saat seçiniz"
+                              >
+                                <template #prepend-inner>
+                                  <v-icon color="green" size="16">mdi-clock</v-icon>
+                                </template>
+                              </v-select>
+                            </v-col>
+
+                            <!-- Kort seçimi -->
+                            <v-col cols="12">
+                              <v-select
+                                  v-model="dayPlan.court"
+                                  label="Kort"
+                                  :items="courtOptions"
+                                  variant="outlined"
+                                  density="compact"
+                                  placeholder="Kort seçiniz"
+                              >
+                                <template #prepend-inner>
+                                  <v-icon color="orange" size="16">mdi-tennis-ball</v-icon>
+                                </template>
+                              </v-select>
+                            </v-col>
+                          </v-row>
+
+                          <!-- Seçim özeti -->
+                          <div v-if="dayPlan.day && dayPlan.time && dayPlan.court" class="mt-2">
+                            <v-chip color="success" size="small" variant="flat">
+                              <v-icon start size="16">mdi-check</v-icon>
+                              {{ getDayDisplayName(dayPlan.day) }} {{ dayPlan.time }} - {{ getCourtDisplayName(dayPlan.court) }}
+                            </v-chip>
+                          </div>
+                        </v-card>
+
+                        <!-- Program özeti -->
+                        <div v-if="editForm.weeklyPlan.length > 0" class="my-3">
+                          <v-alert
+                              color="info"
+                              variant="tonal"
+                              density="compact"
+                              icon="mdi-information"
+                          >
+                            <strong>Program Özeti:</strong><br>
+                            {{ getWeeklyPlanDisplay(editForm.weeklyPlan.filter(p => p.day && p.time && p.court)) }}
+                          </v-alert>
+                        </div>
+                      </div>
                       <v-select
                           v-model="editForm.status"
                           label="Durum"
@@ -521,10 +674,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
-// Define student interface
+// Define student interface - groupAssignment alanı eklendi
 interface Student {
   id: string
   firstName: string
@@ -534,6 +687,14 @@ interface Student {
   address: string
   emergencyContact: string
   membershipType: string
+  groupAssignment?: string
+  groupSchedule?: {
+    weeklyPlan: Array<{
+      day: string
+      time: string
+      court: string
+    }>
+  }
   status: 'active' | 'inactive' | 'suspended'
   joinDate: Date
   balance: number
@@ -562,7 +723,7 @@ const filters = reactive({
   status: ''
 })
 
-// Edit form
+// Edit form - groupAssignment alanı eklendi
 const editForm = ref({
   firstName: '',
   lastName: '',
@@ -571,6 +732,12 @@ const editForm = ref({
   address: '',
   emergencyContact: '',
   membershipType: '',
+  groupAssignment: '',
+  weeklyPlan: [] as Array<{
+    day: string
+    time: string
+    court: string
+  }>,
   status: '',
   balance: 0,
   notes: ''
@@ -586,7 +753,7 @@ const headers = [
   { title: 'İşlemler', key: 'actions', sortable: false, align: 'center' }
 ]
 
-// Options (ORİJİNAL KOD)
+// Options
 const membershipTypes = [
   { title: 'Özel Ders 1 Kişi (45dk)', value: 'private_1_45' },
   { title: 'Özel Ders 2 Kişi (60dk)', value: 'private_2_60' },
@@ -605,7 +772,172 @@ const statusOptions = [
   { title: 'Askıda', value: 'suspended' }
 ]
 
-// Computed properties (ORİJİNAL MANTIK KORUNDU)
+// Hafta günleri seçenekleri
+const dayOptions = [
+  { title: 'Pazartesi', value: 'monday' },
+  { title: 'Salı', value: 'tuesday' },
+  { title: 'Çarşamba', value: 'wednesday' },
+  { title: 'Perşembe', value: 'thursday' },
+  { title: 'Cuma', value: 'friday' },
+  { title: 'Cumartesi', value: 'saturday' },
+  { title: 'Pazar', value: 'sunday' }
+]
+
+// Saat seçenekleri
+const timeOptions = [
+  { title: '08:00', value: '08:00' },
+  { title: '09:00', value: '09:00' },
+  { title: '10:00', value: '10:00' },
+  { title: '11:00', value: '11:00' },
+  { title: '12:00', value: '12:00' },
+  { title: '13:00', value: '13:00' },
+  { title: '14:00', value: '14:00' },
+  { title: '15:00', value: '15:00' },
+  { title: '16:00', value: '16:00' },
+  { title: '17:00', value: '17:00' },
+  { title: '18:00', value: '18:00' },
+  { title: '19:00', value: '19:00' },
+  { title: '20:00', value: '20:00' },
+  { title: '21:00', value: '21:00' }
+]
+
+// Kort seçenekleri
+const courtOptions = [
+  { title: 'Kort 1', value: 'court-1' },
+  { title: 'Kort 2', value: 'court-2' },
+  { title: 'Kort 3', value: 'court-3' }
+]
+
+// Grup üyelik türlerini kontrol eden fonksiyon
+const isGroupMembership = (membershipType: string): boolean => {
+  const groupMemberships = [
+    'private_group_3_8',
+    'private_group_4_8',
+    'adult_group',
+    'tennis_school_age',
+    'tennis_school_performance'
+  ]
+  return groupMemberships.includes(membershipType)
+}
+
+// Grup seçeneklerini dinamik olarak oluşturan fonksiyon
+const getGroupOptions = (membershipType: string) => {
+  if (!isGroupMembership(membershipType)) return []
+
+  const groups = []
+  let maxGroups = 10
+  let groupSize = ''
+
+  switch (membershipType) {
+    case 'private_group_3_8':
+      groupSize = '3 Kişilik Grup'
+      break
+    case 'private_group_4_8':
+      groupSize = '4 Kişilik Grup'
+      break
+    case 'adult_group':
+      groupSize = 'Yetişkin Grup'
+      maxGroups = 5
+      break
+    case 'tennis_school_age':
+      groupSize = 'Yaş Grubu'
+      maxGroups = 8
+      break
+    case 'tennis_school_performance':
+      groupSize = 'Performans Grubu'
+      maxGroups = 6
+      break
+    default:
+      groupSize = 'Grup'
+  }
+
+  for (let i = 1; i <= maxGroups; i++) {
+    groups.push({
+      title: `${groupSize} - ${i}`,
+      value: `group_${i}`
+    })
+  }
+
+  return groups
+}
+
+// Grup görüntü adını getiren fonksiyon
+const getGroupDisplayName = (membershipType: string, groupAssignment: string): string => {
+  if (!groupAssignment) return ''
+
+  const groupNumber = groupAssignment.replace('group_', '')
+
+  switch (membershipType) {
+    case 'private_group_3_8':
+      return `3 Kişilik Grup - ${groupNumber}`
+    case 'private_group_4_8':
+      return `4 Kişilik Grup - ${groupNumber}`
+    case 'adult_group':
+      return `Yetişkin Grup - ${groupNumber}`
+    case 'tennis_school_age':
+      return `Yaş Grubu - ${groupNumber}`
+    case 'tennis_school_performance':
+      return `Performans Grubu - ${groupNumber}`
+    default:
+      return `Grup - ${groupNumber}`
+  }
+}
+
+// Üyelik türü değiştiğinde grup atamasını sıfırla
+const onMembershipTypeChange = () => {
+  if (!isGroupMembership(editForm.value.membershipType)) {
+    editForm.value.groupAssignment = ''
+    editForm.value.weeklyPlan = []
+  }
+}
+
+// Günlük program yönetimi
+const addDayToPlan = () => {
+  editForm.value.weeklyPlan.push({
+    day: '',
+    time: '',
+    court: ''
+  })
+}
+
+const removeDayFromPlan = (index: number) => {
+  editForm.value.weeklyPlan.splice(index, 1)
+}
+
+// Gün isimlerini Türkçe olarak getiren fonksiyon
+const getDayDisplayName = (day: string): string => {
+  const dayMap: { [key: string]: string } = {
+    'monday': 'Pazartesi',
+    'tuesday': 'Salı',
+    'wednesday': 'Çarşamba',
+    'thursday': 'Perşembe',
+    'friday': 'Cuma',
+    'saturday': 'Cumartesi',
+    'sunday': 'Pazar'
+  }
+  return dayMap[day] || day
+}
+
+// Kort isimlerini görüntüleme fonksiyonu
+const getCourtDisplayName = (court: string): string => {
+  const courtMap: { [key: string]: string } = {
+    'court-1': 'Kort 1',
+    'court-2': 'Kort 2',
+    'court-3': 'Kort 3'
+  }
+  return courtMap[court] || court
+}
+
+// Haftalık programı string olarak gösterme
+const getWeeklyPlanDisplay = (weeklyPlan: Array<{day: string, time: string, court: string}>): string => {
+  if (!weeklyPlan || weeklyPlan.length === 0) return 'Program belirlenmemiş'
+
+  return weeklyPlan.map(plan =>
+      `${getDayDisplayName(plan.day)} ${plan.time} - ${getCourtDisplayName(plan.court)}`
+  ).join(', ')
+}
+
+// Computed properties
 const filteredStudents = computed(() => {
   let filtered = students.value
 
@@ -632,9 +964,7 @@ const stats = computed(() => {
   const total = students.value.length
   const active = students.value.filter(s => s.status === 'active').length
   const inactive = students.value.filter(s => s.status === 'inactive').length
-  const suspended = students.value.filter(s => s.status === 'suspended').length
 
-  // Calculate new students this month
   const now = new Date()
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const newThisMonth = students.value.filter(s =>
@@ -645,7 +975,6 @@ const stats = computed(() => {
     totalStudents: total,
     activeStudents: active,
     inactiveStudents: inactive,
-    suspendedStudents: suspended,
     newThisMonth
   }
 })
@@ -740,7 +1069,156 @@ const getBalanceColor = (balance: number) => {
   return 'text-grey-600'
 }
 
-// Fetch students from Firebase (ORİJİNAL KOD KORUNDU)
+// Rezervasyon oluşturma fonksiyonları
+const createGroupReservations = async (student: Student, weeklyPlan: Array<{day: string, time: string, court: string}>) => {
+  if (!weeklyPlan || weeklyPlan.length === 0) {
+    return
+  }
+
+  try {
+    console.log('🔄 Grup rezervasyonları oluşturuluyor...', { student: student.id, weeklyPlan })
+
+    // Sonraki 3 ay için rezervasyonları oluştur
+    const today = new Date()
+    const endDate = new Date()
+    endDate.setMonth(today.getMonth() + 3)
+
+    for (const plan of weeklyPlan) {
+      if (plan.day && plan.time && plan.court) {
+        console.log(`📅 ${plan.day} günü için rezervasyonlar oluşturuluyor...`)
+
+        const reservationDates = getReservationDatesForDay(today, endDate, plan.day)
+
+        for (const reservationDate of reservationDates) {
+          try {
+            const reservationData = {
+              studentId: student.id,
+              studentName: `${student.firstName} ${student.lastName}`,
+              courtId: convertCourtIdToReservationFormat(plan.court),
+              courtName: getCourtDisplayName(plan.court),
+              date: reservationDate,
+              startTime: plan.time,
+              endTime: calculateEndTime(plan.time),
+              duration: 60,
+              type: 'group-lesson',
+              status: 'confirmed',
+              groupId: student.groupAssignment,
+              membershipType: student.membershipType,
+              totalCost: 0,
+              createdAt: new Date(),
+              isRecurring: true,
+              groupSchedule: true,
+              autoGenerated: true
+            }
+
+            await addDoc(collection(db, 'reservations'), reservationData)
+            console.log(`✅ Rezervasyon oluşturuldu: ${reservationDate.toDateString()} ${plan.time} - ${plan.court}`)
+
+            await updateCourtScheduleForReservation(reservationDate, plan.court, plan.time)
+
+          } catch (error) {
+            console.error(`❌ Rezervasyon oluşturulurken hata (${reservationDate.toDateString()} ${plan.time}):`, error)
+          }
+        }
+      }
+    }
+
+    console.log('✅ Tüm grup rezervasyonları başarıyla oluşturuldu')
+
+  } catch (error) {
+    console.error('❌ Grup rezervasyonları oluşturulurken hata:', error)
+    throw error
+  }
+}
+
+// Yardımcı fonksiyonlar
+const getReservationDatesForDay = (startDate: Date, endDate: Date, dayName: string): Date[] => {
+  const dates: Date[] = []
+  const dayMap: { [key: string]: number } = {
+    'sunday': 0,
+    'monday': 1,
+    'tuesday': 2,
+    'wednesday': 3,
+    'thursday': 4,
+    'friday': 5,
+    'saturday': 6
+  }
+
+  const targetDay = dayMap[dayName.toLowerCase()]
+  if (targetDay === undefined) return dates
+
+  const current = new Date(startDate)
+
+  while (current.getDay() !== targetDay) {
+    current.setDate(current.getDate() + 1)
+  }
+
+  while (current <= endDate) {
+    dates.push(new Date(current))
+    current.setDate(current.getDate() + 7)
+  }
+
+  return dates
+}
+
+const convertCourtIdToReservationFormat = (courtId: string): string => {
+  const mapping: { [key: string]: string } = {
+    'court-1': 'court-1',
+    'court-2': 'court-2',
+    'court-3': 'court-3'
+  }
+  return mapping[courtId] || courtId
+}
+
+const calculateEndTime = (startTime: string): string => {
+  const [hours, minutes] = startTime.split(':').map(Number)
+  const endHours = hours + 1
+  return `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+}
+
+const updateCourtScheduleForReservation = async (date: Date, courtId: string, timeSlot: string) => {
+  try {
+    const dateString = date.toISOString().split('T')[0]
+    const docRef = doc(db, 'courtSchedule', dateString)
+
+    const docSnap = await getDoc(docRef)
+    let schedule: any = {}
+
+    if (docSnap.exists()) {
+      schedule = docSnap.data().schedule || {}
+    }
+
+    const courtScheduleId = convertCourtIdToScheduleFormat(courtId)
+
+    if (!schedule[courtScheduleId]) {
+      schedule[courtScheduleId] = {}
+    }
+
+    schedule[courtScheduleId][timeSlot] = 'occupied'
+
+    await setDoc(docRef, {
+      schedule: schedule,
+      lastUpdated: new Date(),
+      updatedBy: 'group-lesson-auto'
+    })
+
+    console.log(`✅ Court schedule güncellendi: ${dateString} ${courtScheduleId} ${timeSlot}`)
+
+  } catch (error) {
+    console.error('❌ Court schedule güncellerken hata:', error)
+  }
+}
+
+const convertCourtIdToScheduleFormat = (courtId: string): string => {
+  const mapping: { [key: string]: string } = {
+    'court-1': 'K1',
+    'court-2': 'K2',
+    'court-3': 'K3'
+  }
+  return mapping[courtId] || courtId
+}
+
+// Fetch students from Firebase
 const fetchStudents = async () => {
   loading.value = true
 
@@ -766,6 +1244,8 @@ const fetchStudents = async () => {
         address: data.address || '',
         emergencyContact: data.emergencyContact || '',
         membershipType: data.membershipType || 'basic',
+        groupAssignment: data.groupAssignment || '',
+        groupSchedule: data.groupSchedule || undefined,
         status: data.status || 'active',
         joinDate: data.createdAt?.toDate() || new Date(),
         balance: data.balance || 0,
@@ -806,7 +1286,6 @@ const viewStudentDetails = (student: Student) => {
 
 const toggleEditMode = () => {
   if (!isEditMode.value && selectedStudent.value) {
-    // Düzenleme moduna geçerken formu doldur
     editForm.value = {
       firstName: selectedStudent.value.firstName,
       lastName: selectedStudent.value.lastName,
@@ -815,6 +1294,8 @@ const toggleEditMode = () => {
       address: selectedStudent.value.address,
       emergencyContact: selectedStudent.value.emergencyContact,
       membershipType: selectedStudent.value.membershipType,
+      groupAssignment: selectedStudent.value.groupAssignment || '',
+      weeklyPlan: selectedStudent.value.groupSchedule?.weeklyPlan || [],
       status: selectedStudent.value.status,
       balance: selectedStudent.value.balance,
       notes: selectedStudent.value.notes || ''
@@ -825,7 +1306,6 @@ const toggleEditMode = () => {
 
 const cancelEdit = () => {
   isEditMode.value = false
-  // Form verilerini sıfırla
   editForm.value = {
     firstName: '',
     lastName: '',
@@ -834,6 +1314,8 @@ const cancelEdit = () => {
     address: '',
     emergencyContact: '',
     membershipType: '',
+    groupAssignment: '',
+    weeklyPlan: [],
     status: 'active',
     balance: 0,
     notes: ''
@@ -848,10 +1330,17 @@ const saveStudentChanges = async () => {
   try {
     console.log('💾 Öğrenci bilgileri kaydediliyor...', editForm.value)
 
-    // Firebase'de güncelleme yap
+    const validWeeklyPlan = editForm.value.weeklyPlan.filter(plan =>
+        plan.day && plan.time && plan.court
+    )
+
+    const groupSchedule = isGroupMembership(editForm.value.membershipType) && editForm.value.groupAssignment ? {
+      weeklyPlan: validWeeklyPlan
+    } : undefined
+
     const userDocRef = doc(db, 'users', selectedStudent.value.id)
 
-    await updateDoc(userDocRef, {
+    const updateData: any = {
       firstName: editForm.value.firstName,
       lastName: editForm.value.lastName,
       email: editForm.value.email,
@@ -859,15 +1348,22 @@ const saveStudentChanges = async () => {
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
       membershipType: editForm.value.membershipType,
+      groupAssignment: editForm.value.groupAssignment,
       status: editForm.value.status,
       balance: editForm.value.balance,
       notes: editForm.value.notes,
       updatedAt: serverTimestamp()
-    })
+    }
 
+    if (groupSchedule) {
+      updateData.groupSchedule = groupSchedule
+    } else {
+      updateData.groupSchedule = undefined
+    }
+
+    await updateDoc(userDocRef, updateData)
     console.log('✅ Firebase güncellendi')
 
-    // Öğrenci bilgilerini güncelle - tip güvenli şekilde
     const updatedStudent: Student = {
       ...selectedStudent.value,
       firstName: editForm.value.firstName,
@@ -877,17 +1373,23 @@ const saveStudentChanges = async () => {
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
       membershipType: editForm.value.membershipType,
+      groupAssignment: editForm.value.groupAssignment,
+      groupSchedule: groupSchedule,
       status: editForm.value.status as 'active' | 'inactive' | 'suspended',
       balance: editForm.value.balance,
       notes: editForm.value.notes,
       updatedAt: new Date()
     }
 
-    // Local state'i güncelle
     const index = students.value.findIndex(s => s.id === selectedStudent.value!.id)
     if (index > -1) {
       students.value[index] = updatedStudent
       selectedStudent.value = updatedStudent
+    }
+
+    if (groupSchedule && validWeeklyPlan.length > 0) {
+      await createGroupReservations(updatedStudent, validWeeklyPlan)
+      console.log('✅ Grup rezervasyonları oluşturuldu')
     }
 
     isEditMode.value = false
@@ -903,24 +1405,6 @@ const saveStudentChanges = async () => {
   } finally {
     savingChanges.value = false
   }
-}
-
-const sendMessage = (student: Student) => {
-  console.log('Mesaj gönder:', student)
-  successMessage.value = `${student.firstName} ${student.lastName} adlı öğrenciye mesaj gönderildi`
-  successSnackbar.value = true
-}
-
-const suspendStudent = (student: Student) => {
-  student.status = 'suspended'
-  successMessage.value = `${student.firstName} ${student.lastName} askıya alındı`
-  successSnackbar.value = true
-}
-
-const viewAttendance = (student: Student) => {
-  console.log('Devam durumunu görüntüle:', student)
-  successMessage.value = `${student.firstName} ${student.lastName} devam durumu görüntüleniyor`
-  successSnackbar.value = true
 }
 
 const deleteStudent = (student: Student) => {
