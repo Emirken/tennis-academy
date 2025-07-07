@@ -288,11 +288,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
-import {collection, doc, getDoc, getDocs, query, setDoc, where} from 'firebase/firestore'
+import {collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where} from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { onUnmounted } from 'vue'
 
 const authStore = useAuthStore()
-
+let unsubscribeCourtSchedule: () => void
 // Reactive data
 const selectedDate = ref(new Date())
 const datePickerMenu = ref(false)
@@ -300,7 +301,28 @@ const schedule = ref<any>({})
 const loading = ref(false)
 const editMode = ref(false)
 const saving = ref(false)
+onMounted(() => {
+  fetchCourtSchedule(selectedDate.value)
+  setupRealTimeListener()
+})
 
+onUnmounted(() => {
+  if (unsubscribeCourtSchedule) {
+    unsubscribeCourtSchedule()
+  }
+})
+
+const setupRealTimeListener = () => {
+  const dateString = selectedDate.value.toISOString().split('T')[0]
+  const docRef = doc(db, 'courtSchedule', dateString)
+
+  unsubscribeCourtSchedule = onSnapshot(docRef, (doc) => {
+    if (doc.exists()) {
+      schedule.value = doc.data().schedule || {}
+      updateCourtStats()
+    }
+  })
+}
 // Time slots (9:00 - 21:00)
 const timeSlots = [
   '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
