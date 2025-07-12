@@ -208,14 +208,27 @@
               </template>
 
               <template #item.membershipType="{ item }">
-                <v-chip
-                    :color="getMembershipColor(item.membershipType)"
-                    variant="flat"
-                    size="small"
-                    class="font-weight-bold"
-                >
-                  {{ getMembershipDisplayName(item.membershipType) }}
-                </v-chip>
+                <div class="d-flex flex-column align-start">
+                  <v-chip
+                      :color="getMembershipColor(item.membershipType)"
+                      variant="flat"
+                      size="small"
+                      class="font-weight-bold mb-1"
+                  >
+                    {{ getMembershipDisplayName(item.membershipType) }}
+                  </v-chip>
+                  <!-- Grup bilgisi -->
+                  <v-chip
+                      v-if="isGroupMembership(item.membershipType) && item.groupAssignment"
+                      :color="getGroupStatusColor(item.membershipType, item.groupAssignment)"
+                      variant="outlined"
+                      size="x-small"
+                      class="font-weight-medium"
+                  >
+                    <v-icon start size="12">mdi-account-group</v-icon>
+                    {{ getGroupDisplayNameWithCapacity(item.membershipType, item.groupAssignment) }}
+                  </v-chip>
+                </div>
               </template>
 
               <template #item.status="{ item }">
@@ -423,15 +436,32 @@
                       <!-- Grup bilgisi gösterimi -->
                       <div v-if="isGroupMembership(selectedStudent?.membershipType) && selectedStudent?.groupAssignment" class="info-item mb-3">
                         <label class="info-label">Grup:</label>
-                        <v-chip
-                            color="purple"
-                            variant="flat"
-                            size="small"
-                            class="font-weight-bold"
-                        >
-                          <v-icon start size="16">mdi-account-group</v-icon>
-                          {{ getGroupDisplayName(selectedStudent?.membershipType, selectedStudent?.groupAssignment) }}
-                        </v-chip>
+                        <div class="d-flex align-center gap-2">
+                          <v-chip
+                              :color="getGroupStatusColor(selectedStudent?.membershipType, selectedStudent?.groupAssignment)"
+                              variant="flat"
+                              size="small"
+                              class="font-weight-bold"
+                          >
+                            <v-icon start size="16">mdi-account-group</v-icon>
+                            {{ getGroupDisplayNameWithCapacity(selectedStudent?.membershipType, selectedStudent?.groupAssignment) }}
+                          </v-chip>
+
+                          <!-- Grup üyelerini göster -->
+                          <v-tooltip location="top">
+                            <template #activator="{ props }">
+                              <v-btn
+                                  v-bind="props"
+                                  icon="mdi-information-outline"
+                                  size="x-small"
+                                  variant="text"
+                                  color="info"
+                                  @click="showGroupMembersDialog(selectedStudent?.membershipType, selectedStudent?.groupAssignment)"
+                              />
+                            </template>
+                            <span>Grup üyelerini görüntüle</span>
+                          </v-tooltip>
+                        </div>
                       </div>
                       <!-- Grup programı gösterimi -->
                       <div v-if="isGroupMembership(selectedStudent?.membershipType) && selectedStudent?.groupSchedule?.weeklyPlan?.length" class="info-item mb-3">
@@ -487,22 +517,96 @@
                           class="mb-3"
                           @update:model-value="onMembershipTypeChange"
                       />
+
                       <!-- Grup seçimi - sadece grup üyeliklerinde göster -->
                       <v-select
                           v-if="isGroupMembership(editForm.membershipType)"
                           v-model="editForm.groupAssignment"
                           label="Grup Seçimi"
-                          :items="getGroupOptions(editForm.membershipType)"
+                          :items="getGroupOptionsWithCapacity(editForm.membershipType)"
+                          item-title="title"
+                          item-value="value"
                           variant="outlined"
                           density="compact"
                           class="mb-3"
                           clearable
                           placeholder="Grup seçiniz"
+                          @update:model-value="onGroupSelectionChange(editForm.membershipType, $event)"
                       >
                         <template #prepend-inner>
                           <v-icon color="purple">mdi-account-group</v-icon>
                         </template>
+
+                        <!-- Grup seçeneklerini özelleştir -->
+                        <template #item="{ props, item }">
+                          <v-list-item
+                              v-bind="props"
+                              :disabled="item.raw.disabled"
+                              :color="item.raw.props?.color || 'primary'"
+                          >
+                            <template #prepend>
+                              <v-icon
+                                  :color="item.raw.disabled ? 'grey' : item.raw.props?.color || 'primary'"
+                                  class="mr-2"
+                              >
+                                {{ item.raw.disabled ? 'mdi-account-group-outline' : 'mdi-account-group' }}
+                              </v-icon>
+                            </template>
+
+<!--                            <v-list-item-title>{{ item.raw.title }}</v-list-item-title>
+                            <v-list-item-subtitle v-if="item.raw.props?.subtitle">
+                              {{ item.raw.props.subtitle }}
+                            </v-list-item-subtitle>-->
+
+                            <template #append>
+                              <v-chip
+                                  v-if="item.raw.disabled"
+                                  size="x-small"
+                                  color="error"
+                                  variant="flat"
+                              >
+                                DOLU
+                              </v-chip>
+                              <v-chip
+                                  v-else
+                                  size="x-small"
+                                  :color="item.raw.props?.color || 'success'"
+                                  variant="flat"
+                              >
+                                {{ item.raw.props?.subtitle || 'Müsait' }}
+                              </v-chip>
+                            </template>
+                          </v-list-item>
+                        </template>
                       </v-select>
+
+                      <!-- Seçilen grubun detay bilgisi -->
+                      <v-alert
+                          v-if="editForm.groupAssignment"
+                          :color="getGroupStatusColor(editForm.membershipType, editForm.groupAssignment)"
+                          variant="tonal"
+                          density="compact"
+                          class="mb-3"
+                      >
+                        <template #prepend>
+                          <v-icon>mdi-information</v-icon>
+                        </template>
+
+                        <div class="d-flex align-center justify-space-between">
+                          <div>
+                            <strong>Seçilen Grup:</strong> {{ getGroupDisplayNameWithCapacity(editForm.membershipType, editForm.groupAssignment) }}
+                          </div>
+
+                          <v-btn
+                              size="small"
+                              color="info"
+                              variant="text"
+                              @click="showGroupMembersDialog(editForm.membershipType, editForm.groupAssignment)"
+                          >
+                            Üyeleri Görüntüle
+                          </v-btn>
+                        </div>
+                      </v-alert>
 
                       <!-- Haftalık program düzenleyici -->
                       <div v-if="isGroupMembership(editForm.membershipType) && editForm.groupAssignment">
@@ -609,6 +713,7 @@
                           </v-alert>
                         </div>
                       </div>
+
                       <v-select
                           v-model="editForm.status"
                           label="Durum"
@@ -617,20 +722,10 @@
                           density="compact"
                           class="mb-3"
                       />
-                      <v-text-field
-                          v-model="editForm.balance"
-                          label="Bakiye"
-                          variant="outlined"
-                          density="compact"
-                          type="number"
-                          suffix="₺"
-                          class="mb-3"
-                      />
                     </div>
                   </v-card-text>
                 </v-card>
               </v-col>
-
             </v-row>
           </v-container>
         </v-card-text>
@@ -660,6 +755,82 @@
       </v-card>
     </v-dialog>
 
+    <!-- Grup üyeleri dialog -->
+    <v-dialog
+        v-model="showGroupMembersDialogState"
+        max-width="600"
+    >
+      <v-card>
+        <v-card-title class="pa-4 bg-primary text-white">
+          <v-icon icon="mdi-account-group" class="mr-2" />
+          Grup Üyeleri
+        </v-card-title>
+
+        <v-card-text class="pa-4">
+          <div v-if="selectedGroupMembers.length === 0" class="text-center py-8">
+            <v-icon size="64" color="grey-400" class="mb-4">mdi-account-group-outline</v-icon>
+            <p class="text-grey-600">Bu grupta henüz üye bulunmuyor</p>
+          </div>
+
+          <div v-else>
+            <div class="mb-4">
+              <v-chip :color="getGroupStatusColor(selectedGroupMembershipType, selectedGroupId)" variant="flat" class="font-weight-bold">
+                {{ getGroupDisplayNameWithCapacity(selectedGroupMembershipType, selectedGroupId) }}
+              </v-chip>
+            </div>
+
+            <v-list density="compact">
+              <v-list-item
+                  v-for="member in selectedGroupMembers"
+                  :key="member.id"
+                  class="mb-2"
+              >
+                <template #prepend>
+                  <v-avatar
+                      :color="member.status === 'active' ? 'success' : 'grey'"
+                      size="32"
+                  >
+                    <span class="text-caption font-weight-bold">
+                      {{ member.firstName.charAt(0) }}{{ member.lastName.charAt(0) }}
+                    </span>
+                  </v-avatar>
+                </template>
+
+                <v-list-item-title class="font-weight-medium">
+                  {{ member.firstName }} {{ member.lastName }}
+                </v-list-item-title>
+
+                <v-list-item-subtitle>
+                  {{ member.email }}
+                </v-list-item-subtitle>
+
+                <template #append>
+                  <v-chip
+                      :color="getStatusColor(member.status)"
+                      size="small"
+                      variant="flat"
+                  >
+                    {{ getStatusDisplayName(member.status) }}
+                  </v-chip>
+                </template>
+              </v-list-item>
+            </v-list>
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn
+              color="primary"
+              variant="text"
+              @click="showGroupMembersDialogState = false"
+          >
+            Kapat
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Success Snackbar -->
     <v-snackbar
         v-model="successSnackbar"
@@ -674,16 +845,16 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { collection,deleteDoc, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, getDoc, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
-
 
 interface WeeklyPlan {
   day: string
   time: string
   court: string
 }
-// Define student interface - groupAssignment alanı eklendi
+
+// Define student interface
 interface Student {
   id: string
   firstName: string
@@ -722,6 +893,12 @@ const isEditMode = ref(false)
 const savingChanges = ref(false)
 const itemsPerPage = ref(10)
 
+// Grup üyeleri dialog state'leri
+const showGroupMembersDialogState = ref(false)
+const selectedGroupMembers = ref<Student[]>([])
+const selectedGroupMembershipType = ref('')
+const selectedGroupId = ref('')
+
 // Filters
 const filters = reactive({
   search: '',
@@ -729,7 +906,7 @@ const filters = reactive({
   status: ''
 })
 
-// Edit form - groupAssignment alanı eklendi
+// Edit form
 const editForm = ref({
   firstName: '',
   lastName: '',
@@ -751,7 +928,6 @@ const headers = [
   { title: 'Üyelik Türü', key: 'membershipType', align: 'center' },
   { title: 'Durum', key: 'status', align: 'center' },
   { title: 'Kayıt Tarihi', key: 'joinDate', align: 'center' },
-  { title: 'Bakiye', key: 'balance', align: 'center' },
   { title: 'İşlemler', key: 'actions', sortable: false, align: 'center' }
 ]
 
@@ -809,6 +985,43 @@ const courtOptions = [
   { title: 'Kort 3', value: 'court-3' }
 ]
 
+// Grup kapasitesi bilgilerini almak için computed property
+const groupCapacityInfo = computed(() => {
+  const capacityMap: { [key: string]: { [key: string]: { current: number, max: number } } } = {}
+
+  // Her üyelik türü için grup kapasitelerini tanımla
+  const groupCapacities: { [key: string]: number } = {
+    'private_group_3_8': 3,
+    'private_group_4_8': 4,
+    'adult_group': 8,
+    'tennis_school_age': 6,
+    'tennis_school_performance': 8
+  }
+
+  // Mevcut öğrencileri gruplar halinde say
+  students.value.forEach(student => {
+    if (student.groupAssignment && isGroupMembership(student.membershipType)) {
+      const membershipType = student.membershipType
+      const groupId = student.groupAssignment
+
+      if (!capacityMap[membershipType]) {
+        capacityMap[membershipType] = {}
+      }
+
+      if (!capacityMap[membershipType][groupId]) {
+        capacityMap[membershipType][groupId] = {
+          current: 0,
+          max: groupCapacities[membershipType] || 10
+        }
+      }
+
+      capacityMap[membershipType][groupId].current++
+    }
+  })
+
+  return capacityMap
+})
+
 // Grup üyelik türlerini kontrol eden fonksiyon
 const isGroupMembership = (membershipType: string): boolean => {
   const groupMemberships = [
@@ -821,70 +1034,179 @@ const isGroupMembership = (membershipType: string): boolean => {
   return groupMemberships.includes(membershipType)
 }
 
-// Grup seçeneklerini dinamik olarak oluşturan fonksiyon
-const getGroupOptions = (membershipType: string) => {
+// Grup seçeneklerini kapasite bilgisiyle birlikte getiren fonksiyon
+const getGroupOptionsWithCapacity = (membershipType: string) => {
   if (!isGroupMembership(membershipType)) return []
 
   const groups = []
   let maxGroups = 10
   let groupSize = ''
+  let maxCapacity = 0
 
-  switch (membershipType) {
-    case 'private_group_3_8':
-      groupSize = '3 Kişilik Grup'
-      break
-    case 'private_group_4_8':
-      groupSize = '4 Kişilik Grup'
-      break
-    case 'adult_group':
-      groupSize = 'Yetişkin Grup'
-      maxGroups = 5
-      break
-    case 'tennis_school_age':
-      groupSize = 'Yaş Grubu'
-      maxGroups = 8
-      break
-    case 'tennis_school_performance':
-      groupSize = 'Performans Grubu'
-      maxGroups = 6
-      break
-    default:
-      groupSize = 'Grup'
+  // Grup kapasitelerini belirle
+  const groupCapacities: { [key: string]: { maxGroups: number, groupSize: string, maxCapacity: number } } = {
+    'private_group_3_8': { maxGroups: 10, groupSize: '3 Kişilik Grup', maxCapacity: 3 },
+    'private_group_4_8': { maxGroups: 10, groupSize: '4 Kişilik Grup', maxCapacity: 4 },
+    'adult_group': { maxGroups: 5, groupSize: 'Yetişkin Grup', maxCapacity: 8 },
+    'tennis_school_age': { maxGroups: 8, groupSize: 'Yaş Grubu', maxCapacity: 6 },
+    'tennis_school_performance': { maxGroups: 6, groupSize: 'Performans Grubu', maxCapacity: 8 }
   }
 
+  const config = groupCapacities[membershipType]
+  if (config) {
+    maxGroups = config.maxGroups
+    groupSize = config.groupSize
+    maxCapacity = config.maxCapacity
+  }
+
+  // Grup seçeneklerini oluştur
   for (let i = 1; i <= maxGroups; i++) {
+    const groupId = `group_${i}`
+    const currentCapacity = groupCapacityInfo.value[membershipType]?.[groupId]?.current || 0
+    const isFull = currentCapacity >= maxCapacity
+
+    // Kapasite bilgisini başlık ve değerde göster
+    const title = `${groupSize} - ${i} (${currentCapacity}/${maxCapacity})`
+    const disabled = isFull
+
     groups.push({
-      title: `${groupSize} - ${i}`,
-      value: `group_${i}`
+      title,
+      value: groupId,
+      disabled,
+      props: {
+        subtitle: isFull ? 'Grup dolu' : `${maxCapacity - currentCapacity} boş yer`,
+        color: isFull ? 'error' : currentCapacity >= maxCapacity * 0.8 ? 'warning' : 'success'
+      }
     })
   }
 
   return groups
 }
 
-// Grup görüntü adını getiren fonksiyon
-const getGroupDisplayName = (membershipType: string, groupAssignment: string): string => {
-  if (!groupAssignment) return ''
+// Grup seçimi validasyonu
+const validateGroupSelection = (membershipType: string, groupId: string, excludeStudentId?: string): boolean => {
+  if (!isGroupMembership(membershipType) || !groupId) return true
 
-  const groupNumber = groupAssignment.replace('group_', '')
+  const groupCapacities: { [key: string]: number } = {
+    'private_group_3_8': 3,
+    'private_group_4_8': 4,
+    'adult_group': 8,
+    'tennis_school_age': 6,
+    'tennis_school_performance': 8
+  }
 
-  switch (membershipType) {
-    case 'private_group_3_8':
-      return `3 Kişilik Grup - ${groupNumber}`
-    case 'private_group_4_8':
-      return `4 Kişilik Grup - ${groupNumber}`
-    case 'adult_group':
-      return `Yetişkin Grup - ${groupNumber}`
-    case 'tennis_school_age':
-      return `Yaş Grubu - ${groupNumber}`
-    case 'tennis_school_performance':
-      return `Performans Grubu - ${groupNumber}`
-    default:
-      return `Grup - ${groupNumber}`
+  const maxCapacity = groupCapacities[membershipType] || 10
+
+  // Mevcut grup üyelerini say (düzenlenen öğrenciyi hariç tut)
+  const currentMembers = students.value.filter(student =>
+      student.groupAssignment === groupId &&
+      student.membershipType === membershipType &&
+      student.id !== excludeStudentId
+  ).length
+
+  return currentMembers < maxCapacity
+}
+
+// Grup kapasitesi kontrol fonksiyonu
+const checkGroupCapacity = (membershipType: string, groupId: string): { current: number, max: number, available: number, isFull: boolean } => {
+  const groupCapacities: { [key: string]: number } = {
+    'private_group_3_8': 3,
+    'private_group_4_8': 4,
+    'adult_group': 8,
+    'tennis_school_age': 6,
+    'tennis_school_performance': 8
+  }
+
+  const maxCapacity = groupCapacities[membershipType] || 10
+  const currentMembers = students.value.filter(student =>
+      student.groupAssignment === groupId &&
+      student.membershipType === membershipType
+  ).length
+
+  return {
+    current: currentMembers,
+    max: maxCapacity,
+    available: maxCapacity - currentMembers,
+    isFull: currentMembers >= maxCapacity
   }
 }
 
-// Üyelik türü değiştiğinde grup atamasını sıfırla
+// Grup görüntü adını kapasite bilgisiyle getiren fonksiyon
+const getGroupDisplayNameWithCapacity = (membershipType: string, groupAssignment: string): string => {
+  if (!groupAssignment) return ''
+
+  const groupNumber = groupAssignment.replace('group_', '')
+  const capacity = checkGroupCapacity(membershipType, groupAssignment)
+
+  let groupName = ''
+  switch (membershipType) {
+    case 'private_group_3_8':
+      groupName = `3 Kişilik Grup - ${groupNumber}`
+      break
+    case 'private_group_4_8':
+      groupName = `4 Kişilik Grup - ${groupNumber}`
+      break
+    case 'adult_group':
+      groupName = `Yetişkin Grup - ${groupNumber}`
+      break
+    case 'tennis_school_age':
+      groupName = `Yaş Grubu - ${groupNumber}`
+      break
+    case 'tennis_school_performance':
+      groupName = `Performans Grubu - ${groupNumber}`
+      break
+    default:
+      groupName = `Grup - ${groupNumber}`
+  }
+
+  return `${groupName} (${capacity.current}/${capacity.max})`
+}
+
+// Grup üyelerini listeleyen fonksiyon
+const getGroupMembers = (membershipType: string, groupId: string): Student[] => {
+  return students.value.filter(student =>
+      student.groupAssignment === groupId &&
+      student.membershipType === membershipType
+  )
+}
+
+// Grup durumu gösterimi için yardımcı fonksiyon
+const getGroupStatusColor = (membershipType: string, groupId: string): string => {
+  const capacity = checkGroupCapacity(membershipType, groupId)
+
+  if (capacity.isFull) return 'error'
+  if (capacity.current >= capacity.max * 0.8) return 'warning'
+  return 'success'
+}
+
+// Grup üyeleri dialog fonksiyonu
+const showGroupMembersDialog = (membershipType: string, groupId: string) => {
+  selectedGroupMembershipType.value = membershipType
+  selectedGroupId.value = groupId
+  selectedGroupMembers.value = getGroupMembers(membershipType, groupId)
+  showGroupMembersDialogState.value = true
+}
+
+// Grup seçimi değiştiğinde validasyon
+const onGroupSelectionChange = (membershipType: string, groupId: string) => {
+  if (!groupId) return true
+
+  const isValid = validateGroupSelection(membershipType, groupId, selectedStudent.value?.id)
+
+  if (!isValid) {
+    const capacity = checkGroupCapacity(membershipType, groupId)
+    successMessage.value = `Seçilen grup dolu! Mevcut kapasite: ${capacity.current}/${capacity.max}`
+    successSnackbar.value = true
+
+    // Geçersiz seçimi temizle
+    editForm.value.groupAssignment = ''
+    return false
+  }
+
+  return true
+}
+
+// Üyelik türü değiştiğinde grup seçimini sıfırla
 const onMembershipTypeChange = () => {
   if (!isGroupMembership(editForm.value.membershipType)) {
     editForm.value.groupAssignment = ''
@@ -910,7 +1232,7 @@ const removeDayFromPlan = async (index: number) => {
   // Eğer kayıtlı bir öğrenciyse ve silinen planın gün/zaman/kort bilgisi varsa
   if (selectedStudent.value.id && removedPlan.day && removedPlan.time && removedPlan.court) {
     try {
-      // 1. İlgili rezervasyonları sil
+      // İlgili rezervasyonları sil
       const reservationsRef = collection(db, 'reservations')
       const q = query(
           reservationsRef,
@@ -924,7 +1246,7 @@ const removeDayFromPlan = async (index: number) => {
       const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref))
       await Promise.all(deletePromises)
 
-      // 2. Court schedule'ı güncelle
+      // Court schedule'ı güncelle
       const courtId = convertCourtIdToScheduleFormat(removedPlan.court)
       const dateStrings = getReservationDateStrings(selectedStudent.value.joinDate, removedPlan.day)
 
@@ -954,7 +1276,7 @@ const removeDayFromPlan = async (index: number) => {
   }
 }
 
-// Yardımcı fonksiyon: Tarih string'lerini getir
+// Yardımcı fonksiyonlar
 const getReservationDateStrings = (joinDate: Date, dayOfWeek: string) => {
   const dates = getReservationDatesForDay(
       new Date(joinDate),
@@ -962,6 +1284,39 @@ const getReservationDateStrings = (joinDate: Date, dayOfWeek: string) => {
       dayOfWeek
   )
   return dates.map(date => date.toISOString().split('T')[0])
+}
+
+const getReservationDatesForDay = (startDate: Date, endDate: Date, dayName: string): Date[] => {
+  const dayMap: Record<string, number> = {
+    'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+    'thursday': 4, 'friday': 5, 'saturday': 6
+  }
+
+  const targetDay = dayMap[dayName.toLowerCase()]
+  if (targetDay === undefined) return []
+
+  const current = new Date(startDate)
+  const dates: Date[] = []
+
+  while (current.getDay() !== targetDay) {
+    current.setDate(current.getDate() + 1)
+  }
+
+  while (current <= endDate) {
+    dates.push(new Date(current))
+    current.setDate(current.getDate() + 7)
+  }
+
+  return dates
+}
+
+const convertCourtIdToScheduleFormat = (courtId: string): string => {
+  const mapping: { [key: string]: string } = {
+    'court-1': 'K1',
+    'court-2': 'K2',
+    'court-3': 'K3'
+  }
+  return mapping[courtId] || courtId
 }
 
 // Gün isimlerini Türkçe olarak getiren fonksiyon
@@ -1182,6 +1537,7 @@ const createGroupReservations = async (student: Student, weeklyPlan: WeeklyPlan[
     throw error
   }
 }
+
 const deleteGroupReservations = async (student: Student) => {
   if (!student.groupSchedule?.weeklyPlan || student.groupSchedule.weeklyPlan.length === 0) {
     return
@@ -1259,86 +1615,81 @@ const clearCourtScheduleSlots = async (student: Student) => {
     console.error('❌ Court schedule güncellerken hata:', error)
   }
 }
-// Yardımcı fonksiyonlar
-const getReservationDatesForDay = (startDate: Date, endDate: Date, dayName: string): Date[] => {
-  const dayMap: Record<string, number> = {
-    'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-    'thursday': 4, 'friday': 5, 'saturday': 6
-  }
 
-  const targetDay = dayMap[dayName.toLowerCase()]
-  if (targetDay === undefined) return []
-
-  const current = new Date(startDate)
-  const dates: Date[] = []
-
-  while (current.getDay() !== targetDay) {
-    current.setDate(current.getDate() + 1)
-  }
-
-  while (current <= endDate) {
-    dates.push(new Date(current))
-    current.setDate(current.getDate() + 7)
-  }
-
-  return dates
-}
-
-const convertCourtIdToReservationFormat = (courtId: string): string => {
-  const mapping: { [key: string]: string } = {
-    'court-1': 'court-1',
-    'court-2': 'court-2',
-    'court-3': 'court-3'
-  }
-  return mapping[courtId] || courtId
-}
-
-const calculateEndTime = (startTime: string): string => {
-  const [hours, minutes] = startTime.split(':').map(Number)
-  const endHours = hours + 1
-  return `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
-}
-
-const updateCourtScheduleForReservation = async (date: Date, courtId: string, timeSlot: string) => {
+// Belirli bir plan için rezervasyonları sil
+const deleteReservationsForPlan = async (studentId: string, plan: WeeklyPlan, joinDate: Date): Promise<void> => {
   try {
-    const dateString = date.toISOString().split('T')[0]
-    const docRef = doc(db, 'courtSchedule', dateString)
+    // 1. Rezervasyonları sil
+    const reservationsRef = collection(db, 'reservations')
+    const q = query(
+        reservationsRef,
+        where('studentId', '==', studentId),
+        where('groupSchedule', '==', true),
+        where('courtId', '==', plan.court),
+        where('startTime', '==', plan.time)
+    )
 
-    const docSnap = await getDoc(docRef)
-    let schedule: any = {}
+    const querySnapshot = await getDocs(q)
+    const reservationDeletes = querySnapshot.docs.map(async (doc:any) => {
+      // Rezervasyonun tarih bilgisini al
+      const reservationData = doc.data()
+      const reservationDate = reservationData.date.toDate()
+      const dateString = reservationDate.toISOString().split('T')[0]
 
-    if (docSnap.exists()) {
-      schedule = docSnap.data().schedule || {}
-    }
+      // Rezervasyonu sil
+      await deleteDoc(doc.ref)
 
-    const courtScheduleId = convertCourtIdToScheduleFormat(courtId)
+      // Court schedule'ı güncelle
+      const courtId = convertCourtIdToScheduleFormat(plan.court)
+      const courtScheduleRef = doc(db, 'courtSchedule', dateString)
+      const courtScheduleSnap:any = await getDoc(courtScheduleRef)
 
-    if (!schedule[courtScheduleId]) {
-      schedule[courtScheduleId] = {}
-    }
-
-    schedule[courtScheduleId][timeSlot] = 'occupied'
-
-    await setDoc(docRef, {
-      schedule: schedule,
-      lastUpdated: new Date(),
-      updatedBy: 'group-lesson-auto'
+      if (courtScheduleSnap.exists()) {
+        const schedule = courtScheduleSnap.data().schedule || {}
+        if (schedule[courtId]?.[plan.time] === 'occupied') {
+          schedule[courtId][plan.time] = 'available'
+          await setDoc(courtScheduleRef, {
+            schedule,
+            lastUpdated: new Date(),
+            updatedBy: 'system-delete'
+          })
+        }
+      }
     })
 
-    console.log(`✅ Court schedule güncellendi: ${dateString} ${courtScheduleId} ${timeSlot}`)
+    await Promise.all(reservationDeletes)
 
+    // 2. Geçmiş tarihlerdeki court schedule'ı da temizle
+    const today = new Date()
+    const dates = getReservationDatesForDay(new Date(joinDate), today, plan.day)
+
+    const scheduleUpdates = dates.map(async date => {
+      const dateString = date.toISOString().split('T')[0]
+      const docRef = doc(db, 'courtSchedule', dateString)
+      const docSnap = await getDoc(docRef)
+
+      if (docSnap.exists()) {
+        const schedule = docSnap.data().schedule || {}
+        const courtId = convertCourtIdToScheduleFormat(plan.court)
+
+        if (schedule[courtId]?.[plan.time] === 'occupied') {
+          schedule[courtId][plan.time] = 'available'
+          await setDoc(docRef, {
+            schedule,
+            lastUpdated: new Date(),
+            updatedBy: 'system-cleanup'
+          })
+        }
+      }
+    })
+
+    await Promise.all(scheduleUpdates)
+
+    console.log(`✅ Tüm rezervasyonlar ve court schedule temizlendi: ${plan.day} ${plan.time} ${plan.court}`)
   } catch (error) {
-    console.error('❌ Court schedule güncellerken hata:', error)
+    console.error(`❌ Temizleme işlemi sırasında hata:`, error)
+    throw error
   }
-}
-
-const convertCourtIdToScheduleFormat = (courtId: string): string => {
-  const mapping: { [key: string]: string } = {
-    'court-1': 'K1',
-    'court-2': 'K2',
-    'court-3': 'K3'
-  }
-  return mapping[courtId] || courtId
 }
 
 // Fetch students from Firebase
@@ -1448,6 +1799,22 @@ const cancelEdit = () => {
 const saveStudentChanges = async (): Promise<void> => {
   if (!selectedStudent.value) return
 
+  // Grup seçimi validasyonu
+  if (editForm.value.groupAssignment) {
+    const isValid = validateGroupSelection(
+        editForm.value.membershipType,
+        editForm.value.groupAssignment,
+        selectedStudent.value.id
+    )
+
+    if (!isValid) {
+      const capacity = checkGroupCapacity(editForm.value.membershipType, editForm.value.groupAssignment)
+      successMessage.value = `Grup kapasitesi dolu! Mevcut: ${capacity.current}/${capacity.max}`
+      successSnackbar.value = true
+      return
+    }
+  }
+
   savingChanges.value = true
 
   try {
@@ -1540,66 +1907,23 @@ const saveStudentChanges = async (): Promise<void> => {
       }
     }
 
+    successMessage.value = 'Öğrenci bilgileri başarıyla güncellendi!'
+    successSnackbar.value = true
     isEditMode.value = false
   } catch (error) {
     console.error('Öğrenci güncelleme hatası:', error)
-    throw error
+    successMessage.value = 'Öğrenci güncellenirken hata oluştu!'
+    successSnackbar.value = true
   } finally {
     savingChanges.value = false
   }
 }
 
-// Yardımcı fonksiyon: Belirli bir plan için rezervasyonları sil
-const deleteReservationsForPlan = async (studentId: string, plan: WeeklyPlan, joinDate: Date): Promise<void> => {
-  try {
-    // 1. Rezervasyonları sil
-    const reservationsRef = collection(db, 'reservations')
-    const q = query(
-        reservationsRef,
-        where('studentId', '==', studentId),
-        where('groupSchedule', '==', true),
-        where('courtId', '==', plan.court),
-        where('startTime', '==', plan.time)
-    )
-
-    const querySnapshot = await getDocs(q)
-    await Promise.all(querySnapshot.docs.map(doc => deleteDoc(doc.ref)))
-
-    // 2. Court schedule'ı güncelle
-    const courtId = convertCourtIdToScheduleFormat(plan.court)
-    const today = new Date()
-    const dates = getReservationDatesForDay(new Date(joinDate), today, plan.day)
-
-    await Promise.all(dates.map(async date => {
-      const dateString = date.toISOString().split('T')[0]
-      const docRef = doc(db, 'courtSchedule', dateString)
-      const docSnap = await getDoc(docRef)
-
-      if (docSnap.exists()) {
-        const schedule = docSnap.data().schedule || {}
-        if (schedule[courtId]?.[plan.time] === 'occupied') {
-          schedule[courtId][plan.time] = 'available'
-          await setDoc(docRef, {
-            schedule,
-            lastUpdated: new Date(),
-            updatedBy: 'system-cleanup'
-          })
-        }
-      }
-    }))
-
-    console.log(`✅ Silinen plan için temizlik yapıldı: ${plan.day} ${plan.time} ${plan.court}`)
-  } catch (error) {
-    console.error(`❌ Plan temizliği hatası:`, error)
-    throw error
-  }
-}
-
-
-// Kullanım örneği (saveStudentChanges içinde):
-
-
 const deleteStudent = async (student: Student): Promise<void> => {
+  if (!confirm(`${student.firstName} ${student.lastName} adlı öğrenciyi silmek istediğinizden emin misiniz?`)) {
+    return
+  }
+
   try {
     // 1. Rezervasyonları sil
     if (student.groupSchedule?.weeklyPlan) {
@@ -1616,9 +1940,13 @@ const deleteStudent = async (student: Student): Promise<void> => {
     // 3. Local state'i güncelle
     students.value = students.value.filter(s => s.id !== student.id)
     showStudentDetailsDialog.value = false
+
+    successMessage.value = 'Öğrenci başarıyla silindi!'
+    successSnackbar.value = true
   } catch (error) {
     console.error('Öğrenci silme hatası:', error)
-    throw error
+    successMessage.value = 'Öğrenci silinirken hata oluştu!'
+    successSnackbar.value = true
   }
 }
 
