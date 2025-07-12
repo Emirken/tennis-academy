@@ -16,7 +16,7 @@ interface AuthState {
     isAuthenticated: boolean
     loading: boolean
     error: string | null
-    initialized: boolean // Auth state'in hazır olup olmadığını takip eder
+    initialized: boolean
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -39,10 +39,16 @@ export const useAuthStore = defineStore('auth', {
             this.error = null
 
             try {
+                console.log('🔐 Giriş yapılıyor:', email)
                 const userCredential = await signInWithEmailAndPassword(auth, email, password)
+                console.log('✅ Firebase auth başarılı, UID:', userCredential.user.uid)
+
                 await this.fetchUserData(userCredential.user.uid)
+                console.log('✅ Kullanıcı verisi yüklendi:', this.user)
+
                 return true
             } catch (error: any) {
+                console.error('❌ Giriş hatası:', error)
                 this.error = this.getErrorMessage(error)
                 return false
             } finally {
@@ -61,6 +67,7 @@ export const useAuthStore = defineStore('auth', {
             this.error = null
 
             try {
+                console.log('📝 Kullanıcı kaydediliyor:', userData.email)
                 const userCredential = await createUserWithEmailAndPassword(
                     auth,
                     userData.email,
@@ -77,11 +84,16 @@ export const useAuthStore = defineStore('auth', {
                     updatedAt: new Date()
                 }
 
+                console.log('💾 Firestore\'a kullanıcı verisi yazılıyor...')
                 await setDoc(doc(db, 'users', user.id), user)
+
                 this.user = user
                 this.isAuthenticated = true
+                console.log('✅ Kayıt başarılı:', user)
+
                 return true
             } catch (error: any) {
+                console.error('❌ Kayıt hatası:', error)
                 this.error = this.getErrorMessage(error)
                 return false
             } finally {
@@ -91,15 +103,17 @@ export const useAuthStore = defineStore('auth', {
 
         async logout() {
             try {
+                console.log('🚪 Çıkış yapılıyor...')
                 await signOut(auth)
                 this.user = null
                 this.isAuthenticated = false
+                console.log('✅ Çıkış başarılı')
             } catch (error: any) {
+                console.error('❌ Çıkış hatası:', error)
                 this.error = this.getErrorMessage(error)
             }
         },
 
-        // Şifre sıfırlama e-postası gönder
         async sendPasswordResetEmail(email: string) {
             this.loading = true
             this.error = null
@@ -117,21 +131,54 @@ export const useAuthStore = defineStore('auth', {
 
         async fetchUserData(uid: string) {
             try {
-                console.log('🔍 Kullanıcı verisi getiriliyor, UID:', uid)
+                console.log('🔍 Firestore\'dan kullanıcı verisi getiriliyor, UID:', uid)
                 const userDoc = await getDoc(doc(db, 'users', uid))
+
                 if (userDoc.exists()) {
                     const userData = userDoc.data() as User
-                    console.log('✅ Kullanıcı verisi bulundu:', userData)
-                    this.user = userData
+                    console.log('✅ Kullanıcı verisi bulundu:', {
+                        id: userData.id,
+                        email: userData.email,
+                        firstName: userData.firstName,
+                        role: userData.role
+                    })
+
+                    this.user = {
+                        ...userData,
+                        id: uid // Ensure ID is always set
+                    }
                     this.isAuthenticated = true
                 } else {
-                    console.log('❌ Kullanıcı verisi bulunamadı')
-                    this.user = null
-                    this.isAuthenticated = false
+                    console.error('❌ Firestore\'da kullanıcı verisi bulunamadı, UID:', uid)
+                    // Try to create a basic user profile if none exists
+                    const currentUser = auth.currentUser
+                    if (currentUser) {
+                        console.log('🔧 Temel kullanıcı profili oluşturuluyor...')
+                        const basicUser: User = {
+                            id: uid,
+                            email: currentUser.email || '',
+                            firstName: 'Kullanıcı',
+                            lastName: '',
+                            role: 'student', // Default role
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }
+
+                        // Create the user document
+                        await setDoc(doc(db, 'users', uid), basicUser)
+                        this.user = basicUser
+                        this.isAuthenticated = true
+                        console.log('✅ Temel kullanıcı profili oluşturuldu')
+                    } else {
+                        this.user = null
+                        this.isAuthenticated = false
+                    }
                 }
             } catch (error: any) {
                 console.error('❌ Kullanıcı verisi getirme hatası:', error)
                 this.error = this.getErrorMessage(error)
+                this.user = null
+                this.isAuthenticated = false
             }
         },
 
@@ -139,42 +186,69 @@ export const useAuthStore = defineStore('auth', {
             console.log('🚀 Auth state başlatılıyor...')
 
             return new Promise<void>((resolve) => {
-                onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-                    console.log('🔄 Auth state değişti:', firebaseUser ? 'Giriş yapılmış' : 'Çıkış yapılmış')
+                const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+                    console.log('🔄 Auth state değişti:', firebaseUser ? `Kullanıcı: ${firebaseUser.email}` : 'Çıkış yapılmış')
 
                     if (firebaseUser) {
-                        console.log('👤 Firebase kullanıcısı:', firebaseUser.uid)
-                        await this.fetchUserData(firebaseUser.uid)
+                        console.log('👤 Firebase kullanıcısı mevcut:', {
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email
+                        })
+
+                        try {
+                            await this.fetchUserData(firebaseUser.uid)
+                            console.log('✅ Kullanıcı verisi başarıyla yüklendi')
+                        } catch (error) {
+                            console.error('❌ Kullanıcı verisi yüklenemedi:', error)
+                        }
                     } else {
-                        console.log('👤 Kullanıcı çıkış yapmış')
+                        console.log('👤 Kullanıcı oturumu kapalı')
                         this.user = null
                         this.isAuthenticated = false
                     }
 
+                    // Mark as initialized regardless of auth state
                     this.initialized = true
-                    console.log('✅ Auth state hazır, kullanıcı:', this.user?.firstName || 'Yok')
+                    console.log('✅ Auth state hazır. Kullanıcı:', this.user ? `${this.user.firstName} ${this.user.lastName}` : 'Yok')
+                    resolve()
+                }, (error) => {
+                    console.error('❌ Auth state listener hatası:', error)
+                    this.initialized = true
                     resolve()
                 })
             })
         },
 
-        // Auth state'in hazır olmasını beklemek için helper fonksiyon
         async waitForAuth(): Promise<void> {
+            console.log('⏳ Auth state bekleniyor, initialized:', this.initialized)
+
             if (this.initialized) {
+                console.log('✅ Auth state zaten hazır')
                 return Promise.resolve()
             }
 
             return new Promise<void>((resolve) => {
+                console.log('🔄 Auth state değişimi bekleniyor...')
                 const unwatch = this.$subscribe((mutation, state) => {
                     if (state.initialized) {
+                        console.log('✅ Auth state hazır oldu')
                         unwatch()
                         resolve()
                     }
                 })
+
+                // Add timeout to prevent infinite waiting
+                setTimeout(() => {
+                    if (!this.initialized) {
+                        console.warn('⚠️ Auth state timeout, forcing initialization')
+                        this.initialized = true
+                        unwatch()
+                        resolve()
+                    }
+                }, 5000) // 5 second timeout
             })
         },
 
-        // Hata mesajlarını Türkçe'ye çevir
         getErrorMessage(error: any): string {
             const code = error.code || error.message
 
@@ -204,7 +278,6 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
-        // Hata mesajını temizle
         clearError() {
             this.error = null
         }
