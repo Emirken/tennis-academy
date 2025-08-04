@@ -229,6 +229,24 @@
                           </span>
                       </v-avatar>
                       <span class="student-name">{{ student.name }}</span>
+                      <v-chip
+                          v-if="student.membershipType"
+                          size="x-small"
+                          color="purple"
+                          variant="flat"
+                          class="ml-2"
+                      >
+                        {{ MembershipTypeLabel[student.membershipType as keyof typeof MembershipTypeLabel] || student.membershipType }}
+                      </v-chip>
+                      <v-chip
+                          v-if="student.groupAssignment"
+                          size="x-small"
+                          color="info"
+                          variant="flat"
+                          class="ml-2"
+                      >
+                        {{ GroupTuruLabel[student.groupAssignment as keyof typeof GroupTuruLabel] || student.groupAssignment }}
+                      </v-chip>
                       <v-btn
                           v-if="authStore.isAdmin"
                           icon="mdi-delete"
@@ -342,7 +360,7 @@
                 v-model="selectedStudentId"
                 label="Öğrenci Seçin"
                 :items="availableStudents"
-                item-title="name"
+                item-title="displayName"
                 item-value="id"
                 variant="outlined"
                 density="compact"
@@ -351,6 +369,7 @@
                 :loading="loadingStudents"
                 class="mb-4"
                 required
+                @update:model-value="onStudentSelected"
             >
               <template v-slot:no-data>
                 <v-list-item>
@@ -360,6 +379,24 @@
                 </v-list-item>
               </template>
             </v-select>
+
+            <!-- Grup Arkadaşları Bildirimi -->
+            <v-alert
+                v-if="selectedStudentGroup && groupMembers.length > 0"
+                type="info"
+                variant="tonal"
+                density="compact"
+                class="mb-4"
+            >
+              <div class="text-body-2">
+                <strong>{{ selectedStudentGroup }} grubundan şu öğrenciler de eklenecek:</strong>
+                <ul class="mt-2 pl-4">
+                  <li v-for="member in groupMembers" :key="member.id">
+                    {{ member.name }}
+                  </li>
+                </ul>
+              </div>
+            </v-alert>
           </v-form>
         </v-card-text>
         <v-card-actions class="pa-6">
@@ -372,7 +409,7 @@
               :loading="addingStudent"
               variant="flat"
           >
-            Ekle
+            {{ groupMembers.length > 0 ? `Ekle (${groupMembers.length + 1} öğrenci)` : 'Ekle' }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -410,6 +447,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { GroupTuruLabel, MembershipTypeLabel } from '@/enums/GroupTuru'
 
 // Store
 const authStore = useAuthStore()
@@ -427,6 +465,8 @@ const errorMessage = ref('')
 const selectedStudentId = ref('')
 const loadingStudents = ref(false)
 const addingStudent = ref(false)
+const selectedStudentGroup = ref('')
+const groupMembers = ref<Array<{id: string, name: string}>>([])
 
 // Selections
 const selectedMonth = ref(new Date().getMonth() + 1)
@@ -434,7 +474,7 @@ const selectedYear = ref(new Date().getFullYear())
 
 // Data
 const attendanceData = reactive<Record<string, boolean[]>>({})
-const allStudents = ref<Array<{id: string, name: string}>>([])
+const allStudents = ref<Array<{id: string, name: string, groupAssignment?: string, membershipType?: string, displayName?: string}>>([])
 
 // Month options
 const months = [
@@ -452,20 +492,19 @@ const months = [
   { text: 'Aralık', value: 12 }
 ]
 
-// Year options (ORİJİNAL)
+// Year options
 const years = ref([2024, 2025, 2026])
 
-// Students data by class - will be loaded from Firebase (ORİJİNAL)
-const studentsData = reactive<Record<string, Array<{id: string, name: string}>>>({
+// Students data by class - will be loaded from Firebase
+const studentsData = reactive<Record<string, Array<{id: string, name: string, groupAssignment?: string, membershipType?: string}>>>({
   'baslangic-a': []
 })
 
-// Lesson dates - now editable (ORİJİNAL)
+// Lesson dates - now editable
 const monthLessons = ref<Array<{date: Date, dateString: string, lessonNumber: number}>>([])
 
-// Computed properties (ORİJİNAL)
+// Computed properties
 const classStudents = computed(() => {
-  // Tek bir grup kullan - başlangıç grubu A
   return studentsData['baslangic-a'] || []
 })
 
@@ -474,7 +513,7 @@ const availableStudents = computed(() => {
   return allStudents.value.filter(student => !currentStudentIds.includes(student.id))
 })
 
-// Methods (ORİJİNAL)
+// Methods
 const initializeLessons = () => {
   monthLessons.value = Array.from({ length: 8 }, (_, index) => {
     const today = new Date()
@@ -603,14 +642,19 @@ const loadStudentsFromFirebase = async () => {
   loadingStudents.value = true
   try {
     const studentsSnapshot = await getDocs(collection(db, 'users'))
-    const firebaseStudents: Array<{id: string, name: string}> = []
+    const firebaseStudents: Array<{id: string, name: string, groupAssignment?: string, membershipType?: string, displayName?: string}> = []
 
     studentsSnapshot.forEach((doc) => {
       const studentData = doc.data()
       if (studentData.role === 'student') {
+        const fullName = `${studentData.firstName} ${studentData.lastName}`
+
         firebaseStudents.push({
           id: doc.id,
-          name: `${studentData.firstName} ${studentData.lastName}`
+          name: fullName,
+          groupAssignment: studentData.groupAssignment,
+          membershipType: studentData.membershipType,
+          displayName: fullName // Sadece isim göster, parantez içinde bilgi yok
         })
       }
     })
@@ -623,6 +667,35 @@ const loadStudentsFromFirebase = async () => {
     errorMessage.value = 'Öğrenci listesi yüklenirken hata oluştu'
   } finally {
     loadingStudents.value = false
+  }
+}
+
+const onStudentSelected = (studentId: string) => {
+  const selectedStudent = allStudents.value.find(s => s.id === studentId)
+  if (!selectedStudent) {
+    groupMembers.value = []
+    selectedStudentGroup.value = ''
+    return
+  }
+
+  // Seçilen öğrencinin grup ve üyelik bilgilerini kontrol et
+  if (selectedStudent.groupAssignment && selectedStudent.membershipType) {
+    selectedStudentGroup.value = `${selectedStudent.membershipType} - ${selectedStudent.groupAssignment}`
+
+    // Aynı membershipType VE groupAssignment'a sahip diğer öğrencileri bul
+    const currentStudentIds = classStudents.value.map(s => s.id)
+    groupMembers.value = allStudents.value.filter(student =>
+        student.id !== studentId && // Seçilen öğrenciyi hariç tut (selectedStudentId yerine studentId kullan)
+        !currentStudentIds.includes(student.id) && // Zaten ekli olanları hariç tut
+        student.membershipType === selectedStudent.membershipType && // Aynı membership tipi
+        student.groupAssignment === selectedStudent.groupAssignment // Aynı grup
+    ).map(student => ({
+      id: student.id,
+      name: student.name
+    }))
+  } else {
+    groupMembers.value = []
+    selectedStudentGroup.value = ''
   }
 }
 
@@ -641,15 +714,41 @@ const addStudent = async () => {
       studentsData['baslangic-a'] = []
     }
 
-    studentsData['baslangic-a'].push(selectedStudent)
+    // Seçilen öğrenciyi ekle
+    const studentToAdd = {
+      id: selectedStudent.id,
+      name: selectedStudent.name,
+      groupAssignment: selectedStudent.groupAssignment,
+      membershipType: selectedStudent.membershipType
+    }
+
+    studentsData['baslangic-a'].push(studentToAdd)
     attendanceData[selectedStudent.id] = new Array(8).fill(false)
 
-    // Save immediately after adding student
+    // Aynı gruptaki diğer öğrencileri de ekle
+    let addedCount = 1
+    for (const groupMember of groupMembers.value) {
+      const memberStudent = allStudents.value.find(s => s.id === groupMember.id)
+      if (memberStudent) {
+        studentsData['baslangic-a'].push({
+          id: memberStudent.id,
+          name: memberStudent.name,
+          groupAssignment: memberStudent.groupAssignment,
+          membershipType: memberStudent.membershipType
+        })
+        attendanceData[memberStudent.id] = new Array(8).fill(false)
+        addedCount++
+      }
+    }
+
+    // Save immediately after adding students
     await autoSaveAttendance()
 
     closeAddStudentDialog()
     showSuccessMessage.value = true
-    successMessage.value = 'Öğrenci başarıyla eklendi!'
+    successMessage.value = addedCount > 1
+        ? `${addedCount} öğrenci başarıyla eklendi!`
+        : 'Öğrenci başarıyla eklendi!'
   } catch (error: any) {
     console.error('❌ Öğrenci ekleme hatası:', error)
     showErrorMessage.value = true
@@ -676,6 +775,8 @@ const removeStudent = async (studentId: string) => {
 const closeAddStudentDialog = () => {
   showAddStudentDialog.value = false
   selectedStudentId.value = ''
+  groupMembers.value = []
+  selectedStudentGroup.value = ''
 }
 
 const openAddStudentDialog = async () => {
@@ -707,7 +808,7 @@ const updateSelectedDate = async () => {
   closeDatePicker()
 }
 
-// Utility methods (ORİJİNAL)
+// Utility methods
 const getInitials = (name: string): string => {
   return name.split(' ').map(n => n[0]).join('').toUpperCase()
 }
@@ -730,7 +831,7 @@ const getTotalLessons = (): number => {
   return monthLessons.value.length
 }
 
-// Statistics methods (ORİJİNAL)
+// Statistics methods
 const getAttendedCount = (studentId: string): number => {
   if (!attendanceData[studentId]) return 0
   return attendanceData[studentId].filter(Boolean).length || 0
@@ -774,19 +875,19 @@ const getOverallPercentage = (): number => {
   return total > 0 ? Math.round((attended / total) * 100) : 0
 }
 
-// Watch for month/year changes (ORİJİNAL)
+// Watch for month/year changes
 watch([selectedMonth, selectedYear], () => {
   loadAttendanceData()
 })
 
-// Update the click handler (ORİJİNAL)
+// Update the click handler
 watch(showAddStudentDialog, (newValue) => {
   if (newValue) {
     openAddStudentDialog()
   }
 })
 
-// Lifecycle (ORİJİNAL)
+// Lifecycle
 onMounted(() => {
   initializeLessons()
   loadAttendanceData()
