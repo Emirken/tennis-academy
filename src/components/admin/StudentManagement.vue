@@ -1515,7 +1515,7 @@ const createGroupReservations = async (student: Student, weeklyPlan: WeeklyPlan[
 
         await addDoc(collection(db, 'reservations'), reservationData)
 
-        // Court schedule'ı güncelle
+        // Court schedule'ı güncelle - ENHANCED VERSION
         const dateString = date.toISOString().split('T')[0]
         const docRef = doc(db, 'courtSchedule', dateString)
         const docSnap = await getDoc(docRef)
@@ -1523,7 +1523,20 @@ const createGroupReservations = async (student: Student, weeklyPlan: WeeklyPlan[
         const schedule = docSnap.exists() ? docSnap.data().schedule || {} : {}
         if (!schedule[courtId]) schedule[courtId] = {}
 
-        schedule[courtId][plan.time] = 'occupied'
+        // ÖNCEKİ HALİ: schedule[courtId][plan.time] = 'occupied'
+        // YENİ HAL: Detaylı rezervasyon bilgisi
+        schedule[courtId][plan.time] = {
+          status: 'occupied',
+          studentId: student.id,
+          studentFirstName: student.firstName,
+          studentLastName: student.lastName,
+          studentFullName: `${student.firstName} ${student.lastName}`,
+          groupAssignment: student.groupAssignment,
+          membershipType: student.membershipType,
+          reservationType: 'group-lesson',
+          updatedAt: new Date(),
+          updatedBy: 'system-reservation'
+        }
 
         await setDoc(docRef, {
           schedule,
@@ -1537,7 +1550,6 @@ const createGroupReservations = async (student: Student, weeklyPlan: WeeklyPlan[
     throw error
   }
 }
-
 const deleteGroupReservations = async (student: Student) => {
   if (!student.groupSchedule?.weeklyPlan || student.groupSchedule.weeklyPlan.length === 0) {
     return
@@ -1577,7 +1589,6 @@ const clearCourtScheduleSlots = async (student: Student) => {
   try {
     console.log('🔄 Court schedule güncelleniyor...')
 
-    // Haftalık plana göre tüm tarihleri işle
     for (const plan of student.groupSchedule.weeklyPlan) {
       if (plan.day && plan.time && plan.court) {
         const reservationDates = getReservationDatesForDay(
@@ -1595,7 +1606,15 @@ const clearCourtScheduleSlots = async (student: Student) => {
             const schedule = docSnap.data().schedule || {}
             const courtId = convertCourtIdToScheduleFormat(plan.court)
 
-            if (schedule[courtId] && schedule[courtId][plan.time] === 'occupied') {
+            // Önce bu slotun bu öğrenciye ait olup olmadığını kontrol et
+            const currentSlot = schedule[courtId]?.[plan.time]
+
+            if (currentSlot &&
+                (currentSlot === 'occupied' || // Eski format
+                    (typeof currentSlot === 'object' && currentSlot.studentId === student.id))) { // Yeni format
+
+              // ÖNCEKİ HAL: schedule[courtId][plan.time] = 'available'
+              // YENİ HAL: Slot'u temizle
               schedule[courtId][plan.time] = 'available'
 
               await setDoc(docRef, {
@@ -1630,23 +1649,27 @@ const deleteReservationsForPlan = async (studentId: string, plan: WeeklyPlan, jo
     )
 
     const querySnapshot = await getDocs(q)
-    const reservationDeletes = querySnapshot.docs.map(async (doc:any) => {
-      // Rezervasyonun tarih bilgisini al
+    const reservationDeletes = querySnapshot.docs.map(async (doc: any) => {
       const reservationData = doc.data()
       const reservationDate = reservationData.date.toDate()
       const dateString = reservationDate.toISOString().split('T')[0]
 
-      // Rezervasyonu sil
       await deleteDoc(doc.ref)
 
       // Court schedule'ı güncelle
       const courtId = convertCourtIdToScheduleFormat(plan.court)
       const courtScheduleRef = doc(db, 'courtSchedule', dateString)
-      const courtScheduleSnap:any = await getDoc(courtScheduleRef)
+      const courtScheduleSnap: any = await getDoc(courtScheduleRef)
 
       if (courtScheduleSnap.exists()) {
         const schedule = courtScheduleSnap.data().schedule || {}
-        if (schedule[courtId]?.[plan.time] === 'occupied') {
+        const currentSlot = schedule[courtId]?.[plan.time]
+
+        // Bu slotun bu öğrenciye ait olup olmadığını kontrol et
+        if (currentSlot &&
+            (currentSlot === 'occupied' || // Eski format
+                (typeof currentSlot === 'object' && currentSlot.studentId === studentId))) { // Yeni format
+
           schedule[courtId][plan.time] = 'available'
           await setDoc(courtScheduleRef, {
             schedule,
@@ -1671,8 +1694,13 @@ const deleteReservationsForPlan = async (studentId: string, plan: WeeklyPlan, jo
       if (docSnap.exists()) {
         const schedule = docSnap.data().schedule || {}
         const courtId = convertCourtIdToScheduleFormat(plan.court)
+        const currentSlot = schedule[courtId]?.[plan.time]
 
-        if (schedule[courtId]?.[plan.time] === 'occupied') {
+        // Bu slotun bu öğrenciye ait olup olmadığını kontrol et
+        if (currentSlot &&
+            (currentSlot === 'occupied' || // Eski format
+                (typeof currentSlot === 'object' && currentSlot.studentId === studentId))) { // Yeni format
+
           schedule[courtId][plan.time] = 'available'
           await setDoc(docRef, {
             schedule,
@@ -1691,7 +1719,123 @@ const deleteReservationsForPlan = async (studentId: string, plan: WeeklyPlan, jo
     throw error
   }
 }
+const getCourtScheduleWithDetails = async (dateString: string) => {
+  try {
+    const docRef = doc(db, 'courtSchedule', dateString)
+    const docSnap = await getDoc(docRef)
 
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      return data.schedule || {}
+    }
+
+    return {}
+  } catch (error) {
+    console.error('Court schedule okuma hatası:', error)
+    return {}
+  }
+}
+
+// 5. Belirli bir slot için rezervasyon detaylarını al
+const getSlotDetails = (schedule: any, courtId: string, timeSlot: string) => {
+  const slot = schedule[courtId]?.[timeSlot]
+
+  if (!slot) {
+    return { status: 'available', details: null }
+  }
+
+  if (slot === 'available') {
+    return { status: 'available', details: null }
+  }
+
+  if (slot === 'occupied') {
+    // Eski format - sadece durum bilgisi
+    return { status: 'occupied', details: { legacy: true } }
+  }
+
+  if (typeof slot === 'object') {
+    // Yeni format - detaylı bilgi
+    return {
+      status: slot.status || 'occupied',
+      details: {
+        studentId: slot.studentId,
+        studentFirstName: slot.studentFirstName,
+        studentLastName: slot.studentLastName,
+        studentFullName: slot.studentFullName,
+        groupAssignment: slot.groupAssignment,
+        membershipType: slot.membershipType,
+        reservationType: slot.reservationType,
+        updatedAt: slot.updatedAt,
+        updatedBy: slot.updatedBy
+      }
+    }
+  }
+
+  return { status: 'unknown', details: null }
+}
+
+const getGroupReservations = async (membershipType: string, groupId: string) => {
+  try {
+    const reservationsRef = collection(db, 'reservations')
+    const q = query(
+        reservationsRef,
+        where('membershipType', '==', membershipType),
+        where('groupId', '==', groupId),
+        where('groupSchedule', '==', true),
+        orderBy('date', 'asc')
+    )
+
+    const querySnapshot = await getDocs(q)
+    const reservations: any[] = []
+
+    querySnapshot.forEach((doc) => {
+      reservations.push({
+        id: doc.id,
+        ...doc.data()
+      })
+    })
+
+    return reservations
+  } catch (error) {
+    console.error('Grup rezervasyonları getirme hatası:', error)
+    return []
+  }
+}
+
+// 7. Çakışma kontrolü için gelişmiş fonksiyon
+const checkScheduleConflict = async (
+    courtId: string,
+    timeSlot: string,
+    dateString: string,
+    excludeStudentId?: string
+) => {
+  try {
+    const schedule = await getCourtScheduleWithDetails(dateString)
+    const slotInfo = getSlotDetails(schedule, courtId, timeSlot)
+
+    if (slotInfo.status === 'available') {
+      return { hasConflict: false, details: null }
+    }
+
+    if (slotInfo.details && slotInfo.details.studentId === excludeStudentId) {
+      // Aynı öğrencinin kendi rezervasyonu - çakışma yok
+      return { hasConflict: false, details: slotInfo.details }
+    }
+
+    return {
+      hasConflict: true,
+      details: slotInfo.details,
+      conflictInfo: slotInfo.details ? {
+        studentName: slotInfo.details.studentFullName,
+        groupAssignment: slotInfo.details.groupAssignment,
+        membershipType: slotInfo.details.membershipType
+      } : { legacy: true }
+    }
+  } catch (error) {
+    console.error('Çakışma kontrolü hatası:', error)
+    return { hasConflict: true, details: null }
+  }
+}
 // Fetch students from Firebase
 const fetchStudents = async () => {
   loading.value = true

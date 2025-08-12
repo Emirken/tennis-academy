@@ -223,6 +223,7 @@
                             :class="getSlotStatusClass(schedule[court.id]?.[timeSlot])"
                             @click="editMode && toggleSlotStatus(court.id, timeSlot)"
                             :style="{ cursor: editMode ? 'pointer' : 'default' }"
+                            :title="getSlotTooltip(schedule[court.id]?.[timeSlot])"
                         >
                           <v-icon
                               :icon="getSlotIcon(schedule[court.id]?.[timeSlot])"
@@ -231,7 +232,15 @@
                               class="mb-1"
                           />
                           <div class="slot-text">
-                            {{ getSlotText(schedule[court.id]?.[timeSlot]) }}
+                            <div class="status-line">
+                              {{ getSlotStatus(schedule[court.id]?.[timeSlot]) }}
+                            </div>
+                            <div
+                                v-if="getStudentInfo(schedule[court.id]?.[timeSlot])"
+                                class="student-info"
+                            >
+                              ({{ getStudentInfo(schedule[court.id]?.[timeSlot]) }})
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -286,14 +295,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
-import {collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where} from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
-import { onUnmounted } from 'vue'
 
 const authStore = useAuthStore()
 let unsubscribeCourtSchedule: () => void
+
 // Reactive data
 const selectedDate = ref(new Date())
 const datePickerMenu = ref(false)
@@ -301,28 +310,7 @@ const schedule = ref<any>({})
 const loading = ref(false)
 const editMode = ref(false)
 const saving = ref(false)
-onMounted(() => {
-  fetchCourtSchedule(selectedDate.value)
-  setupRealTimeListener()
-})
 
-onUnmounted(() => {
-  if (unsubscribeCourtSchedule) {
-    unsubscribeCourtSchedule()
-  }
-})
-
-const setupRealTimeListener = () => {
-  const dateString = selectedDate.value.toISOString().split('T')[0]
-  const docRef = doc(db, 'courtSchedule', dateString)
-
-  unsubscribeCourtSchedule = onSnapshot(docRef, (doc) => {
-    if (doc.exists()) {
-      schedule.value = doc.data().schedule || {}
-      updateCourtStats()
-    }
-  })
-}
 // Time slots (9:00 - 21:00)
 const timeSlots = [
   '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
@@ -396,7 +384,8 @@ const getOccupancyProgressColor = (rate: number) => {
   return 'error'
 }
 
-const getSlotStatusClass = (status: string) => {
+const getSlotStatusClass = (slotData: any) => {
+  const status = getSlotStatusValue(slotData)
   switch (status) {
     case 'available': return 'status-available'
     case 'occupied': return 'status-occupied'
@@ -406,7 +395,22 @@ const getSlotStatusClass = (status: string) => {
   }
 }
 
-const getSlotIcon = (status: string) => {
+const getSlotStatusValue = (slotData: any) => {
+  if (!slotData) return 'available'
+
+  if (typeof slotData === 'string') {
+    return slotData
+  }
+
+  if (typeof slotData === 'object') {
+    return slotData.status || 'available'
+  }
+
+  return 'available'
+}
+
+const getSlotIcon = (slotData: any) => {
+  const status = getSlotStatusValue(slotData)
   switch (status) {
     case 'available': return 'mdi-check-circle'
     case 'occupied': return 'mdi-account'
@@ -416,7 +420,8 @@ const getSlotIcon = (status: string) => {
   }
 }
 
-const getSlotIconColor = (status: string) => {
+const getSlotIconColor = (slotData: any) => {
+  const status = getSlotStatusValue(slotData)
   switch (status) {
     case 'available': return 'success'
     case 'occupied': return 'error'
@@ -426,7 +431,8 @@ const getSlotIconColor = (status: string) => {
   }
 }
 
-const getSlotText = (status: string) => {
+const getSlotStatus = (slotData: any) => {
+  const status = getSlotStatusValue(slotData)
   switch (status) {
     case 'available': return 'Müsait'
     case 'occupied': return 'Dolu'
@@ -434,6 +440,108 @@ const getSlotText = (status: string) => {
     case 'closed': return 'Kapalı'
     default: return 'Müsait'
   }
+}
+
+const getStudentInfo = (slotData: any) => {
+  if (!slotData || typeof slotData !== 'object') return null
+
+  const status = slotData.status || 'available'
+  if (status !== 'occupied') return null
+
+  // Grup dersi kontrolü
+  const isGroupLesson = slotData.reservationType === 'group-lesson' ||
+      slotData.membershipType?.includes('_group_') ||
+      slotData.groupAssignment
+
+  if (isGroupLesson) {
+    // Grup dersi için üyelik türü ve grup bilgisi göster
+    const membershipLabel = getMembershipDisplayName(slotData.membershipType)
+    const groupLabel = getGroupDisplayName(slotData.groupAssignment)
+
+    if (membershipLabel && groupLabel) {
+      return `${membershipLabel} - ${groupLabel}`
+    } else if (membershipLabel) {
+      return membershipLabel
+    } else if (groupLabel) {
+      return `Grup Dersi - ${groupLabel}`
+    }
+  }
+
+  // Özel ders için öğrenci adı soyadı göster
+  if (slotData.studentFirstName && slotData.studentLastName) {
+    return `${slotData.studentFirstName} ${slotData.studentLastName}`
+  }
+
+  if (slotData.studentFullName) {
+    return slotData.studentFullName
+  }
+
+  return null
+}
+
+const getSlotTooltip = (slotData: any) => {
+  if (!slotData || typeof slotData !== 'object') return null
+
+  const status = slotData.status || 'available'
+  if (status !== 'occupied') return null
+
+  let tooltip = ''
+
+  if (slotData.studentFullName) {
+    tooltip += `Öğrenci: ${slotData.studentFullName}\n`
+  }
+
+  if (slotData.membershipType) {
+    tooltip += `Üyelik: ${getMembershipDisplayName(slotData.membershipType)}\n`
+  }
+
+  if (slotData.groupAssignment) {
+    tooltip += `Grup: ${slotData.groupAssignment}\n`
+  }
+
+  if (slotData.reservationType) {
+    tooltip += `Tip: ${slotData.reservationType}`
+  }
+
+  return tooltip.trim()
+}
+
+const getMembershipDisplayName = (type: string) => {
+  const texts: { [key: string]: string } = {
+    'private_1_45': 'Özel Ders 1 Kişi (45dk)',
+    'private_2_60': 'Özel Ders 2 Kişi (60dk)',
+    'private_group_3_8': 'Özel Grup 3 Kişi',
+    'private_group_4_8': 'Özel Grup 4 Kişi',
+    'private_group_5_8': 'Özel Grup 5 Kişi',
+    'private_group_6_8': 'Özel Grup 6 Kişi',
+    'private_group_7_8': 'Özel Grup 7 Kişi',
+    'private_group_8_8': 'Özel Grup 8 Kişi',
+    'private_package_1_8': 'Özel Paket 1 Kişi',
+    'private_package_2_8': 'Özel Paket 2 Kişi',
+    'adult_group': 'Yetişkin Grup',
+    'tennis_school_age': 'Tenis Okulu Yaş Grubu',
+    'tennis_school_performance': 'Tenis Okulu Performans'
+  }
+  return texts[type] || type
+}
+
+const getGroupDisplayName = (groupAssignment: string) => {
+  if (!groupAssignment) return null
+
+  const groupLabels: { [key: string]: string } = {
+    'group_1': 'Grup 1',
+    'group_2': 'Grup 2',
+    'group_3': 'Grup 3',
+    'group_4': 'Grup 4',
+    'group_5': 'Grup 5',
+    'group_6': 'Grup 6',
+    'group_7': 'Grup 7',
+    'group_8': 'Grup 8',
+    'group_9': 'Grup 9',
+    'group_10': 'Grup 10'
+  }
+
+  return groupLabels[groupAssignment] || groupAssignment
 }
 
 // Firebase operations
@@ -444,7 +552,6 @@ const fetchCourtSchedule = async (date: Date) => {
     const docRef = doc(db, 'courtSchedule', dateString)
     const docSnap = await getDoc(docRef)
 
-    // Önce courtSchedule'dan var olan durumları al
     if (docSnap.exists()) {
       schedule.value = docSnap.data().schedule || {}
     } else {
@@ -459,9 +566,8 @@ const fetchCourtSchedule = async (date: Date) => {
       schedule.value = defaultSchedule
     }
 
-    // Şimdi rezervasyonları kontrol et ve schedule'ı güncelle
+    // Rezervasyonları kontrol et ve schedule'ı güncelle
     await checkReservationsAndUpdateSchedule(date)
-
     updateCourtStats()
   } catch (error) {
     console.error('Error fetching court schedule:', error)
@@ -471,17 +577,14 @@ const fetchCourtSchedule = async (date: Date) => {
   }
 }
 
-// Yeni metod: Rezervasyonları kontrol et ve schedule güncelle
 const checkReservationsAndUpdateSchedule = async (date: Date) => {
   try {
-    // Seçilen tarihin başlangıcı ve bitişi
     const startOfDay = new Date(date)
     startOfDay.setHours(0, 0, 0, 0)
 
     const endOfDay = new Date(date)
     endOfDay.setHours(23, 59, 59, 999)
 
-    // Sadece tarihe göre sorgu (index gerektirmez)
     const reservationsQuery = query(
         collection(db, 'reservations'),
         where('date', '>=', startOfDay),
@@ -494,16 +597,30 @@ const checkReservationsAndUpdateSchedule = async (date: Date) => {
       const reservation = doc.data()
       const { courtId, startTime, status } = reservation
 
-      // Status kontrolünü client-side'da yapalım
       if (status !== 'confirmed' && status !== 'active') {
-        return // Bu rezervasyonu atla
+        return
       }
 
       const mappedCourtId = mapCourtId(courtId)
 
       if (schedule.value[mappedCourtId] && timeSlots.includes(startTime)) {
-        if (schedule.value[mappedCourtId][startTime] === 'available') {
-          schedule.value[mappedCourtId][startTime] = 'occupied'
+        // Önceki "available" durumunu kontrol et
+        if (schedule.value[mappedCourtId][startTime] === 'available' ||
+            !schedule.value[mappedCourtId][startTime]) {
+
+          // Yeni format ile detaylı bilgi kaydet
+          schedule.value[mappedCourtId][startTime] = {
+            status: 'occupied',
+            studentId: reservation.studentId,
+            studentFirstName: reservation.studentName?.split(' ')[0] || '',
+            studentLastName: reservation.studentName?.split(' ').slice(1).join(' ') || '',
+            studentFullName: reservation.studentName || '',
+            groupAssignment: reservation.groupId || '',
+            membershipType: reservation.membershipType || '',
+            reservationType: reservation.type || 'lesson',
+            updatedAt: new Date(),
+            updatedBy: 'system-sync'
+          }
         }
       }
     })
@@ -512,14 +629,12 @@ const checkReservationsAndUpdateSchedule = async (date: Date) => {
   }
 }
 
-// 2. mapCourtId metodunu güncelleyin:
 const mapCourtId = (reservationCourtId: string): string => {
   const mapping: Record<string, string> = {
     'court-1': 'K1',
     'court-2': 'K2',
     'court-3': 'K3',
   }
-
   return mapping[reservationCourtId] || reservationCourtId
 }
 
@@ -530,7 +645,9 @@ const updateCourtStats = () => {
     let available = 0
 
     timeSlots.forEach(time => {
-      const status = courtSchedule[time] || 'available'
+      const slotData = courtSchedule[time]
+      const status = getSlotStatusValue(slotData)
+
       if (status === 'occupied') occupied++
       else if (status === 'available') available++
     })
@@ -547,7 +664,6 @@ const saveCourtSchedule = async () => {
     const dateString = selectedDate.value.toISOString().split('T')[0]
     const docRef = doc(db, 'courtSchedule', dateString)
 
-    // updatedBy alanı için güvenli değer kontrolü
     const updatedBy = authStore.user?.id || authStore.user?.email || 'unknown'
 
     await setDoc(docRef, {
@@ -565,6 +681,17 @@ const saveCourtSchedule = async () => {
   }
 }
 
+const setupRealTimeListener = () => {
+  const dateString = selectedDate.value.toISOString().split('T')[0]
+  const docRef = doc(db, 'courtSchedule', dateString)
+
+  unsubscribeCourtSchedule = onSnapshot(docRef, (doc) => {
+    if (doc.exists()) {
+      schedule.value = doc.data().schedule || {}
+      updateCourtStats()
+    }
+  })
+}
 
 const enableEditMode = () => {
   editMode.value = true
@@ -578,7 +705,9 @@ const cancelEdit = () => {
 const toggleSlotStatus = (courtId: string, timeSlot: string) => {
   if (!editMode.value) return
 
-  const currentStatus = schedule.value[courtId]?.[timeSlot] || 'available'
+  const currentSlotData = schedule.value[courtId]?.[timeSlot]
+  const currentStatus = getSlotStatusValue(currentSlotData)
+
   const statuses = ['available', 'occupied', 'maintenance', 'closed']
   const currentIndex = statuses.indexOf(currentStatus)
   const nextIndex = (currentIndex + 1) % statuses.length
@@ -594,6 +723,10 @@ const toggleSlotStatus = (courtId: string, timeSlot: string) => {
 const onDateChange = () => {
   datePickerMenu.value = false
   fetchCourtSchedule(selectedDate.value)
+  if (unsubscribeCourtSchedule) {
+    unsubscribeCourtSchedule()
+  }
+  setupRealTimeListener()
 }
 
 // Watchers
@@ -604,6 +737,12 @@ watch(selectedDate, (newDate) => {
 // Lifecycle
 onMounted(() => {
   fetchCourtSchedule(selectedDate.value)
+  setupRealTimeListener()
+})
+
+onUnmounted(() => {
+  if (unsubscribeCourtSchedule) {
+    unsubscribeCourtSchedule()
+  }
 })
 </script>
-
