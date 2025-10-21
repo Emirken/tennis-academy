@@ -884,6 +884,7 @@ interface Student {
 
 // Reactive state
 const students = ref<Student[]>([])
+const groups = ref<any[]>([]) // GroupManagement'tan gelen gerçek gruplar
 const loading = ref(false)
 const successSnackbar = ref(false)
 const successMessage = ref('')
@@ -1038,90 +1039,54 @@ const isGroupMembership = (membershipType: string): boolean => {
 const getGroupOptionsWithCapacity = (membershipType: string) => {
   if (!isGroupMembership(membershipType)) return []
 
-  const groups = []
-  let maxGroups = 10
-  let groupSize = ''
-  let maxCapacity = 0
+  // GroupManagement'tan gelen gerçek grupları filtrele
+  const filteredGroups = groups.value.filter(group => group.membershipType === membershipType)
 
-  // Grup kapasitelerini belirle
-  const groupCapacities: { [key: string]: { maxGroups: number, groupSize: string, maxCapacity: number } } = {
-    'private_group_3_8': { maxGroups: 10, groupSize: '3 Kişilik Grup', maxCapacity: 3 },
-    'private_group_4_8': { maxGroups: 10, groupSize: '4 Kişilik Grup', maxCapacity: 4 },
-    'adult_group': { maxGroups: 5, groupSize: 'Yetişkin Grup', maxCapacity: 8 },
-    'tennis_school_age': { maxGroups: 8, groupSize: 'Yaş Grubu', maxCapacity: 6 },
-    'tennis_school_performance': { maxGroups: 6, groupSize: 'Performans Grubu', maxCapacity: 8 }
-  }
-
-  const config = groupCapacities[membershipType]
-  if (config) {
-    maxGroups = config.maxGroups
-    groupSize = config.groupSize
-    maxCapacity = config.maxCapacity
-  }
-
-  // Grup seçeneklerini oluştur
-  for (let i = 1; i <= maxGroups; i++) {
-    const groupId = `group_${i}`
-    const currentCapacity = groupCapacityInfo.value[membershipType]?.[groupId]?.current || 0
+  // Grupları seçenek formatına dönüştür
+  return filteredGroups.map(group => {
+    const currentCapacity = group.members?.length || 0
+    const maxCapacity = group.maxCapacity || 8
     const isFull = currentCapacity >= maxCapacity
 
-    // Kapasite bilgisini başlık ve değerde göster
-    const title = `${groupSize} - ${i} (${currentCapacity}/${maxCapacity})`
-    const disabled = isFull
-
-    groups.push({
-      title,
-      value: groupId,
-      disabled,
+    return {
+      title: `${group.name} (${currentCapacity}/${maxCapacity})`,
+      value: group.id,
+      disabled: isFull,
       props: {
         subtitle: isFull ? 'Grup dolu' : `${maxCapacity - currentCapacity} boş yer`,
         color: isFull ? 'error' : currentCapacity >= maxCapacity * 0.8 ? 'warning' : 'success'
       }
-    })
-  }
-
-  return groups
+    }
+  })
 }
 
 // Grup seçimi validasyonu
 const validateGroupSelection = (membershipType: string, groupId: string, excludeStudentId?: string): boolean => {
   if (!isGroupMembership(membershipType) || !groupId) return true
 
-  const groupCapacities: { [key: string]: number } = {
-    'private_group_3_8': 3,
-    'private_group_4_8': 4,
-    'adult_group': 8,
-    'tennis_school_age': 6,
-    'tennis_school_performance': 8
-  }
+  // Gerçek gruptan kapasite bilgisini al
+  const group = groups.value.find(g => g.id === groupId)
+  if (!group) return false
 
-  const maxCapacity = groupCapacities[membershipType] || 10
+  const maxCapacity = group.maxCapacity || 8
 
-  // Mevcut grup üyelerini say (düzenlenen öğrenciyi hariç tut)
-  const currentMembers = students.value.filter(student =>
-      student.groupAssignment === groupId &&
-      student.membershipType === membershipType &&
-      student.id !== excludeStudentId
-  ).length
+  // Grup members array'inden mevcut üye sayısını al
+  const currentMembers = group.members?.filter((member: any) => member.id !== excludeStudentId).length || 0
 
   return currentMembers < maxCapacity
 }
 
 // Grup kapasitesi kontrol fonksiyonu
 const checkGroupCapacity = (membershipType: string, groupId: string): { current: number, max: number, available: number, isFull: boolean } => {
-  const groupCapacities: { [key: string]: number } = {
-    'private_group_3_8': 3,
-    'private_group_4_8': 4,
-    'adult_group': 8,
-    'tennis_school_age': 6,
-    'tennis_school_performance': 8
+  // Gerçek gruptan kapasite bilgisini al
+  const group = groups.value.find(g => g.id === groupId)
+
+  if (!group) {
+    return { current: 0, max: 0, available: 0, isFull: true }
   }
 
-  const maxCapacity = groupCapacities[membershipType] || 10
-  const currentMembers = students.value.filter(student =>
-      student.groupAssignment === groupId &&
-      student.membershipType === membershipType
-  ).length
+  const maxCapacity = group.maxCapacity || 8
+  const currentMembers = group.members?.length || 0
 
   return {
     current: currentMembers,
@@ -1135,38 +1100,31 @@ const checkGroupCapacity = (membershipType: string, groupId: string): { current:
 const getGroupDisplayNameWithCapacity = (membershipType: string, groupAssignment: string): string => {
   if (!groupAssignment) return ''
 
-  const groupNumber = groupAssignment.replace('group_', '')
-  const capacity = checkGroupCapacity(membershipType, groupAssignment)
+  // Gerçek gruptan isim ve kapasite bilgisini al
+  const group = groups.value.find(g => g.id === groupAssignment)
 
-  let groupName = ''
-  switch (membershipType) {
-    case 'private_group_3_8':
-      groupName = `3 Kişilik Grup - ${groupNumber}`
-      break
-    case 'private_group_4_8':
-      groupName = `4 Kişilik Grup - ${groupNumber}`
-      break
-    case 'adult_group':
-      groupName = `Yetişkin Grup - ${groupNumber}`
-      break
-    case 'tennis_school_age':
-      groupName = `Yaş Grubu - ${groupNumber}`
-      break
-    case 'tennis_school_performance':
-      groupName = `Performans Grubu - ${groupNumber}`
-      break
-    default:
-      groupName = `Grup - ${groupNumber}`
+  if (!group) {
+    return 'Grup bulunamadı'
   }
 
-  return `${groupName} (${capacity.current}/${capacity.max})`
+  const currentMembers = group.members?.length || 0
+  const maxCapacity = group.maxCapacity || 8
+
+  return `${group.name} (${currentMembers}/${maxCapacity})`
 }
 
 // Grup üyelerini listeleyen fonksiyon
 const getGroupMembers = (membershipType: string, groupId: string): Student[] => {
+  // Gerçek gruptan üye ID'lerini al
+  const group = groups.value.find(g => g.id === groupId)
+
+  if (!group || !group.members) {
+    return []
+  }
+
+  // Grup members array'indeki ID'lere göre students listesinden öğrencileri bul
   return students.value.filter(student =>
-      student.groupAssignment === groupId &&
-      student.membershipType === membershipType
+      group.members.some((member: any) => member.id === student.id)
   )
 }
 
@@ -1895,6 +1853,28 @@ const fetchStudents = async () => {
   }
 }
 
+// Fetch groups from Firebase
+const fetchGroups = async () => {
+  try {
+    console.log('🔍 Firebase\'den gruplar getiriliyor...')
+    const groupsRef = collection(db, 'groups')
+    const querySnapshot = await getDocs(groupsRef)
+
+    const fetchedGroups: any[] = []
+    querySnapshot.forEach((doc) => {
+      fetchedGroups.push({
+        id: doc.id,
+        ...doc.data()
+      })
+    })
+
+    groups.value = fetchedGroups
+    console.log(`✅ ${fetchedGroups.length} grup başarıyla yüklendi`)
+  } catch (error: any) {
+    console.error('❌ Grupları yükleme hatası:', error)
+  }
+}
+
 const viewStudentDetails = (student: Student) => {
   console.log('Öğrenci detayları görüntüle:', student)
   selectedStudent.value = student
@@ -2030,6 +2010,51 @@ const saveStudentChanges = async (): Promise<void> => {
       }, validWeeklyPlan)
     }
 
+    // 4.5. Grup members array'ini güncelle
+    // Eski gruptan çıkar (grup kaldırıldıysa veya değiştirildiyse)
+    if (hadGroup && oldStudent.groupAssignment && (groupAssignment !== oldStudent.groupAssignment)) {
+      const oldGroupRef = doc(db, 'groups', oldStudent.groupAssignment)
+      const oldGroupSnap = await getDoc(oldGroupRef)
+
+      if (oldGroupSnap.exists()) {
+        const oldGroupData = oldGroupSnap.data()
+        const updatedMembers = (oldGroupData.members || []).filter((m: any) => m.id !== studentId)
+
+        await updateDoc(oldGroupRef, {
+          members: updatedMembers
+        })
+      }
+    }
+
+    // Yeni gruba ekle (yeni grup atandıysa veya grup değiştirildiyse)
+    if (hasGroup && groupAssignment) {
+      const newGroupRef = doc(db, 'groups', groupAssignment)
+      const newGroupSnap = await getDoc(newGroupRef)
+
+      if (newGroupSnap.exists()) {
+        const newGroupData = newGroupSnap.data()
+        const existingMembers = newGroupData.members || []
+
+        // Öğrenci zaten grupta değilse ekle
+        const alreadyInGroup = existingMembers.some((m: any) => m.id === studentId)
+
+        if (!alreadyInGroup) {
+          const memberData = {
+            id: studentId,
+            name: `${editForm.value.firstName} ${editForm.value.lastName}`,
+            email: editForm.value.email
+          }
+
+          await updateDoc(newGroupRef, {
+            members: [...existingMembers, memberData]
+          })
+        }
+      }
+    }
+
+    // Grupları yeniden yükle
+    await fetchGroups()
+
     // 5. Local state'i güncelle
     const index = students.value.findIndex(s => s.id === studentId)
     if (index > -1) {
@@ -2078,10 +2103,28 @@ const deleteStudent = async (student: Student): Promise<void> => {
       )
     }
 
-    // 2. Öğrenciyi sil
+    // 2. Gruptan çıkar
+    if (student.groupAssignment) {
+      const groupRef = doc(db, 'groups', student.groupAssignment)
+      const groupSnap = await getDoc(groupRef)
+
+      if (groupSnap.exists()) {
+        const groupData = groupSnap.data()
+        const updatedMembers = (groupData.members || []).filter((m: any) => m.id !== student.id)
+
+        await updateDoc(groupRef, {
+          members: updatedMembers
+        })
+      }
+    }
+
+    // 3. Öğrenciyi sil
     await deleteDoc(doc(db, 'users', student.id))
 
-    // 3. Local state'i güncelle
+    // 4. Grupları yeniden yükle
+    await fetchGroups()
+
+    // 5. Local state'i güncelle
     students.value = students.value.filter(s => s.id !== student.id)
     showStudentDetailsDialog.value = false
 
@@ -2097,5 +2140,6 @@ const deleteStudent = async (student: Student): Promise<void> => {
 // Lifecycle
 onMounted(() => {
   fetchStudents()
+  fetchGroups()
 })
 </script>

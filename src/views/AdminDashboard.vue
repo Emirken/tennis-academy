@@ -153,6 +153,13 @@ const managementActions = [
     route: { name: 'StudentManagement' }
   },
   {
+    title: 'Grup Yönetimi',
+    description: 'Grupları oluştur ve üyeleri yönet',
+    icon: 'mdi-account-multiple',
+    gradient: 'success-gradient',
+    route: { name: 'GroupManagement' }
+  },
+  {
     title: 'Yoklama Takibi',
     description: 'Öğrenci yoklamalarını ayarla',
     icon: 'mdi-clipboard-check',
