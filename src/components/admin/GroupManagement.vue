@@ -184,16 +184,6 @@
 
         <v-card-text class="pt-4">
           <v-form ref="groupForm">
-            <v-text-field
-                v-model="groupFormData.name"
-                label="Grup Adı"
-                placeholder="Örn: Pazartesi Sabah Grubu"
-                :rules="[v => !!v || 'Grup adı gerekli']"
-                variant="outlined"
-                density="comfortable"
-                class="mb-3"
-            ></v-text-field>
-
             <v-select
                 v-model="groupFormData.membershipType"
                 :items="membershipTypeOptions"
@@ -204,6 +194,16 @@
                 class="mb-3"
                 @update:model-value="updateMaxCapacity"
             ></v-select>
+
+            <v-text-field
+                v-model="groupFormData.name"
+                label="Grup Adı"
+                placeholder="Örn: Pazartesi Sabah Grubu"
+                :rules="[v => !!v || 'Grup adı gerekli']"
+                variant="outlined"
+                density="comfortable"
+                class="mb-3"
+            ></v-text-field>
 
             <v-text-field
                 v-model.number="groupFormData.maxCapacity"
