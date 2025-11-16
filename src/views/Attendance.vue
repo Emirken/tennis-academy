@@ -122,7 +122,7 @@
           </v-card-title>
           <v-card-text class="pa-6">
             <v-row>
-              <v-col cols="12" md="6">
+              <v-col cols="12" md="4">
                 <v-select
                     v-model="selectedMonth"
                     label="Ay"
@@ -135,7 +135,7 @@
                     @update:model-value="loadAttendanceData"
                 />
               </v-col>
-              <v-col cols="12" md="6">
+              <v-col cols="12" md="4">
                 <v-select
                     v-model="selectedYear"
                     label="Yıl"
@@ -144,6 +144,21 @@
                     density="compact"
                     prepend-inner-icon="mdi-calendar-range"
                     @update:model-value="loadAttendanceData"
+                />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-select
+                    v-model="selectedGroupFilter"
+                    label="Grup Filtresi"
+                    :items="[{id: 'all', name: 'Tüm Gruplar'}, ...availableGroups]"
+                    item-title="name"
+                    item-value="id"
+                    variant="outlined"
+                    density="compact"
+                    prepend-inner-icon="mdi-account-group"
+                    :loading="loadingGroups"
+                    clearable
+                    @click:clear="selectedGroupFilter = 'all'"
                 />
               </v-col>
             </v-row>
@@ -245,7 +260,7 @@
                           variant="flat"
                           class="ml-2"
                       >
-                        {{ GroupTuruLabel[student.groupAssignment as keyof typeof GroupTuruLabel] || student.groupAssignment }}
+                        {{ GroupTuruLabel[student.groupAssignment] || student.groupAssignment }}
                       </v-chip>
                       <v-btn
                           v-if="authStore.isAdmin"
@@ -467,6 +482,9 @@ const loadingStudents = ref(false)
 const addingStudent = ref(false)
 const selectedStudentGroup = ref('')
 const groupMembers = ref<Array<{id: string, name: string}>>([])
+const selectedGroupFilter = ref<string>('all')
+const availableGroups = ref<Array<{id: string, name: string}>>([])
+const loadingGroups = ref(false)
 
 // Selections
 const selectedMonth = ref(new Date().getMonth() + 1)
@@ -495,6 +513,29 @@ const months = [
 // Year options
 const years = ref([2024, 2025, 2026])
 
+// Membership type labels mapping
+const MembershipTypeLabel: Record<string, string> = {
+  'private_1_45': 'Özel Ders 1 Kişi (45dk)',
+  'private_2_60': 'Özel Ders 2 Kişi (60dk)',
+  'private_group_3_8': 'Özel Grup 3 Kişi (8ders)',
+  'private_group_4_8': 'Özel Grup 4 Kişi (8ders)',
+  'private_group_5_8': 'Özel Grup 5 Kişi (8ders)',
+  'private_group_6_8': 'Özel Grup 6 Kişi (8ders)',
+  'private_group_7_8': 'Özel Grup 7 Kişi (8ders)',
+  'private_group_8_8': 'Özel Grup 8 Kişi (8ders)',
+  'private_package_1_8': 'Özel Paket 1 Kişi (8ders)',
+  'private_package_2_8': 'Özel Paket 2 Kişi (8ders)',
+  'adult_group': 'Yetişkin Grup',
+  'tennis_school_age': 'Tenis Okulu Yaş Grubu',
+  'tennis_school_performance': 'Tenis Okulu Performans',
+  'basic': 'Temel Üyelik',
+  'premium': 'Premium Üyelik',
+  'vip': 'VIP Üyelik'
+}
+
+// Group labels - will be populated from Firebase
+const GroupTuruLabel = ref<Record<string, string>>({})
+
 // Students data by class - will be loaded from Firebase
 const studentsData = reactive<Record<string, Array<{id: string, name: string, groupAssignment?: string, membershipType?: string}>>>({
   'baslangic-a': []
@@ -505,7 +546,15 @@ const monthLessons = ref<Array<{date: Date, dateString: string, lessonNumber: nu
 
 // Computed properties
 const classStudents = computed(() => {
-  return studentsData['baslangic-a'] || []
+  const students = studentsData['baslangic-a'] || []
+
+  // If no group filter or "all" is selected, return all students
+  if (selectedGroupFilter.value === 'all') {
+    return students
+  }
+
+  // Filter by selected group
+  return students.filter(student => student.groupAssignment === selectedGroupFilter.value)
 })
 
 const availableStudents = computed(() => {
@@ -635,6 +684,36 @@ const loadAttendanceData = async () => {
     console.error('❌ Yoklama verilerini yükleme hatası:', error)
     initializeLessons()
     initializeAttendanceData()
+  }
+}
+
+const loadGroupsFromFirebase = async () => {
+  loadingGroups.value = true
+  try {
+    const groupsSnapshot = await getDocs(collection(db, 'groups'))
+    const firebaseGroups: Array<{id: string, name: string}> = []
+    const groupLabels: Record<string, string> = {}
+
+    groupsSnapshot.forEach((doc) => {
+      const groupData = doc.data()
+      const groupName = groupData.name || doc.id
+
+      firebaseGroups.push({
+        id: doc.id,
+        name: groupName
+      })
+
+      // Populate GroupTuruLabel mapping
+      groupLabels[doc.id] = groupName
+    })
+
+    availableGroups.value = firebaseGroups
+    GroupTuruLabel.value = groupLabels
+    console.log('✅ Firebase grupları yüklendi:', firebaseGroups.length)
+  } catch (error) {
+    console.error('❌ Firebase gruplarını yükleme hatası:', error)
+  } finally {
+    loadingGroups.value = false
   }
 }
 
@@ -891,5 +970,6 @@ watch(showAddStudentDialog, (newValue) => {
 onMounted(() => {
   initializeLessons()
   loadAttendanceData()
+  loadGroupsFromFirebase()
 })
 </script>
