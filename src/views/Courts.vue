@@ -457,7 +457,7 @@ const getStudentInfo = (slotData: any) => {
   if (isGroupLesson) {
     // Grup dersi için üyelik türü ve grup bilgisi göster
     const membershipLabel = getMembershipDisplayName(slotData.membershipType)
-    const groupLabel = getGroupDisplayName(slotData.groupAssignment)
+    const groupLabel = slotData.groupName || getGroupDisplayName(slotData.groupAssignment)
 
     if (membershipLabel && groupLabel) {
       return `${membershipLabel} - ${groupLabel}`
@@ -594,8 +594,30 @@ const checkReservationsAndUpdateSchedule = async (date: Date) => {
 
     const querySnapshot = await getDocs(reservationsQuery)
 
+    // Fetch group names first if needed
+    const groupIds = new Set<string>()
     querySnapshot.forEach((doc) => {
       const reservation = doc.data()
+      if (reservation.groupId) {
+        groupIds.add(reservation.groupId)
+      }
+    })
+
+    // Fetch group names from Firebase
+    const groupNames: { [key: string]: string } = {}
+    for (const groupId of groupIds) {
+      try {
+        const groupDoc = await getDoc(doc(db, 'groups', groupId))
+        if (groupDoc.exists()) {
+          groupNames[groupId] = groupDoc.data().name || groupId
+        }
+      } catch (error) {
+        console.error(`Error fetching group ${groupId}:`, error)
+      }
+    }
+
+    querySnapshot.forEach((docSnap) => {
+      const reservation = docSnap.data()
       const { courtId, startTime, status } = reservation
 
       if (status !== 'confirmed' && status !== 'active') {
@@ -617,6 +639,7 @@ const checkReservationsAndUpdateSchedule = async (date: Date) => {
             studentLastName: reservation.studentName?.split(' ').slice(1).join(' ') || '',
             studentFullName: reservation.studentName || '',
             groupAssignment: reservation.groupId || '',
+            groupName: reservation.groupId ? groupNames[reservation.groupId] : '',
             membershipType: reservation.membershipType || '',
             reservationType: reservation.type || 'lesson',
             updatedAt: new Date(),

@@ -73,6 +73,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('@/views/AdminDashboard.vue')
       },
       {
+        path: 'calendar',
+        name: 'AdminCalendar',
+        component: () => import('@/components/admin/AdminCalendar.vue')
+      },
+      {
         path: 'attendance',
         name: 'Attendance',
         component: () => import('@/views/Attendance.vue')

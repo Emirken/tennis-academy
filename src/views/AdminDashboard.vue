@@ -146,6 +146,13 @@ const todayReservations = ref(0)
 // Management Actions Data
 const managementActions = [
   {
+    title: 'Takvim',
+    description: 'Ders programlarını ve rezervasyonları görüntüle',
+    icon: 'mdi-calendar-month',
+    gradient: 'court-gradient',
+    route: { name: 'AdminCalendar' }
+  },
+  {
     title: 'Öğrenci Yönetimi',
     description: 'Öğrenci hesaplarını görüntüle ve yönet',
     icon: 'mdi-account-group',
