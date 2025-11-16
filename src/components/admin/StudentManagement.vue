@@ -172,9 +172,18 @@
                 <p class="text-body-2 text-grey-600 mb-0">Tüm öğrenci bilgileri ve detayları</p>
               </div>
             </div>
-            <v-chip color="success" variant="flat" class="font-weight-bold">
-              {{ filteredStudents.length }} öğrenci
-            </v-chip>
+            <div class="d-flex  align-center gap-2">
+              <v-chip color="success" variant="flat" class="mr-2 font-weight-bold">
+                {{ filteredStudents.length }} öğrenci
+              </v-chip>
+              <v-btn
+                  color="success"
+                  prepend-icon="mdi-account-plus"
+                  @click="openAddStudentDialog"
+              >
+                Öğrenci Ekle
+              </v-btn>
+            </div>
           </v-card-title>
 
           <v-card-text class="pa-0">
@@ -831,6 +840,144 @@
       </v-card>
     </v-dialog>
 
+    <!-- Öğrenci Ekleme Dialog -->
+    <v-dialog
+        v-model="showAddStudentDialog"
+        max-width="700"
+        persistent
+    >
+      <v-card class="modern-card" elevation="8">
+        <v-card-title class="pa-0">
+          <div class="welcome-section" style="margin: 0; border-radius: 0;">
+            <div class="welcome-content py-6 px-6">
+              <div class="d-flex align-center justify-space-between">
+                <div class="d-flex align-center">
+                  <div class="stat-icon-wrapper success-gradient mr-4" style="width: 56px; height: 56px;">
+                    <v-icon icon="mdi-account-plus" size="32" color="white" />
+                  </div>
+                  <div>
+                    <h2 class="text-h5 font-weight-bold text-white mb-1">
+                      Yeni Öğrenci Ekle
+                    </h2>
+                    <p class="text-body-1 text-white opacity-90 mb-0">
+                      Öğrenci bilgilerini girin ve hesap oluşturun
+                    </p>
+                  </div>
+                </div>
+                <v-btn
+                    icon
+                    color="white"
+                    variant="text"
+                    @click="closeAddStudentDialog"
+                >
+                  <v-icon>mdi-close</v-icon>
+                </v-btn>
+              </div>
+            </div>
+          </div>
+        </v-card-title>
+
+        <v-card-text class="pa-6">
+          <v-form ref="addStudentFormRef" v-model="addStudentFormValid">
+            <v-row>
+              <!-- Ad -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="addStudentForm.firstName"
+                    label="Ad"
+                    variant="outlined"
+                    :rules="nameRules"
+                    prepend-inner-icon="mdi-account"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+
+              <!-- Soyad -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="addStudentForm.lastName"
+                    label="Soyad"
+                    variant="outlined"
+                    :rules="nameRules"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+
+              <!-- E-posta -->
+              <v-col cols="12">
+                <v-text-field
+                    v-model="addStudentForm.email"
+                    label="E-posta"
+                    type="email"
+                    variant="outlined"
+                    :rules="emailRules"
+                    prepend-inner-icon="mdi-email"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+
+              <!-- Şifre -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="addStudentForm.password"
+                    label="Şifre"
+                    :type="showPassword ? 'text' : 'password'"
+                    variant="outlined"
+                    :rules="passwordRules"
+                    prepend-inner-icon="mdi-lock"
+                    :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
+                    @click:append-inner="showPassword = !showPassword"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+
+              <!-- Şifre Tekrar -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="addStudentForm.confirmPassword"
+                    label="Şifre Tekrar"
+                    :type="showConfirmPassword ? 'text' : 'password'"
+                    variant="outlined"
+                    :rules="confirmPasswordRules"
+                    prepend-inner-icon="mdi-lock-check"
+                    :append-inner-icon="showConfirmPassword ? 'mdi-eye' : 'mdi-eye-off'"
+                    @click:append-inner="showConfirmPassword = !showConfirmPassword"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+            </v-row>
+          </v-form>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <v-card-actions class="pa-6">
+          <v-spacer />
+          <v-btn
+              variant="text"
+              @click="closeAddStudentDialog"
+          >
+            İptal
+          </v-btn>
+          <v-btn
+              color="success"
+              variant="flat"
+              :loading="savingChanges"
+              :disabled="!addStudentFormValid"
+              @click="createNewStudent"
+              prepend-icon="mdi-check"
+          >
+            Öğrenci Ekle
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Success Snackbar -->
     <v-snackbar
         v-model="successSnackbar"
@@ -889,6 +1036,7 @@ const loading = ref(false)
 const successSnackbar = ref(false)
 const successMessage = ref('')
 const showStudentDetailsDialog = ref(false)
+const showAddStudentDialog = ref(false)
 const selectedStudent = ref<Student | null>(null)
 const isEditMode = ref(false)
 const savingChanges = ref(false)
@@ -899,6 +1047,20 @@ const showGroupMembersDialogState = ref(false)
 const selectedGroupMembers = ref<Student[]>([])
 const selectedGroupMembershipType = ref('')
 const selectedGroupId = ref('')
+
+// Yeni öğrenci ekleme formu
+const addStudentForm = ref({
+  firstName: '',
+  lastName: '',
+  email: '',
+  password: '',
+  confirmPassword: ''
+})
+
+// Form validation
+const addStudentFormValid = ref(false)
+const showPassword = ref(false)
+const showConfirmPassword = ref(false)
 
 // Filters
 const filters = reactive({
@@ -985,6 +1147,27 @@ const courtOptions = [
   { title: 'Kort 2', value: 'court-2' },
   { title: 'Kort 3', value: 'court-3' }
 ]
+
+// Validation rules
+const nameRules = [
+  (v: string) => !!v || 'Bu alan gereklidir',
+  (v: string) => v.length >= 2 || 'En az 2 karakter olmalıdır'
+]
+
+const emailRules = [
+  (v: string) => !!v || 'E-posta gereklidir',
+  (v: string) => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz'
+]
+
+const passwordRules = [
+  (v: string) => !!v || 'Şifre gereklidir',
+  (v: string) => v.length >= 6 || 'Şifre en az 6 karakter olmalıdır'
+]
+
+const confirmPasswordRules = computed(() => [
+  (v: string) => !!v || 'Şifre tekrarı gereklidir',
+  (v: string) => v === addStudentForm.value.password || 'Şifreler eşleşmiyor'
+])
 
 // Grup kapasitesi bilgilerini almak için computed property
 const groupCapacityInfo = computed(() => {
@@ -1872,6 +2055,90 @@ const fetchGroups = async () => {
     console.log(`✅ ${fetchedGroups.length} grup başarıyla yüklendi`)
   } catch (error: any) {
     console.error('❌ Grupları yükleme hatası:', error)
+  }
+}
+
+// Öğrenci ekleme dialog'unu aç
+const openAddStudentDialog = () => {
+  addStudentForm.value = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  }
+  showAddStudentDialog.value = true
+}
+
+// Öğrenci ekleme dialog'unu kapat
+const closeAddStudentDialog = () => {
+  showAddStudentDialog.value = false
+  addStudentForm.value = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  }
+}
+
+// Yeni öğrenci kaydet
+const createNewStudent = async () => {
+  if (!addStudentFormValid.value) return
+
+  savingChanges.value = true
+
+  try {
+    // Firebase Authentication ile kullanıcı oluştur
+    const { createUserWithEmailAndPassword } = await import('firebase/auth')
+    const { auth } = await import('@/services/firebase')
+
+    const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        addStudentForm.value.email,
+        addStudentForm.value.password
+    )
+
+    // Firestore'a öğrenci bilgilerini kaydet
+    const userDocRef = doc(db, 'users', userCredential.user.uid)
+    await setDoc(userDocRef, {
+      firstName: addStudentForm.value.firstName,
+      lastName: addStudentForm.value.lastName,
+      email: addStudentForm.value.email,
+      phone: '',
+      address: '',
+      emergencyContact: '',
+      membershipType: 'basic',
+      role: 'student',
+      status: 'active',
+      balance: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    })
+
+    // Local state'i güncelle
+    await fetchStudents()
+
+    successMessage.value = 'Öğrenci başarıyla oluşturuldu!'
+    successSnackbar.value = true
+    closeAddStudentDialog()
+  } catch (error: any) {
+    console.error('Öğrenci oluşturma hatası:', error)
+
+    let errorMessage = 'Öğrenci oluşturulurken hata oluştu!'
+
+    if (error.code === 'auth/email-already-in-use') {
+      errorMessage = 'Bu e-posta adresi zaten kullanılıyor!'
+    } else if (error.code === 'auth/invalid-email') {
+      errorMessage = 'Geçersiz e-posta adresi!'
+    } else if (error.code === 'auth/weak-password') {
+      errorMessage = 'Şifre çok zayıf!'
+    }
+
+    successMessage.value = errorMessage
+    successSnackbar.value = true
+  } finally {
+    savingChanges.value = false
   }
 }
 
