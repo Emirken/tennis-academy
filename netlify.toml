@@ -1,0 +1,12 @@
+[build]
+  # Build komutu
+  command = "npm run build"
+
+  # Build sonucu oluşan dizin
+  publish = "dist"
+
+# SPA routing için redirect kuralları
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
