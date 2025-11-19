@@ -564,13 +564,16 @@ const fetchReservations = async () => {
       }
     })
 
-    // Fetch group names from Firebase
+    // Fetch group names from Firebase and track which groups exist
     const groupNames: { [key: string]: string } = {}
+    const existingGroupIds = new Set<string>()
+
     for (const groupId of groupIds) {
       try {
         const groupDoc = await getDoc(doc(db, 'groups', groupId))
         if (groupDoc.exists()) {
           groupNames[groupId] = groupDoc.data().name || groupId
+          existingGroupIds.add(groupId)
         }
       } catch (error) {
         console.error(`Error fetching group ${groupId}:`, error)
@@ -597,6 +600,15 @@ const fetchReservations = async () => {
           data.membershipType?.includes('_group_') ||
           data.groupAssignment ||
           data.groupId
+
+      // Skip this reservation if it has a specific group ID but the group has been deleted
+      // Note: We only skip if there's an explicit groupId/groupAssignment that doesn't exist
+      // If there's no groupId (legacy reservations), we still show them
+      const groupId = data.groupId || data.groupAssignment
+      if (groupId && !existingGroupIds.has(groupId)) {
+        console.log(`⏭️ Skipping reservation ${docSnap.id} - group ${groupId} no longer exists`)
+        continue
+      }
 
       const courtName = getCourtName(data.courtId)
 

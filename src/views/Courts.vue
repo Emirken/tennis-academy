@@ -555,6 +555,9 @@ const fetchCourtSchedule = async (date: Date) => {
 
     if (docSnap.exists()) {
       schedule.value = docSnap.data().schedule || {}
+
+      // Filter out deleted groups from courtSchedule data
+      await filterDeletedGroupsFromSchedule()
     } else {
       // Create default schedule
       const defaultSchedule: any = {}
@@ -575,6 +578,55 @@ const fetchCourtSchedule = async (date: Date) => {
     schedule.value = {}
   } finally {
     loading.value = false
+  }
+}
+
+const filterDeletedGroupsFromSchedule = async () => {
+  try {
+    // Collect all group IDs from the schedule
+    const groupIds = new Set<string>()
+
+    Object.values(schedule.value).forEach((courtSchedule: any) => {
+      Object.values(courtSchedule).forEach((slot: any) => {
+        if (typeof slot === 'object' && slot !== null) {
+          if (slot.groupAssignment) {
+            groupIds.add(slot.groupAssignment)
+          }
+        }
+      })
+    })
+
+    if (groupIds.size === 0) return
+
+    // Check which groups still exist
+    const existingGroupIds = new Set<string>()
+    for (const groupId of groupIds) {
+      try {
+        const groupDoc = await getDoc(doc(db, 'groups', groupId))
+        if (groupDoc.exists()) {
+          existingGroupIds.add(groupId)
+        }
+      } catch (error) {
+        console.error(`Error fetching group ${groupId}:`, error)
+      }
+    }
+
+    // Filter out slots with deleted groups
+    Object.keys(schedule.value).forEach((courtId) => {
+      Object.keys(schedule.value[courtId]).forEach((timeSlot) => {
+        const slot = schedule.value[courtId][timeSlot]
+
+        if (typeof slot === 'object' && slot !== null) {
+          const groupId = slot.groupAssignment
+          if (groupId && !existingGroupIds.has(groupId)) {
+            console.log(`⏭️ Removing deleted group ${groupId} from court ${courtId} at ${timeSlot}`)
+            schedule.value[courtId][timeSlot] = 'available'
+          }
+        }
+      })
+    })
+  } catch (error) {
+    console.error('Error filtering deleted groups:', error)
   }
 }
 
@@ -601,15 +653,21 @@ const checkReservationsAndUpdateSchedule = async (date: Date) => {
       if (reservation.groupId) {
         groupIds.add(reservation.groupId)
       }
+      if (reservation.groupAssignment) {
+        groupIds.add(reservation.groupAssignment)
+      }
     })
 
-    // Fetch group names from Firebase
+    // Fetch group names from Firebase and track which groups exist
     const groupNames: { [key: string]: string } = {}
+    const existingGroupIds = new Set<string>()
+
     for (const groupId of groupIds) {
       try {
         const groupDoc = await getDoc(doc(db, 'groups', groupId))
         if (groupDoc.exists()) {
           groupNames[groupId] = groupDoc.data().name || groupId
+          existingGroupIds.add(groupId)
         }
       } catch (error) {
         console.error(`Error fetching group ${groupId}:`, error)
@@ -621,6 +679,13 @@ const checkReservationsAndUpdateSchedule = async (date: Date) => {
       const { courtId, startTime, status } = reservation
 
       if (status !== 'confirmed' && status !== 'active') {
+        return
+      }
+
+      // Skip this reservation if it has a specific group ID but the group has been deleted
+      const groupId = reservation.groupId || reservation.groupAssignment
+      if (groupId && !existingGroupIds.has(groupId)) {
+        console.log(`⏭️ Skipping court reservation ${docSnap.id} - group ${groupId} no longer exists`)
         return
       }
 

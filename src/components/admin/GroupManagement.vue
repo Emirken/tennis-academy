@@ -246,7 +246,7 @@
                   class="mb-2 pa-3"
               >
                 <v-row dense>
-                  <v-col cols="5">
+                  <v-col cols="3">
                     <v-select
                         v-model="slot.day"
                         :items="dayOptions"
@@ -256,7 +256,7 @@
                         hide-details
                     ></v-select>
                   </v-col>
-                  <v-col cols="5">
+                  <v-col cols="3">
                     <v-select
                         v-model="slot.time"
                         :items="timeOptions"
@@ -266,7 +266,17 @@
                         hide-details
                     ></v-select>
                   </v-col>
-                  <v-col cols="2" class="d-flex align-center">
+                  <v-col cols="3">
+                    <v-select
+                        v-model="slot.court"
+                        :items="courtOptions"
+                        label="Kort"
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                    ></v-select>
+                  </v-col>
+                  <v-col cols="3" class="d-flex align-center justify-end">
                     <v-btn
                         icon="mdi-delete"
                         size="small"
@@ -420,6 +430,7 @@ import { db } from '@/services/firebase'
 interface ScheduleSlot {
   day: string
   time: string
+  court: string
 }
 
 interface GroupMember {
@@ -493,6 +504,12 @@ const dayOptions = [
 const timeOptions = [
   '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
   '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'
+]
+
+const courtOptions = [
+  { title: 'Kort 1', value: 'K1' },
+  { title: 'Kort 2', value: 'K2' },
+  { title: 'Kort 3', value: 'K3' }
 ]
 
 // Computed
@@ -579,7 +596,7 @@ const updateMaxCapacity = () => {
 }
 
 const addScheduleSlot = () => {
-  groupFormData.value.schedule.push({ day: '', time: '' })
+  groupFormData.value.schedule.push({ day: '', time: '', court: '' })
 }
 
 const removeScheduleSlot = (index: number) => {
@@ -596,13 +613,21 @@ const saveGroup = async () => {
       createdAt: new Date()
     }
 
+    let groupId = editingGroup.value?.id
+
     if (editingGroup.value?.id) {
       const groupRef = doc(db, 'groups', editingGroup.value.id)
       await updateDoc(groupRef, groupData)
       showSnackbar('Grup başarıyla güncellendi', 'success')
     } else {
-      await addDoc(collection(db, 'groups'), groupData)
+      const docRef = await addDoc(collection(db, 'groups'), groupData)
+      groupId = docRef.id
       showSnackbar('Grup başarıyla oluşturuldu', 'success')
+    }
+
+    // Create reservations for the next 3 months
+    if (groupId && groupFormData.value.schedule.length > 0) {
+      await createGroupReservations(groupId, groupFormData.value)
     }
 
     closeGroupDialog()
@@ -611,6 +636,108 @@ const saveGroup = async () => {
     console.error('Grup kaydedilirken hata:', error)
     showSnackbar('Grup kaydedilirken hata oluştu', 'error')
   }
+}
+
+const createGroupReservations = async (groupId: string, groupData: Group) => {
+  try {
+    const reservations = []
+    const today = new Date()
+    const threeMonthsLater = new Date()
+    threeMonthsLater.setMonth(today.getMonth() + 3)
+
+    // Get lesson duration based on membership type
+    const lessonDuration = getLessonDuration(groupData.membershipType)
+
+    // For each schedule slot
+    for (const slot of groupData.schedule) {
+      if (!slot.day || !slot.time || !slot.court) continue
+
+      // Get all dates for this day of week in the next 3 months
+      const dates = getDatesByDayOfWeek(slot.day, today, threeMonthsLater)
+
+      for (const date of dates) {
+        const [startHour, startMinute] = slot.time.split(':').map(Number)
+        const startDateTime = new Date(date)
+        startDateTime.setHours(startHour, startMinute, 0, 0)
+
+        const endDateTime = new Date(startDateTime)
+        endDateTime.setMinutes(endDateTime.getMinutes() + lessonDuration)
+
+        const endTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`
+
+        const reservation = {
+          date: startDateTime,
+          courtId: slot.court,
+          startTime: slot.time,
+          endTime: endTime,
+          groupId: groupId,
+          groupAssignment: groupId,
+          membershipType: groupData.membershipType,
+          reservationType: 'group-lesson',
+          status: 'confirmed',
+          type: 'lesson',
+          createdAt: new Date(),
+          createdBy: 'admin'
+        }
+
+        reservations.push(reservation)
+      }
+    }
+
+    // Save all reservations to Firestore
+    for (const reservation of reservations) {
+      await addDoc(collection(db, 'reservations'), reservation)
+    }
+
+    console.log(`✅ ${reservations.length} rezervasyon oluşturuldu`)
+    showSnackbar(`${reservations.length} rezervasyon oluşturuldu`, 'success')
+  } catch (error) {
+    console.error('Rezervasyonlar oluşturulurken hata:', error)
+    showSnackbar('Rezervasyonlar oluşturulurken hata oluştu', 'error')
+  }
+}
+
+const getDatesByDayOfWeek = (dayName: string, startDate: Date, endDate: Date): Date[] => {
+  const dayMap: { [key: string]: number } = {
+    'Pazar': 0,
+    'Pazartesi': 1,
+    'Salı': 2,
+    'Çarşamba': 3,
+    'Perşembe': 4,
+    'Cuma': 5,
+    'Cumartesi': 6
+  }
+
+  const targetDay = dayMap[dayName]
+  const dates: Date[] = []
+  const current = new Date(startDate)
+
+  // Find the first occurrence of the target day
+  while (current.getDay() !== targetDay) {
+    current.setDate(current.getDate() + 1)
+  }
+
+  // Collect all occurrences
+  while (current <= endDate) {
+    dates.push(new Date(current))
+    current.setDate(current.getDate() + 7)
+  }
+
+  return dates
+}
+
+const getLessonDuration = (membershipType: string): number => {
+  // Return duration in minutes based on membership type
+  const durations: { [key: string]: number } = {
+    'private_1_45': 45,
+    'private_2_60': 60,
+    'private_group_3_8': 60,
+    'private_group_4_8': 60,
+    'adult_group': 60,
+    'tennis_school_age': 60,
+    'tennis_school_performance': 90
+  }
+  return durations[membershipType] || 60
 }
 
 const deleteGroup = async (group: Group) => {

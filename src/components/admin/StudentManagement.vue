@@ -1992,6 +1992,13 @@ const fetchStudents = async () => {
 
     querySnapshot.forEach((doc) => {
       const data = doc.data()
+
+      // Silinmiş öğrencileri atla
+      if (data.deleted === true) {
+        console.log('⏭️ Silinmiş öğrenci atlandı:', data.email)
+        return
+      }
+
       console.log('📄 Öğrenci verisi:', data)
 
       const student: Student = {
@@ -2089,37 +2096,90 @@ const createNewStudent = async () => {
   savingChanges.value = true
 
   try {
-    // Firebase Authentication ile kullanıcı oluştur
-    const { createUserWithEmailAndPassword } = await import('firebase/auth')
-    const { auth } = await import('@/services/firebase')
+    // Önce silinmiş bir kullanıcı olup olmadığını kontrol et
+    const usersRef = collection(db, 'users')
+    const emailQuery = query(usersRef, where('email', '==', addStudentForm.value.email))
+    const emailSnapshot = await getDocs(emailQuery)
 
-    const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        addStudentForm.value.email,
-        addStudentForm.value.password
-    )
+    let reactivatedUser = false
 
-    // Firestore'a öğrenci bilgilerini kaydet
-    const userDocRef = doc(db, 'users', userCredential.user.uid)
-    await setDoc(userDocRef, {
-      firstName: addStudentForm.value.firstName,
-      lastName: addStudentForm.value.lastName,
-      email: addStudentForm.value.email,
-      phone: '',
-      address: '',
-      emergencyContact: '',
-      membershipType: 'basic',
-      role: 'student',
-      status: 'active',
-      balance: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
+    if (!emailSnapshot.empty) {
+      // E-posta ile bir kullanıcı bulundu
+      const existingUserDoc = emailSnapshot.docs[0]
+      const existingUserData = existingUserDoc.data()
+
+      if (existingUserData.deleted === true) {
+        // Silinmiş kullanıcıyı yeniden aktif et
+        console.log('🔄 Silinmiş öğrenci yeniden aktif ediliyor:', existingUserData.email)
+
+        await updateDoc(existingUserDoc.ref, {
+          firstName: addStudentForm.value.firstName,
+          lastName: addStudentForm.value.lastName,
+          deleted: false,
+          deletedAt: null,
+          status: 'active',
+          updatedAt: serverTimestamp()
+        })
+
+        reactivatedUser = true
+        successMessage.value = 'Daha önce silinmiş öğrenci yeniden aktif edildi!'
+      } else {
+        // Kullanıcı aktif ve zaten var
+        throw new Error('Bu e-posta adresi zaten kullanılıyor!')
+      }
+    }
+
+    if (!reactivatedUser) {
+      // Yeni öğrenci oluştur
+      const { createUserWithEmailAndPassword, getAuth } = await import('firebase/auth')
+      const { initializeApp, deleteApp } = await import('firebase/app')
+      const { auth, default: app } = await import('@/services/firebase')
+
+      const currentUser = auth.currentUser
+      if (!currentUser) {
+        throw new Error('Admin kullanıcısı bulunamadı!')
+      }
+
+      // İkinci bir Firebase Auth instance oluştur
+      const appOptions = (app as any).options || app
+      const secondaryApp = initializeApp(appOptions, 'Secondary')
+      const secondaryAuth = getAuth(secondaryApp)
+
+      // İkinci instance ile yeni öğrenci oluştur
+      const userCredential = await createUserWithEmailAndPassword(
+          secondaryAuth,
+          addStudentForm.value.email,
+          addStudentForm.value.password
+      )
+
+      // Firestore'a öğrenci bilgilerini kaydet
+      const userDocRef = doc(db, 'users', userCredential.user.uid)
+      await setDoc(userDocRef, {
+        firstName: addStudentForm.value.firstName,
+        lastName: addStudentForm.value.lastName,
+        email: addStudentForm.value.email,
+        phone: '',
+        address: '',
+        emergencyContact: '',
+        membershipType: 'basic',
+        role: 'student',
+        status: 'active',
+        balance: 0,
+        deleted: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+
+      // İkinci instance'ı temizle
+      await secondaryAuth.signOut()
+      await deleteApp(secondaryApp)
+
+      successMessage.value = 'Öğrenci başarıyla oluşturuldu!'
+    }
 
     // Local state'i güncelle
     await fetchStudents()
 
-    successMessage.value = 'Öğrenci başarıyla oluşturuldu!'
     successSnackbar.value = true
     closeAddStudentDialog()
   } catch (error: any) {
@@ -2133,6 +2193,8 @@ const createNewStudent = async () => {
       errorMessage = 'Geçersiz e-posta adresi!'
     } else if (error.code === 'auth/weak-password') {
       errorMessage = 'Şifre çok zayıf!'
+    } else if (error.message) {
+      errorMessage = error.message
     }
 
     successMessage.value = errorMessage
@@ -2356,51 +2418,64 @@ const saveStudentChanges = async (): Promise<void> => {
 }
 
 const deleteStudent = async (student: Student): Promise<void> => {
-  if (!confirm(`${student.firstName} ${student.lastName} adlı öğrenciyi silmek istediğinizden emin misiniz?`)) {
+  if (!confirm(`${student.firstName} ${student.lastName} adlı öğrenciyi silmek istediğinizden emin misiniz?\n\nÖğrenci listesinden kaldırılacaktır.`)) {
     return
   }
 
+  savingChanges.value = true
+
   try {
-    // 1. Rezervasyonları sil
-    if (student.groupSchedule?.weeklyPlan) {
-      await Promise.all(
-          student.groupSchedule.weeklyPlan.map(plan =>
-              deleteReservationsForPlan(student.id, plan, student.joinDate)
-          )
-      )
-    }
+    console.log('🗑️ Öğrenci siliniyor (soft delete):', student.id)
 
-    // 2. Gruptan çıkar
-    if (student.groupAssignment) {
-      const groupRef = doc(db, 'groups', student.groupAssignment)
-      const groupSnap = await getDoc(groupRef)
+    // Firestore'da öğrenciyi "deleted" olarak işaretle
+    const userDocRef = doc(db, 'users', student.id)
+    await updateDoc(userDocRef, {
+      deleted: true,
+      deletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    })
 
-      if (groupSnap.exists()) {
-        const groupData = groupSnap.data()
-        const updatedMembers = (groupData.members || []).filter((m: any) => m.id !== student.id)
+    console.log('✅ Öğrenci silindi (soft delete)')
 
-        await updateDoc(groupRef, {
-          members: updatedMembers
-        })
+    // Öğrenciyi gruplardan çıkar
+    const groupsRef = collection(db, 'groups')
+    const groupsSnapshot = await getDocs(groupsRef)
+
+    const updatePromises: Promise<void>[] = []
+    groupsSnapshot.forEach((groupDoc) => {
+      const groupData = groupDoc.data()
+      if (groupData.members && Array.isArray(groupData.members)) {
+        const updatedMembers = groupData.members.filter((m: any) => m.id !== student.id)
+        if (updatedMembers.length !== groupData.members.length) {
+          updatePromises.push(updateDoc(groupDoc.ref, { members: updatedMembers }))
+        }
       }
-    }
+    })
 
-    // 3. Öğrenciyi sil
-    await deleteDoc(doc(db, 'users', student.id))
+    await Promise.all(updatePromises)
 
-    // 4. Grupları yeniden yükle
+    // Grupları yeniden yükle
     await fetchGroups()
 
-    // 5. Local state'i güncelle
+    // Local state'i güncelle
     students.value = students.value.filter(s => s.id !== student.id)
     showStudentDetailsDialog.value = false
 
     successMessage.value = 'Öğrenci başarıyla silindi!'
     successSnackbar.value = true
-  } catch (error) {
+  } catch (error: any) {
     console.error('Öğrenci silme hatası:', error)
-    successMessage.value = 'Öğrenci silinirken hata oluştu!'
+
+    let errorMessage = 'Öğrenci silinirken hata oluştu!'
+
+    if (error.message) {
+      errorMessage = error.message
+    }
+
+    successMessage.value = errorMessage
     successSnackbar.value = true
+  } finally {
+    savingChanges.value = false
   }
 }
 
