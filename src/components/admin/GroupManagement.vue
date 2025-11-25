@@ -614,8 +614,10 @@ const saveGroup = async () => {
     }
 
     let groupId = editingGroup.value?.id
+    let isUpdate = false
 
     if (editingGroup.value?.id) {
+      isUpdate = true
       const groupRef = doc(db, 'groups', editingGroup.value.id)
       await updateDoc(groupRef, groupData)
       showSnackbar('Grup başarıyla güncellendi', 'success')
@@ -628,6 +630,28 @@ const saveGroup = async () => {
     // Create reservations for the next 3 months
     if (groupId && groupFormData.value.schedule.length > 0) {
       await createGroupReservations(groupId, groupFormData.value)
+    }
+
+    // Eğer grup güncelleniyorsa, tüm üyelerin weeklyPlan'ını güncelle
+    if (isUpdate && groupId && groupFormData.value.members.length > 0) {
+      const weeklyPlan = groupFormData.value.schedule.map(slot => ({
+        day: slot.day,
+        time: slot.time,
+        court: slot.court
+      }))
+
+      // Tüm üyelerin groupSchedule'ını güncelle
+      const updatePromises = groupFormData.value.members.map(member => {
+        const studentRef = doc(db, 'users', member.id)
+        return updateDoc(studentRef, {
+          groupSchedule: {
+            weeklyPlan: weeklyPlan
+          }
+        })
+      })
+
+      await Promise.all(updatePromises)
+      console.log(`✅ ${groupFormData.value.members.length} öğrencinin haftalık programı güncellendi`)
     }
 
     closeGroupDialog()
@@ -745,9 +769,25 @@ const deleteGroup = async (group: Group) => {
 
   try {
     if (group.id) {
+      // Önce gruba ait tüm üyelerin groupAssignment ve groupSchedule bilgilerini temizle
+      if (group.members && group.members.length > 0) {
+        const updatePromises = group.members.map(member => {
+          const studentRef = doc(db, 'users', member.id)
+          return updateDoc(studentRef, {
+            groupAssignment: null,
+            groupSchedule: null
+          })
+        })
+
+        await Promise.all(updatePromises)
+        console.log(`✅ ${group.members.length} öğrencinin grup bilgileri temizlendi`)
+      }
+
+      // Sonra grubu sil
       await deleteDoc(doc(db, 'groups', group.id))
-      showSnackbar('Grup başarıyla silindi', 'success')
+      showSnackbar('Grup ve üye bilgileri başarıyla silindi', 'success')
       await loadGroups()
+      await loadStudents()
     }
   } catch (error) {
     console.error('Grup silinirken hata:', error)
@@ -788,15 +828,25 @@ const addMemberToGroup = async () => {
         members: selectedGroup.value.members
       })
 
-      // Öğrencinin grup atamasını güncelle
+      // Grup schedule bilgilerini weeklyPlan'a dönüştür
+      const weeklyPlan = selectedGroup.value.schedule.map(slot => ({
+        day: slot.day,
+        time: slot.time,
+        court: slot.court
+      }))
+
+      // Öğrencinin grup atamasını ve schedule'ını güncelle
       const studentRef = doc(db, 'users', student.id)
       await updateDoc(studentRef, {
-        groupAssignment: selectedGroup.value.id
+        groupAssignment: selectedGroup.value.id,
+        groupSchedule: {
+          weeklyPlan: weeklyPlan
+        }
       })
     }
 
     selectedMemberToAdd.value = null
-    showSnackbar('Üye gruba eklendi', 'success')
+    showSnackbar('Üye gruba eklendi ve haftalık program atandı', 'success')
     await loadGroups()
     await loadStudents()
   } catch (error) {
@@ -817,14 +867,15 @@ const removeMemberFromGroup = async (memberId: string) => {
         members: selectedGroup.value.members
       })
 
-      // Öğrencinin grup atamasını kaldır
+      // Öğrencinin grup atamasını ve schedule'ını kaldır
       const studentRef = doc(db, 'users', memberId)
       await updateDoc(studentRef, {
-        groupAssignment: null
+        groupAssignment: null,
+        groupSchedule: null
       })
     }
 
-    showSnackbar('Üye gruptan çıkarıldı', 'success')
+    showSnackbar('Üye gruptan çıkarıldı ve program temizlendi', 'success')
     await loadGroups()
     await loadStudents()
   } catch (error) {
