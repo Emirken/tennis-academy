@@ -628,6 +628,11 @@ const saveGroup = async () => {
     }
 
     // Create reservations for the next 3 months
+    // Eğer güncelleniyorsa önce eski rezervasyonları sil
+    if (isUpdate && groupId) {
+      await deleteOldGroupReservations(groupId)
+    }
+    
     if (groupId && groupFormData.value.schedule.length > 0) {
       await createGroupReservations(groupId, groupFormData.value)
     }
@@ -659,6 +664,24 @@ const saveGroup = async () => {
   } catch (error) {
     console.error('Grup kaydedilirken hata:', error)
     showSnackbar('Grup kaydedilirken hata oluştu', 'error')
+  }
+}
+
+// Eski grup rezervasyonlarını sil
+const deleteOldGroupReservations = async (groupId: string) => {
+  try {
+    const reservationsRef = collection(db, 'reservations')
+    const q = query(reservationsRef, where('groupId', '==', groupId))
+    const snapshot = await getDocs(q)
+    
+    const deletePromises = snapshot.docs.map(docSnap => 
+      deleteDoc(doc(db, 'reservations', docSnap.id))
+    )
+    
+    await Promise.all(deletePromises)
+    console.log(`✅ ${snapshot.docs.length} eski rezervasyon silindi`)
+  } catch (error) {
+    console.error('Eski rezervasyonlar silinirken hata:', error)
   }
 }
 
@@ -835,10 +858,12 @@ const addMemberToGroup = async () => {
         court: slot.court
       }))
 
-      // Öğrencinin grup atamasını ve schedule'ını güncelle
+
+      // Öğrencinin grup atamasını, membershipType ve schedule'ını güncelle
       const studentRef = doc(db, 'users', student.id)
       await updateDoc(studentRef, {
         groupAssignment: selectedGroup.value.id,
+        membershipType: selectedGroup.value.membershipType,
         groupSchedule: {
           weeklyPlan: weeklyPlan
         }
@@ -867,10 +892,11 @@ const removeMemberFromGroup = async (memberId: string) => {
         members: selectedGroup.value.members
       })
 
-      // Öğrencinin grup atamasını ve schedule'ını kaldır
+      // Öğrencinin grup atamasını, membershipType ve schedule'ını kaldır
       const studentRef = doc(db, 'users', memberId)
       await updateDoc(studentRef, {
         groupAssignment: null,
+        membershipType: 'basic',
         groupSchedule: null
       })
     }

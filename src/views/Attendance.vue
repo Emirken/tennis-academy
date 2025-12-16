@@ -182,16 +182,6 @@
               <v-chip color="success" variant="flat" class="mr-2 font-weight-bold" v-if="getTotalLessons() > 0">
                 {{ getTotalLessons() }} Ders
               </v-chip>
-              <v-btn
-                  v-if="authStore.isAdmin"
-                  class="view-color"
-                  variant="flat"
-                  prepend-icon="mdi-plus"
-                  @click="showAddStudentDialog = true"
-                  size="small"
-              >
-                Öğrenci Ekle
-              </v-btn>
             </div>
           </v-card-title>
 
@@ -262,15 +252,7 @@
                       >
                         {{ GroupTuruLabel[student.groupAssignment] || student.groupAssignment }}
                       </v-chip>
-                      <v-btn
-                          v-if="authStore.isAdmin"
-                          icon="mdi-delete"
-                          size="x-small"
-                          color="error"
-                          variant="text"
-                          class="ml-2"
-                          @click="removeStudent(student.id)"
-                      />
+
                     </div>
                   </td>
 
@@ -454,13 +436,31 @@
         {{ errorMessage }}
       </div>
     </v-snackbar>
+
+    <!-- Yoklama Kaldırma Onay Dialog -->
+    <v-dialog v-model="showUncheckConfirmDialog" max-width="400">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <v-icon icon="mdi-alert-circle" color="warning" class="mr-2" />
+          Yoklama Kaldırılsın mı?
+        </v-card-title>
+        <v-card-text>
+          Bu öğrencinin yoklamasını kaldırmak istediğinizden emin misiniz?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="cancelUncheck">İptal</v-btn>
+          <v-btn color="error" variant="flat" @click="confirmUncheck">Kaldır</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
-import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { GroupTuruLabel, MembershipTypeLabel } from '@/enums/GroupTuru'
 
@@ -485,6 +485,8 @@ const groupMembers = ref<Array<{id: string, name: string}>>([])
 const selectedGroupFilter = ref<string>('all')
 const availableGroups = ref<Array<{id: string, name: string}>>([])
 const loadingGroups = ref(false)
+const showUncheckConfirmDialog = ref(false)
+const pendingUncheckData = ref<{studentId: string, lessonIndex: number} | null>(null)
 
 // Selections
 const selectedMonth = ref(new Date().getMonth() + 1)
@@ -602,10 +604,34 @@ const updateAttendanceValue = async (studentId: string, lessonIndex: number, val
   if (!attendanceData[studentId]) {
     attendanceData[studentId] = new Array(8).fill(false)
   }
+  
+  // Eğer işaret kaldırılıyorsa onay iste
+  const currentValue = attendanceData[studentId][lessonIndex]
+  if (currentValue === true && value === false) {
+    pendingUncheckData.value = { studentId, lessonIndex }
+    showUncheckConfirmDialog.value = true
+    return // Onay bekle
+  }
+  
   attendanceData[studentId][lessonIndex] = value
 
   // Auto-save after each change
   await autoSaveAttendance()
+}
+
+const confirmUncheck = async () => {
+  if (pendingUncheckData.value) {
+    const { studentId, lessonIndex } = pendingUncheckData.value
+    attendanceData[studentId][lessonIndex] = false
+    await autoSaveAttendance()
+  }
+  showUncheckConfirmDialog.value = false
+  pendingUncheckData.value = null
+}
+
+const cancelUncheck = () => {
+  showUncheckConfirmDialog.value = false
+  pendingUncheckData.value = null
 }
 
 const getAttendanceValue = (studentId: string, lessonIndex: number): boolean => {
@@ -965,6 +991,95 @@ watch(showAddStudentDialog, (newValue) => {
     openAddStudentDialog()
   }
 })
+
+// Grup seçildiğinde rezervasyon tarihlerini ve öğrencileri yükle
+watch(selectedGroupFilter, async (newGroupId) => {
+  if (newGroupId && newGroupId !== 'all') {
+    await loadGroupStudents(newGroupId)
+    await loadGroupReservationDates(newGroupId)
+  } else {
+    // Tüm gruplar seçildiğinde varsayılan tarihleri yükle
+    initializeLessons()
+    // Tüm öğrencileri yükle
+    await loadAttendanceData()
+  }
+})
+
+// Grup üyelerini Firebase'den yükle
+const loadGroupStudents = async (groupId: string) => {
+  try {
+    // Grup dokümanını çek
+    const groupDoc = await getDoc(doc(db, 'groups', groupId))
+    
+    if (groupDoc.exists()) {
+      const groupData = groupDoc.data()
+      const members = groupData.members || []
+      
+      // Üyeleri studentsData formatına dönüştür
+      const groupStudents = members.map((member: any) => ({
+        id: member.id,
+        name: member.name,
+        groupAssignment: groupId,
+        membershipType: groupData.membershipType
+      }))
+      
+      studentsData['baslangic-a'] = groupStudents
+      initializeAttendanceData()
+      console.log(`✅ ${groupStudents.length} grup üyesi yüklendi`)
+    } else {
+      console.log('📝 Grup bulunamadı')
+      studentsData['baslangic-a'] = []
+    }
+  } catch (error) {
+    console.error('❌ Grup üyeleri yüklenirken hata:', error)
+  }
+}
+
+// Grup rezervasyon tarihlerini yükle
+const loadGroupReservationDates = async (groupId: string) => {
+  try {
+    const reservationsRef = collection(db, 'reservations')
+    // orderBy kaldırıldı - client-side sıralama yapacağız (Firebase index gerektirmemek için)
+    const q = query(
+      reservationsRef,
+      where('groupId', '==', groupId)
+    )
+    
+    const querySnapshot = await getDocs(q)
+    const reservationDates: Date[] = []
+    
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data()
+      if (data.date) {
+        const date = data.date.toDate ? data.date.toDate() : new Date(data.date)
+        reservationDates.push(date)
+      }
+    })
+    
+    // Client-side sıralama (eskiden yeniye)
+    reservationDates.sort((a, b) => a.getTime() - b.getTime())
+    
+    // Bugünden sonraki ilk 8 rezervasyon tarihini al
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const futureDates = reservationDates.filter(d => d >= today)
+    
+    if (futureDates.length > 0) {
+      monthLessons.value = futureDates.slice(0, 8).map((date, index) => ({
+        date: date,
+        dateString: date.toISOString().split('T')[0],
+        lessonNumber: index + 1
+      }))
+      console.log(`✅ ${monthLessons.value.length} rezervasyon tarihi yüklendi`)
+    } else {
+      console.log('📝 Bu grup için rezervasyon bulunamadı, varsayılan tarihler kullanılıyor')
+      initializeLessons()
+    }
+  } catch (error) {
+    console.error('❌ Rezervasyon tarihleri yüklenirken hata:', error)
+    initializeLessons()
+  }
+}
 
 // Lifecycle
 onMounted(() => {
