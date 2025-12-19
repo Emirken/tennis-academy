@@ -88,6 +88,184 @@
           </v-col>
         </v-row>
 
+        <!-- Yoklama Arşiv Bildirimleri -->
+        <v-row class="mb-8" v-if="pendingArchives.length > 0 && showArchiveNotifications">
+          <v-col cols="12">
+            <v-alert
+              type="warning"
+              variant="tonal"
+              closable
+              @click:close="dismissArchiveNotifications"
+              class="archive-notification"
+            >
+              <template #prepend>
+                <v-icon icon="mdi-archive-clock" size="28" />
+              </template>
+              <div class="d-flex flex-column">
+                <span class="text-subtitle-1 font-weight-bold mb-2">
+                  Süresi Dolacak Yoklama Arşivleri
+                </span>
+                <span class="text-body-2 mb-3">
+                  Aşağıdaki yoklama kayıtlarının saklama süresi yakında dolacak. 
+                  Excel olarak indirip silebilir veya otomatik silinmesini bekleyebilirsiniz.
+                </span>
+                
+                <v-divider class="my-3" />
+                
+                <div class="archive-list">
+                  <div 
+                    v-for="archive in pendingArchives" 
+                    :key="archive.id"
+                    class="archive-item d-flex align-center justify-space-between py-2"
+                  >
+                    <div class="archive-info">
+                      <span class="font-weight-medium">{{ archive.studentName }}</span>
+                      <span v-if="archive.groupName" class="text-medium-emphasis"> - {{ archive.groupName }}</span>
+                      <v-chip
+                        :color="archive.daysRemaining <= 3 ? 'error' : 'warning'"
+                        size="x-small"
+                        class="ml-2"
+                      >
+                        {{ archive.daysRemaining }} gün kaldı
+                      </v-chip>
+                      <v-chip
+                        color="grey"
+                        size="x-small"
+                        class="ml-1"
+                        variant="outlined"
+                      >
+                        {{ getArchiveReasonText(archive.archiveReason) }}
+                      </v-chip>
+                    </div>
+                    <div class="archive-actions">
+                      <v-btn
+                        color="success"
+                        size="small"
+                        variant="tonal"
+                        class="mr-2"
+                        @click="handleExportArchive(archive.id)"
+                      >
+                        <v-icon start size="16">mdi-microsoft-excel</v-icon>
+                        Excel
+                      </v-btn>
+                      <v-btn
+                        color="error"
+                        size="small"
+                        variant="tonal"
+                        @click="handleDeleteArchive(archive.id)"
+                      >
+                        <v-icon start size="16">mdi-delete</v-icon>
+                        Sil
+                      </v-btn>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </v-alert>
+          </v-col>
+        </v-row>
+
+        <!-- Tüm Arşivler Bölümü -->
+        <v-row class="mb-8">
+          <v-col cols="12">
+            <v-card class="modern-card" elevation="0">
+              <v-card-title class="d-flex align-center justify-space-between pa-4">
+                <div class="d-flex align-center">
+                  <v-icon icon="mdi-archive" class="mr-2" color="primary" />
+                  <span>Yoklama Arşivleri</span>
+                  <v-chip size="small" color="primary" class="ml-2">
+                    {{ allArchives.length }}
+                  </v-chip>
+                </div>
+                <v-btn
+                  :icon="showAllArchivesSection ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                  variant="text"
+                  @click="showAllArchivesSection = !showAllArchivesSection"
+                />
+              </v-card-title>
+              
+              <v-expand-transition>
+                <div v-show="showAllArchivesSection">
+                  <v-divider />
+                  <v-card-text v-if="allArchives.length === 0" class="text-center py-8">
+                    <v-icon icon="mdi-archive-off" size="48" color="grey" class="mb-4" />
+                    <p class="text-body-1 text-medium-emphasis">Henüz arşivlenmiş yoklama kaydı bulunmuyor.</p>
+                  </v-card-text>
+                  <v-card-text v-else class="pa-0">
+                    <v-table density="comfortable">
+                      <thead>
+                        <tr>
+                          <th>Öğrenci</th>
+                          <th>Grup</th>
+                          <th>Ders Sayısı</th>
+                          <th>Devam %</th>
+                          <th>Arşiv Tarihi</th>
+                          <th>Sona Erme</th>
+                          <th>Sebep</th>
+                          <th class="text-right">İşlemler</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="archive in allArchives" :key="archive.id">
+                          <td>
+                            <span class="font-weight-medium">{{ archive.studentName }}</span>
+                          </td>
+                          <td>
+                            <span v-if="archive.groupName">{{ archive.groupName }}</span>
+                            <span v-else class="text-medium-emphasis">-</span>
+                          </td>
+                          <td>{{ archive.totalLessons }}</td>
+                          <td>
+                            <v-chip
+                              :color="archive.percentage >= 80 ? 'success' : archive.percentage >= 50 ? 'warning' : 'error'"
+                              size="small"
+                              variant="tonal"
+                            >
+                              %{{ archive.percentage }}
+                            </v-chip>
+                          </td>
+                          <td>{{ formatArchiveDate(archive.archivedAt) }}</td>
+                          <td>
+                            <v-chip
+                              :color="getDaysUntilExpiry(archive.expiresAt) <= 7 ? 'error' : 'grey'"
+                              size="small"
+                              variant="outlined"
+                            >
+                              {{ getDaysUntilExpiry(archive.expiresAt) }} gün
+                            </v-chip>
+                          </td>
+                          <td>
+                            <v-chip size="x-small" variant="outlined">
+                              {{ getArchiveReasonText(archive.archiveReason) }}
+                            </v-chip>
+                          </td>
+                          <td class="text-right">
+                            <v-btn
+                              icon="mdi-microsoft-excel"
+                              color="success"
+                              size="small"
+                              variant="tonal"
+                              class="mr-1"
+                              @click="handleExportArchive(archive.id)"
+                            />
+                            <v-btn
+                              icon="mdi-delete"
+                              color="error"
+                              size="small"
+                              variant="tonal"
+                              @click="handleDeleteArchive(archive.id)"
+                            />
+                          </td>
+                        </tr>
+                      </tbody>
+                    </v-table>
+                  </v-card-text>
+                </div>
+              </v-expand-transition>
+            </v-card>
+          </v-col>
+        </v-row>
+
         <!-- Enhanced Management Actions -->
         <v-row class="mb-8">
           <v-col cols="12">
@@ -135,6 +313,14 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import {
+  getPendingArchives,
+  exportArchiveToExcel,
+  deleteArchive,
+  deleteExpiredArchives,
+  getAllArchives
+} from '@/services/attendanceArchive'
+import type { PendingArchiveNotification, AttendanceArchive } from '@/types/attendanceArchive'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -142,6 +328,13 @@ const authStore = useAuthStore()
 // Reaktif veriler
 const totalStudents = ref(0)
 const todayReservations = ref(0)
+
+// Arşiv bildirimleri
+const pendingArchives = ref<PendingArchiveNotification[]>([])
+const allArchives = ref<AttendanceArchive[]>([])
+const showArchiveNotifications = ref(true)
+const showAllArchivesSection = ref(false)
+const archiveLoading = ref(false)
 
 // Management Actions Data
 const managementActions = [
@@ -266,13 +459,127 @@ const navigateTo = (routeName: string) => {
   }
 }
 
+// Arşiv bildirimi fonksiyonları
+const loadPendingArchives = async () => {
+  try {
+    archiveLoading.value = true
+    // 7 gün içinde süresi dolacak arşivleri getir
+    pendingArchives.value = await getPendingArchives(7)
+    
+    // Tüm arşivleri getir
+    allArchives.value = await getAllArchives()
+    
+    // Süresi dolmuş arşivleri temizle
+    await deleteExpiredArchives()
+  } catch (error) {
+    console.error('❌ Bekleyen arşivler yüklenemedi:', error)
+  } finally {
+    archiveLoading.value = false
+  }
+}
+
+const handleExportArchive = async (archiveId: string) => {
+  try {
+    await exportArchiveToExcel(archiveId)
+    // Export başarılıysa bildirimi güncelle
+    await loadPendingArchives()
+  } catch (error) {
+    console.error('❌ Excel export hatası:', error)
+  }
+}
+
+const handleDeleteArchive = async (archiveId: string) => {
+  if (!confirm('Bu arşivi silmek istediğinizden emin misiniz?\n\nYoklama verileri kalıcı olarak silinecektir.')) {
+    return
+  }
+  
+  try {
+    await deleteArchive(archiveId)
+    pendingArchives.value = pendingArchives.value.filter(a => a.id !== archiveId)
+    allArchives.value = allArchives.value.filter(a => a.id !== archiveId)
+  } catch (error) {
+    console.error('❌ Arşiv silme hatası:', error)
+  }
+}
+
+const formatArchiveDate = (date: Date): string => {
+  const d = new Date(date)
+  return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`
+}
+
+const getDaysUntilExpiry = (expiresAt: Date): number => {
+  const now = new Date()
+  const expiry = new Date(expiresAt)
+  return Math.max(0, Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+}
+
+const dismissArchiveNotifications = () => {
+  showArchiveNotifications.value = false
+}
+
+const getArchiveReasonText = (reason: string): string => {
+  const texts: Record<string, string> = {
+    'student_deleted': 'Öğrenci Silindi',
+    'removed_from_group': 'Gruptan Çıkarıldı',
+    'group_changed': 'Grup Değiştirildi',
+    'group_deleted': 'Grup Silindi'
+  }
+  return texts[reason] || 'Arşivlendi'
+}
+
 // Component mount edildiğinde verileri yükle
-onMounted(() => {
-  fetchTotalStudents()
-  fetchTodayReservations()
+onMounted(async () => {
+  await Promise.all([
+    fetchTotalStudents(),
+    fetchTodayReservations(),
+    loadPendingArchives()
+  ])
 })
 </script>
 
 <style scoped>
 /* Styles are handled in main.css */
+
+/* Archive notification styles */
+.archive-notification {
+  border-radius: 12px;
+}
+
+.archive-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.archive-item {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.archive-item:last-child {
+  border-bottom: none;
+}
+
+.archive-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.archive-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .archive-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .archive-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
 </style>

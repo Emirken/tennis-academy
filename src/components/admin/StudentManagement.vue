@@ -745,6 +745,16 @@
               <v-icon icon="mdi-pencil" class="mr-1" />
               Düzenle
             </v-btn>
+            <v-btn
+                class="ml-1"
+              color="success" 
+              variant="tonal" 
+              @click="handleExportStudentAttendance"
+              :loading="exportingAttendance"
+            >
+              <v-icon icon="mdi-microsoft-excel" class="mr-1" />
+              Yoklama İndir
+            </v-btn>
             <v-spacer />
             <v-btn color="red" variant="text" @click="showStudentDetailsDialog = false">Kapat</v-btn>
           </div>
@@ -978,6 +988,20 @@
       </v-card>
     </v-dialog>
 
+    <!-- Yoklama Arşivleme Uyarı Dialog -->
+    <AttendanceArchiveWarning
+        v-model="showArchiveWarningDialog"
+        :student-id="archiveWarningData.studentId"
+        :student-name="archiveWarningData.studentName"
+        :group-id="archiveWarningData.groupId"
+        :group-name="archiveWarningData.groupName"
+        :attendance-count="archiveWarningData.attendanceCount"
+        :archive-reason="archiveWarningData.archiveReason"
+        @archive="handleArchiveAndContinue"
+        @continue-without-archive="handleContinueWithoutArchive"
+        @cancel="handleArchiveCancel"
+    />
+
     <!-- Success Snackbar -->
     <v-snackbar
         v-model="successSnackbar"
@@ -994,6 +1018,14 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { collection, deleteDoc, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import AttendanceArchiveWarning from '@/components/common/AttendanceArchiveWarning.vue'
+import {
+  checkStudentAttendanceHistory,
+  archiveStudentAttendance,
+  exportToExcel,
+  exportStudentAttendanceToExcel
+} from '@/services/attendanceArchive'
+import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 
 interface WeeklyPlan {
   day: string
@@ -1047,6 +1079,25 @@ const showGroupMembersDialogState = ref(false)
 const selectedGroupMembers = ref<Student[]>([])
 const selectedGroupMembershipType = ref('')
 const selectedGroupId = ref('')
+
+// Yoklama arşivleme dialog state'leri
+const showArchiveWarningDialog = ref(false)
+const archiveWarningData = ref({
+  studentId: '',
+  studentName: '',
+  groupId: '',
+  groupName: '',
+  attendanceCount: 0,
+  archiveReason: 'student_deleted' as ArchiveReason,
+  attendanceRecords: [] as AttendanceRecord[]
+})
+const pendingDeleteStudent = ref<Student | null>(null)
+const pendingGroupChangeData = ref<{
+  oldGroupId: string
+  oldGroupName: string
+  reason: ArchiveReason
+} | null>(null)
+const exportingAttendance = ref(false)
 
 // Yeni öğrenci ekleme formu
 const addStudentForm = ref({
@@ -2268,19 +2319,44 @@ const saveStudentChanges = async (): Promise<void> => {
     }
   }
 
+  const oldStudent = selectedStudent.value
+  const validWeeklyPlan = editForm.value.weeklyPlan.filter(p => p.day && p.time && p.court)
+  const isGroup = isGroupMembership(editForm.value.membershipType)
+  const groupAssignment:any = isGroup ? editForm.value.groupAssignment : null
+  const hadGroup = oldStudent.groupAssignment
+  const hasGroup = groupAssignment
+
+  // Grup değişikliği kontrolü - Eğer gruptan çıkarılıyorsa veya grup değişiyorsa yoklama arşivle
+  const groupBeingRemoved = hadGroup && !hasGroup
+  const groupBeingChanged = hadGroup && hasGroup && groupAssignment !== oldStudent.groupAssignment
+
+  if (groupBeingRemoved || groupBeingChanged) {
+    // Yoklama geçmişini kontrol et
+    const { hasHistory, attendanceCount, records } = await checkStudentAttendanceHistory(oldStudent.id)
+
+    if (hasHistory) {
+      // Eski grup bilgisini al
+      const oldGroup = groups.value.find(g => g.id === oldStudent.groupAssignment)
+      
+      // Arşivle
+      await archiveStudentAttendance(
+        oldStudent.id,
+        `${oldStudent.firstName} ${oldStudent.lastName}`,
+        oldStudent.groupAssignment,
+        oldGroup?.name || '',
+        oldStudent.membershipType,
+        groupBeingRemoved ? 'removed_from_group' : 'group_changed'
+      )
+      console.log('✅ Grup değişikliği öncesi yoklama arşivlendi')
+    }
+  }
+
   savingChanges.value = true
 
   try {
     const studentId = selectedStudent.value.id
-    const validWeeklyPlan = editForm.value.weeklyPlan.filter(p => p.day && p.time && p.court)
-    const isGroup = isGroupMembership(editForm.value.membershipType)
-    const groupAssignment:any = isGroup ? editForm.value.groupAssignment : null
     const groupSchedule:any = isGroup && groupAssignment ? { weeklyPlan: validWeeklyPlan } : null
 
-    // Eski ve yeni verileri karşılaştır
-    const oldStudent = selectedStudent.value
-    const hadGroup = oldStudent.groupAssignment
-    const hasGroup = groupAssignment
     const groupChanged = hadGroup && hasGroup &&
         (groupAssignment !== oldStudent.groupAssignment ||
             JSON.stringify(validWeeklyPlan) !== JSON.stringify(oldStudent.groupSchedule?.weeklyPlan || []))
@@ -2418,10 +2494,41 @@ const saveStudentChanges = async (): Promise<void> => {
 }
 
 const deleteStudent = async (student: Student): Promise<void> => {
+  // Önce yoklama geçmişini kontrol et
+  const { hasHistory, attendanceCount, records } = await checkStudentAttendanceHistory(student.id)
+
+  if (hasHistory) {
+    // Yoklama geçmişi varsa uyarı dialog'u göster
+    const group = groups.value.find(g => g.id === student.groupAssignment)
+    
+    archiveWarningData.value = {
+      studentId: student.id,
+      studentName: `${student.firstName} ${student.lastName}`,
+      groupId: student.groupAssignment || '',
+      groupName: group?.name || '',
+      attendanceCount,
+      archiveReason: 'student_deleted',
+      attendanceRecords: records.map(r => ({
+        date: r.date,
+        present: r.present,
+        lessonNumber: r.lessonNumber
+      }))
+    }
+    pendingDeleteStudent.value = student
+    showArchiveWarningDialog.value = true
+    return
+  }
+
+  // Yoklama geçmişi yoksa direkt silme işlemine devam et
   if (!confirm(`${student.firstName} ${student.lastName} adlı öğrenciyi silmek istediğinizden emin misiniz?\n\nÖğrenci listesinden kaldırılacaktır.`)) {
     return
   }
 
+  await performStudentDelete(student)
+}
+
+// Öğrenci silme işlemini gerçekleştir
+const performStudentDelete = async (student: Student): Promise<void> => {
   savingChanges.value = true
 
   try {
@@ -2476,6 +2583,98 @@ const deleteStudent = async (student: Student): Promise<void> => {
     successSnackbar.value = true
   } finally {
     savingChanges.value = false
+  }
+}
+
+// Arşivle ve devam et
+const handleArchiveAndContinue = async (exportFirst: boolean) => {
+  if (!pendingDeleteStudent.value) {
+    showArchiveWarningDialog.value = false
+    return
+  }
+
+  try {
+    savingChanges.value = true
+    const student = pendingDeleteStudent.value
+    const data = archiveWarningData.value
+
+    // Excel export istendiyse önce indir
+    if (exportFirst && data.attendanceRecords.length > 0) {
+      await exportToExcel(data.studentName, data.attendanceRecords)
+    }
+
+    // Yoklama arşivle
+    await archiveStudentAttendance(
+      student.id,
+      `${student.firstName} ${student.lastName}`,
+      student.groupAssignment,
+      data.groupName,
+      student.membershipType,
+      'student_deleted'
+    )
+
+    // Öğrenciyi sil
+    await performStudentDelete(student)
+
+    successMessage.value = 'Yoklama arşivlendi ve öğrenci silindi!'
+    successSnackbar.value = true
+  } catch (error: any) {
+    console.error('Arşivleme hatası:', error)
+    successMessage.value = 'Arşivleme sırasında hata oluştu!'
+    successSnackbar.value = true
+  } finally {
+    showArchiveWarningDialog.value = false
+    pendingDeleteStudent.value = null
+    savingChanges.value = false
+  }
+}
+
+// Arşivlemeden devam et
+const handleContinueWithoutArchive = async () => {
+  if (!pendingDeleteStudent.value) {
+    showArchiveWarningDialog.value = false
+    return
+  }
+
+  try {
+    await performStudentDelete(pendingDeleteStudent.value)
+  } finally {
+    showArchiveWarningDialog.value = false
+    pendingDeleteStudent.value = null
+  }
+}
+
+// Arşivleme iptal
+const handleArchiveCancel = () => {
+  showArchiveWarningDialog.value = false
+  pendingDeleteStudent.value = null
+  pendingGroupChangeData.value = null
+}
+
+// Manuel yoklama export
+const handleExportStudentAttendance = async () => {
+  if (!selectedStudent.value) return
+
+  try {
+    exportingAttendance.value = true
+    const student = selectedStudent.value
+    const result = await exportStudentAttendanceToExcel(
+      student.id,
+      `${student.firstName} ${student.lastName}`
+    )
+
+    if (result) {
+      successMessage.value = 'Yoklama verileri başarıyla indirildi!'
+    } else {
+      successMessage.value = 'Bu öğrenci için yoklama kaydı bulunamadı.'
+    }
+    successSnackbar.value = true
+  } catch (error: any) {
+    console.error('❌ Yoklama export hatası:', error)
+    successMessage.value = 'Yoklama verileri indirilirken hata oluştu!'
+    successSnackbar.value = true
+  } finally {
+    exportingAttendance.value = false
   }
 }
 

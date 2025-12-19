@@ -405,11 +405,35 @@
         <v-divider></v-divider>
 
         <v-card-actions class="px-6 py-4">
+          <v-btn 
+            color="success" 
+            variant="tonal" 
+            @click="handleExportGroupAttendance"
+            :loading="exportingGroupAttendance"
+            :disabled="selectedGroup.members.length === 0"
+          >
+            <v-icon icon="mdi-microsoft-excel" class="mr-1" />
+            Grup Yoklaması İndir
+          </v-btn>
           <v-spacer></v-spacer>
           <v-btn color="primary" @click="closeMembersDialog">Kapat</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Yoklama Arşivleme Uyarı Dialog -->
+    <AttendanceArchiveWarning
+        v-model="showArchiveWarningDialog"
+        :student-id="archiveWarningData.studentId"
+        :student-name="archiveWarningData.studentName"
+        :group-id="archiveWarningData.groupId"
+        :group-name="archiveWarningData.groupName"
+        :attendance-count="archiveWarningData.attendanceCount"
+        :archive-reason="archiveWarningData.archiveReason"
+        @archive="handleArchiveAndContinue"
+        @continue-without-archive="handleContinueWithoutArchive"
+        @cancel="handleArchiveCancel"
+    />
 
     <!-- Snackbar -->
     <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000">
@@ -425,6 +449,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import AttendanceArchiveWarning from '@/components/common/AttendanceArchiveWarning.vue'
+import {
+  checkStudentAttendanceHistory,
+  checkGroupAttendanceHistory,
+  archiveStudentAttendance,
+  archiveGroupAttendance,
+  exportToExcel,
+  exportGroupAttendanceToExcel
+} from '@/services/attendanceArchive'
+import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 
 // Types
 interface ScheduleSlot {
@@ -467,6 +501,22 @@ const membersDialog = ref(false)
 const editingGroup = ref<Group | null>(null)
 const selectedGroup = ref<Group | null>(null)
 const selectedMemberToAdd = ref<string | null>(null)
+
+// Yoklama arşivleme state'leri
+const showArchiveWarningDialog = ref(false)
+const archiveWarningData = ref({
+  studentId: '',
+  studentName: '',
+  groupId: '',
+  groupName: '',
+  attendanceCount: 0,
+  archiveReason: 'removed_from_group' as ArchiveReason,
+  attendanceRecords: [] as AttendanceRecord[]
+})
+const pendingRemoveMemberId = ref<string | null>(null)
+const pendingDeleteGroup = ref<Group | null>(null)
+const archiveProcessing = ref(false)
+const exportingGroupAttendance = ref(false)
 const groupForm = ref<any>(null)
 
 const snackbar = ref(false)
@@ -788,8 +838,35 @@ const getLessonDuration = (membershipType: string): number => {
 }
 
 const deleteGroup = async (group: Group) => {
-  if (!confirm(`"${group.name}" grubunu silmek istediğinize emin misiniz?`)) return
+  // Grup üyelerinin yoklama geçmişini kontrol et
+  if (group.members && group.members.length > 0) {
+    const memberIds = group.members.map(m => m.id)
+    const { hasHistory, totalAttendance } = await checkGroupAttendanceHistory(group.id || '', memberIds)
 
+    if (hasHistory) {
+      // İlk üyenin bilgilerini kullanarak uyarı göster (grup silme için)
+      archiveWarningData.value = {
+        studentId: group.id || '',
+        studentName: `${group.members.length} üye`,
+        groupId: group.id || '',
+        groupName: group.name,
+        attendanceCount: totalAttendance,
+        archiveReason: 'group_deleted',
+        attendanceRecords: []
+      }
+      pendingDeleteGroup.value = group
+      showArchiveWarningDialog.value = true
+      return
+    }
+  }
+
+  // Yoklama geçmişi yoksa onay al ve sil
+  if (!confirm(`"${group.name}" grubunu silmek istediğinize emin misiniz?`)) return
+  await performDeleteGroup(group)
+}
+
+// Grup silme işlemini gerçekleştir
+const performDeleteGroup = async (group: Group) => {
   try {
     if (group.id) {
       // Önce gruba ait tüm üyelerin groupAssignment ve groupSchedule bilgilerini temizle
@@ -883,6 +960,39 @@ const addMemberToGroup = async () => {
 const removeMemberFromGroup = async (memberId: string) => {
   if (!selectedGroup.value) return
 
+  // Yoklama geçmişini kontrol et
+  const { hasHistory, attendanceCount, records } = await checkStudentAttendanceHistory(memberId)
+
+  if (hasHistory) {
+    // Üye bilgisini bul
+    const member = selectedGroup.value.members.find(m => m.id === memberId)
+    
+    archiveWarningData.value = {
+      studentId: memberId,
+      studentName: member?.name || 'Bilinmiyor',
+      groupId: selectedGroup.value.id || '',
+      groupName: selectedGroup.value.name,
+      attendanceCount,
+      archiveReason: 'removed_from_group',
+      attendanceRecords: records.map(r => ({
+        date: r.date,
+        present: r.present,
+        lessonNumber: r.lessonNumber
+      }))
+    }
+    pendingRemoveMemberId.value = memberId
+    showArchiveWarningDialog.value = true
+    return
+  }
+
+  // Yoklama geçmişi yoksa direkt çıkar
+  await performRemoveMemberFromGroup(memberId)
+}
+
+// Üyeyi gruptan çıkarma işlemini gerçekleştir
+const performRemoveMemberFromGroup = async (memberId: string) => {
+  if (!selectedGroup.value) return
+
   try {
     selectedGroup.value.members = selectedGroup.value.members.filter(m => m.id !== memberId)
 
@@ -954,6 +1064,123 @@ const showSnackbar = (text: string, color: string = 'success') => {
 }
 
 // Lifecycle
+// Arşivle ve devam et
+const handleArchiveAndContinue = async (exportFirst: boolean) => {
+  archiveProcessing.value = true
+
+  try {
+    const data = archiveWarningData.value
+
+    // Grup silme işlemi
+    if (pendingDeleteGroup.value) {
+      const group = pendingDeleteGroup.value
+
+      // Her üye için yoklamayı arşivle
+      const members = group.members.map(m => ({
+        id: m.id,
+        name: m.name,
+        membershipType: group.membershipType
+      }))
+
+      await archiveGroupAttendance(
+        group.id || '',
+        group.name,
+        members,
+        'group_deleted'
+      )
+
+      // Grubu sil
+      await performDeleteGroup(group)
+      showSnackbar('Yoklamalar arşivlendi ve grup silindi', 'success')
+    }
+    // Üye çıkarma işlemi
+    else if (pendingRemoveMemberId.value && selectedGroup.value) {
+      // Excel export istendiyse önce indir
+      if (exportFirst && data.attendanceRecords.length > 0) {
+        await exportToExcel(data.studentName, data.attendanceRecords)
+      }
+
+      // Yoklama arşivle
+      await archiveStudentAttendance(
+        data.studentId,
+        data.studentName,
+        data.groupId,
+        data.groupName,
+        selectedGroup.value.membershipType,
+        'removed_from_group'
+      )
+
+      // Üyeyi gruptan çıkar
+      await performRemoveMemberFromGroup(pendingRemoveMemberId.value)
+      showSnackbar('Yoklama arşivlendi ve üye çıkarıldı', 'success')
+    }
+  } catch (error: any) {
+    console.error('Arşivleme hatası:', error)
+    showSnackbar('Arşivleme sırasında hata oluştu', 'error')
+  } finally {
+    showArchiveWarningDialog.value = false
+    pendingRemoveMemberId.value = null
+    pendingDeleteGroup.value = null
+    archiveProcessing.value = false
+  }
+}
+
+// Arşivlemeden devam et
+const handleContinueWithoutArchive = async () => {
+  try {
+    // Grup silme işlemi
+    if (pendingDeleteGroup.value) {
+      await performDeleteGroup(pendingDeleteGroup.value)
+    }
+    // Üye çıkarma işlemi
+    else if (pendingRemoveMemberId.value) {
+      await performRemoveMemberFromGroup(pendingRemoveMemberId.value)
+    }
+  } finally {
+    showArchiveWarningDialog.value = false
+    pendingRemoveMemberId.value = null
+    pendingDeleteGroup.value = null
+  }
+}
+
+// Arşivleme iptal
+const handleArchiveCancel = () => {
+  showArchiveWarningDialog.value = false
+  pendingRemoveMemberId.value = null
+  pendingDeleteGroup.value = null
+}
+
+// Manuel grup yoklama export
+const handleExportGroupAttendance = async () => {
+  if (!selectedGroup.value || selectedGroup.value.members.length === 0) return
+
+  try {
+    exportingGroupAttendance.value = true
+    const group = selectedGroup.value
+    const members = group.members.map(m => ({
+      id: m.id,
+      name: m.name
+    }))
+
+    const result = await exportGroupAttendanceToExcel(
+      group.id || '',
+      group.name,
+      members
+    )
+
+    if (result) {
+      showSnackbar('Grup yoklama verileri başarıyla indirildi!', 'success')
+    } else {
+      showSnackbar('Bu grup için yoklama kaydı bulunamadı.', 'warning')
+    }
+  } catch (error: any) {
+    console.error('❌ Grup yoklama export hatası:', error)
+    showSnackbar('Yoklama verileri indirilirken hata oluştu!', 'error')
+  } finally {
+    exportingGroupAttendance.value = false
+  }
+}
+
 onMounted(async () => {
   await loadGroups()
   await loadStudents()

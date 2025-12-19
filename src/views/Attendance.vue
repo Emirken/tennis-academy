@@ -201,6 +201,17 @@
               <v-chip color="success" variant="flat" class="mr-2 font-weight-bold" v-if="getTotalLessons() > 0">
                 {{ getTotalLessons() }} Ders
               </v-chip>
+              <v-btn
+                color="success"
+                variant="tonal"
+                size="small"
+                @click="handleExportCurrentView"
+                :loading="exportingView"
+                :disabled="classStudents.length === 0 || monthLessons.length === 0"
+              >
+                <v-icon icon="mdi-microsoft-excel" class="mr-1" size="18" />
+                Excel İndir
+              </v-btn>
             </div>
           </v-card-title>
 
@@ -482,6 +493,7 @@ import { useAuthStore } from '@/store/modules/auth'
 import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { GroupTuruLabel, MembershipTypeLabel } from '@/enums/GroupTuru'
+import { exportCurrentViewToExcel } from '@/services/attendanceArchive'
 
 // Store
 const authStore = useAuthStore()
@@ -492,6 +504,7 @@ const showAddStudentDialog = ref(false)
 const showDatePicker = ref(false)
 const selectedLessonIndex = ref(0)
 const selectedDate = ref(new Date())
+const exportingView = ref(false)
 const showSuccessMessage = ref(false)
 const showErrorMessage = ref(false)
 const successMessage = ref('')
@@ -1141,6 +1154,54 @@ const loadGroupReservationDates = async (groupId: string) => {
 }
 
 // Lifecycle
+// Manuel Excel export
+const handleExportCurrentView = async () => {
+  try {
+    exportingView.value = true
+    
+    // Görünüm başlığını oluştur
+    let viewTitle = 'Yoklama'
+    if (selectedGroupFilter.value) {
+      const group = availableGroups.value.find((g: any) => g.id === selectedGroupFilter.value)
+      viewTitle = group ? `${group.name} Yoklaması` : 'Grup Yoklaması'
+    } else if (selectedPersonFilter.value) {
+      const person = allStudents.value.find((s: any) => s.id === selectedPersonFilter.value)
+      viewTitle = person ? `${person.name} Yoklaması` : 'Bireysel Yoklama'
+    }
+
+    // Öğrenci listesini hazırla
+    const students = classStudents.value.map((s: any) => ({
+      id: s.id,
+      name: s.displayName || s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim()
+    }))
+
+    // Ders listesini hazırla
+    const lessons = monthLessons.value.map((l: any) => ({
+      date: l.date,
+      lessonNumber: l.lessonNumber
+    }))
+
+    const result = await exportCurrentViewToExcel(
+      selectedYear.value,
+      selectedMonth.value,
+      students,
+      attendanceData,
+      lessons,
+      viewTitle
+    )
+
+    if (result) {
+      console.log('✅ Yoklama verileri başarıyla indirildi!')
+    } else {
+      console.log('⚠️ Export edilecek veri bulunamadı.')
+    }
+  } catch (error: any) {
+    console.error('❌ Export hatası:', error)
+  } finally {
+    exportingView.value = false
+  }
+}
+
 onMounted(() => {
   initializeLessons()
   loadGroupsFromFirebase()
