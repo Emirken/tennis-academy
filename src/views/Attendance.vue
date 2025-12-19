@@ -122,7 +122,7 @@
           </v-card-title>
           <v-card-text class="pa-6">
             <v-row>
-              <v-col cols="12" md="4">
+              <v-col cols="12" md="3">
                 <v-select
                     v-model="selectedMonth"
                     label="Ay"
@@ -135,7 +135,7 @@
                     @update:model-value="loadAttendanceData"
                 />
               </v-col>
-              <v-col cols="12" md="4">
+              <v-col cols="12" md="3">
                 <v-select
                     v-model="selectedYear"
                     label="Yıl"
@@ -146,11 +146,11 @@
                     @update:model-value="loadAttendanceData"
                 />
               </v-col>
-              <v-col cols="12" md="4">
+              <v-col cols="12" md="3">
                 <v-select
                     v-model="selectedGroupFilter"
                     label="Grup Filtresi"
-                    :items="[{id: 'all', name: 'Tüm Gruplar'}, ...availableGroups]"
+                    :items="availableGroups"
                     item-title="name"
                     item-value="id"
                     variant="outlined"
@@ -158,7 +158,26 @@
                     prepend-inner-icon="mdi-account-group"
                     :loading="loadingGroups"
                     clearable
-                    @click:clear="selectedGroupFilter = 'all'"
+                    placeholder="Grup seçin..."
+                    @click:clear="selectedGroupFilter = null"
+                />
+              </v-col>
+              <v-col cols="12" md="3">
+                <v-autocomplete
+                    v-model="selectedPersonFilter"
+                    label="Kişi Listesi"
+                    :items="ungroupedStudents"
+                    item-title="name"
+                    item-value="id"
+                    variant="outlined"
+                    density="compact"
+                    prepend-inner-icon="mdi-account"
+                    :loading="loadingStudents"
+                    clearable
+                    no-data-text="Grupsuz kişi bulunamadı"
+                    placeholder="Kişi ara..."
+                    :menu-props="{ maxHeight: 200 }"
+                    @update:model-value="onPersonSelected"
                 />
               </v-col>
             </v-row>
@@ -482,7 +501,8 @@ const loadingStudents = ref(false)
 const addingStudent = ref(false)
 const selectedStudentGroup = ref('')
 const groupMembers = ref<Array<{id: string, name: string}>>([])
-const selectedGroupFilter = ref<string>('all')
+const selectedGroupFilter = ref<string | null>(null)
+const selectedPersonFilter = ref<string | null>(null)
 const availableGroups = ref<Array<{id: string, name: string}>>([])
 const loadingGroups = ref(false)
 const showUncheckConfirmDialog = ref(false)
@@ -548,20 +568,23 @@ const monthLessons = ref<Array<{date: Date, dateString: string, lessonNumber: nu
 
 // Computed properties
 const classStudents = computed(() => {
-  const students = studentsData['baslangic-a'] || []
-
-  // If no group filter or "all" is selected, return all students
-  if (selectedGroupFilter.value === 'all') {
-    return students
+  // Hiçbir filtre seçili değilse boş liste dön
+  if (!selectedGroupFilter.value && !selectedPersonFilter.value) {
+    return []
   }
-
-  // Filter by selected group
-  return students.filter(student => student.groupAssignment === selectedGroupFilter.value)
+  
+  const students = studentsData['baslangic-a'] || []
+  return students
 })
 
 const availableStudents = computed(() => {
   const currentStudentIds = classStudents.value.map(s => s.id)
   return allStudents.value.filter(student => !currentStudentIds.includes(student.id))
+})
+
+// Grubu olmayan öğrenciler (Kişi Listesi için)
+const ungroupedStudents = computed(() => {
+  return allStudents.value.filter(student => !student.groupAssignment || student.groupAssignment === '')
 })
 
 // Methods
@@ -889,6 +912,41 @@ const openAddStudentDialog = async () => {
   showAddStudentDialog.value = true
 }
 
+// Kişi Listesinden seçilen kişiyi yoklama listesine göster
+const onPersonSelected = async (personId: string | null) => {
+  if (!personId) {
+    // Seçim temizlendiyse ve grup filtresi de yoksa listeyi temizle
+    if (!selectedGroupFilter.value) {
+      studentsData['baslangic-a'] = []
+    }
+    return
+  }
+  
+  // Grup filtresini temizle (karşılıklı dışlayıcılık)
+  selectedGroupFilter.value = null
+  
+  const selectedPerson = allStudents.value.find(s => s.id === personId)
+  if (!selectedPerson) return
+  
+  // Sadece bu kişiyi listede göster
+  studentsData['baslangic-a'] = [{
+    id: selectedPerson.id,
+    name: selectedPerson.name,
+    groupAssignment: selectedPerson.groupAssignment,
+    membershipType: selectedPerson.membershipType
+  }]
+  
+  // Attendance data'yı başlat
+  if (!attendanceData[selectedPerson.id]) {
+    attendanceData[selectedPerson.id] = new Array(8).fill(false)
+  }
+  
+  // Varsayılan tarihleri yükle
+  initializeLessons()
+  
+  console.log(`✅ ${selectedPerson.name} yoklama listesinde gösteriliyor`)
+}
+
 const openDatePicker = (index: number) => {
   selectedLessonIndex.value = index
   const currentDateString = monthLessons.value[index].dateString
@@ -994,14 +1052,15 @@ watch(showAddStudentDialog, (newValue) => {
 
 // Grup seçildiğinde rezervasyon tarihlerini ve öğrencileri yükle
 watch(selectedGroupFilter, async (newGroupId) => {
-  if (newGroupId && newGroupId !== 'all') {
+  // Kişi filtresini temizle (karşılıklı dışlayıcılık)
+  if (newGroupId) {
+    selectedPersonFilter.value = null
     await loadGroupStudents(newGroupId)
     await loadGroupReservationDates(newGroupId)
-  } else {
-    // Tüm gruplar seçildiğinde varsayılan tarihleri yükle
+  } else if (!selectedPersonFilter.value) {
+    // Her iki filtre de boşsa listeyi temizle
+    studentsData['baslangic-a'] = []
     initializeLessons()
-    // Tüm öğrencileri yükle
-    await loadAttendanceData()
   }
 })
 
@@ -1084,7 +1143,7 @@ const loadGroupReservationDates = async (groupId: string) => {
 // Lifecycle
 onMounted(() => {
   initializeLessons()
-  loadAttendanceData()
   loadGroupsFromFirebase()
+  loadStudentsFromFirebase() // Kişi Listesi için öğrencileri yükle
 })
 </script>
