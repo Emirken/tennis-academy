@@ -2415,6 +2415,66 @@ const saveStudentChanges = async (): Promise<void> => {
       }, validWeeklyPlan)
     }
 
+    // 4.1. GRUP PROGRAM SENKRONİZASYONU
+    // Eğer aynı grupta kalıyor ve program değiştiyse, diğer grup üyelerini de güncelle
+    const stayingInSameGroup = hadGroup && hasGroup && groupAssignment === oldStudent.groupAssignment
+    const weeklyPlanChanged = JSON.stringify(validWeeklyPlan) !== JSON.stringify(oldStudent.groupSchedule?.weeklyPlan || [])
+
+    if (stayingInSameGroup && weeklyPlanChanged && validWeeklyPlan.length > 0) {
+      console.log('🔄 Grup programı değişti, diğer üyeler güncelleniyor...')
+      
+      // Grup üyelerini bul
+      const currentGroup = groups.value.find(g => g.id === groupAssignment)
+      
+      if (currentGroup && currentGroup.members) {
+        const otherMembers = currentGroup.members.filter((m: any) => m.id !== studentId)
+        
+        for (const member of otherMembers) {
+          try {
+            // Üyenin mevcut bilgilerini al
+            const memberDocRef = doc(db, 'users', member.id)
+            const memberSnap = await getDoc(memberDocRef)
+            
+            if (memberSnap.exists()) {
+              const memberData = memberSnap.data()
+              const memberOldPlan = memberData.groupSchedule?.weeklyPlan || []
+              
+              // Eski rezervasyonları sil
+              if (memberOldPlan.length > 0) {
+                await Promise.all(
+                  memberOldPlan.map((plan: any) =>
+                    deleteReservationsForPlan(member.id, plan, memberData.joinDate?.toDate() || new Date())
+                  )
+                )
+              }
+              
+              // Üyenin groupSchedule'ını güncelle
+              await updateDoc(memberDocRef, {
+                groupSchedule: { weeklyPlan: validWeeklyPlan },
+                updatedAt: serverTimestamp()
+              })
+              
+              // Yeni rezervasyonları oluştur
+              await createGroupReservations({
+                id: member.id,
+                firstName: member.name?.split(' ')[0] || '',
+                lastName: member.name?.split(' ').slice(1).join(' ') || '',
+                groupAssignment,
+                groupSchedule: { weeklyPlan: validWeeklyPlan },
+                joinDate: memberData.joinDate?.toDate() || new Date()
+              } as any, validWeeklyPlan)
+              
+              console.log(`✅ Üye güncellendi: ${member.name}`)
+            }
+          } catch (memberError) {
+            console.error(`❌ Üye güncellenirken hata (${member.name}):`, memberError)
+          }
+        }
+        
+        console.log(`✅ ${otherMembers.length} grup üyesinin programı güncellendi`)
+      }
+    }
+
     // 4.5. Grup members array'ini güncelle
     // Eski gruptan çıkar (grup kaldırıldıysa veya değiştirildiyse)
     if (hadGroup && oldStudent.groupAssignment && (groupAssignment !== oldStudent.groupAssignment)) {
