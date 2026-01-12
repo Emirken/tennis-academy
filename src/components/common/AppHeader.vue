@@ -125,7 +125,8 @@
                 </v-list-item-title>
               </v-list-item>
 
-              <v-list-item
+              <!-- Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir -->
+              <!-- <v-list-item
                   v-if="authStore.isStudent"
                   :to="{ name: 'Reservations' }"
                   class="dropdown-item"
@@ -134,7 +135,7 @@
                   <v-icon icon="mdi-calendar-clock" class="mr-2" />
                   Rezervasyonlar
                 </v-list-item-title>
-              </v-list-item>
+              </v-list-item> -->
 
               <v-list-item
                   v-if="authStore.isAdmin"
@@ -310,7 +311,8 @@
           <v-list-item-title>Admin Panel</v-list-item-title>
         </v-list-item>
 
-        <v-list-item
+        <!-- Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir -->
+        <!-- <v-list-item
             v-if="authStore.isStudent"
             :to="{ name: 'Reservations' }"
             class="drawer-item"
@@ -320,7 +322,7 @@
             <v-icon icon="mdi-calendar-clock" />
           </template>
           <v-list-item-title>Rezervasyonlar</v-list-item-title>
-        </v-list-item>
+        </v-list-item> -->
         <v-list-item
             v-if="authStore.isAdmin"
             :to="{ name: 'Attendance' }"

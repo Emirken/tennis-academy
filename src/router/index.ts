@@ -50,11 +50,13 @@ const routes: Array<RouteRecordRaw> = [
         name: 'StudentDashboard',
         component: () => import('@/views/StudentDashboard.vue')
       },
-      {
-        path: 'reservations',
-        name: 'Reservations',
-        component: () => import('@/views/Reservations.vue')
-      },
+      // Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı
+      // İleride tekrar aktif edilebilir
+      // {
+      //   path: 'reservations',
+      //   name: 'Reservations',
+      //   component: () => import('@/views/Reservations.vue')
+      // },
       {
         path: 'dues',
         name: 'Dues',
