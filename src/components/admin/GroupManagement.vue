@@ -739,8 +739,8 @@ const createGroupReservations = async (groupId: string, groupData: Group) => {
   try {
     const reservations = []
     const today = new Date()
-    const threeMonthsLater = new Date()
-    threeMonthsLater.setMonth(today.getMonth() + 3)
+    const oneYearLater = new Date()
+    oneYearLater.setMonth(today.getMonth() + 12) // 1 yıl ileri
 
     // Get lesson duration based on membership type
     const lessonDuration = getLessonDuration(groupData.membershipType)
@@ -749,8 +749,8 @@ const createGroupReservations = async (groupId: string, groupData: Group) => {
     for (const slot of groupData.schedule) {
       if (!slot.day || !slot.time || !slot.court) continue
 
-      // Get all dates for this day of week in the next 3 months
-      const dates = getDatesByDayOfWeek(slot.day, today, threeMonthsLater)
+      // Get all dates for this day of week in the next 1 year
+      const dates = getDatesByDayOfWeek(slot.day, today, oneYearLater)
 
       for (const date of dates) {
         const [startHour, startMinute] = slot.time.split(':').map(Number)

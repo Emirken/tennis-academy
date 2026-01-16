@@ -1681,7 +1681,7 @@ const createGroupReservations = async (student: Student, weeklyPlan: WeeklyPlan[
   try {
     const today = new Date()
     const endDate = new Date()
-    endDate.setMonth(today.getMonth() + 3) // 3 ay ileri
+    endDate.setMonth(today.getMonth() + 12) // 1 yıl ileri (12 ay)
 
     for (const plan of weeklyPlan) {
       const dates = getReservationDatesForDay(new Date(student.joinDate), endDate, plan.day)

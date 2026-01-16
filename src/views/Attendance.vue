@@ -714,8 +714,9 @@ const loadAttendanceData = async () => {
     if (attendanceDoc.exists()) {
       const data = attendanceDoc.data()
 
-      // Load students from Firebase data
-      if (data.students && data.students.length > 0) {
+      // Load students from Firebase data (sadece grup filtresi yoksa)
+      // Eğer grup filtresi seçiliyse, öğrenciler grup üyelerinden gelecek
+      if (!selectedGroupFilter.value && data.students && data.students.length > 0) {
         studentsData['baslangic-a'] = data.students
         console.log('✅ Öğrenciler Firebase\'den yüklendi:', data.students.length)
       }
@@ -723,21 +724,31 @@ const loadAttendanceData = async () => {
       if (data.attendanceData) {
         Object.assign(attendanceData, data.attendanceData)
       }
-      if (data.lessons && data.lessons.length > 0) {
+      if (data.lessons && data.lessons.length > 0 && !selectedGroupFilter.value) {
+        // Grup filtresi yoksa Firebase'deki ders tarihlerini kullan
         monthLessons.value = data.lessons.map((lesson: any, index: number) => ({
           date: lesson.date?.toDate() || new Date(),
           dateString: lesson.date?.toDate().toISOString().split('T')[0] || '',
           lessonNumber: index + 1
         }))
-      } else {
+      } else if (!selectedGroupFilter.value) {
         initializeLessons()
       }
       console.log('✅ Yoklama verileri yüklendi')
     } else {
       console.log('📝 Bu dönem için yoklama verisi bulunamadı')
-      // Start with empty student list if no data exists
-      studentsData['baslangic-a'] = []
-      initializeLessons()
+      // Eğer grup filtresi seçiliyse, öğrenci listesini temizleme
+      // Grup öğrencileri zaten yüklü olacak
+      if (!selectedGroupFilter.value) {
+        studentsData['baslangic-a'] = []
+        initializeLessons()
+      }
+    }
+
+    // Eğer grup filtresi seçiliyse, öğrencileri ve rezervasyon tarihlerini yeniden yükle
+    if (selectedGroupFilter.value) {
+      await loadGroupStudents(selectedGroupFilter.value)
+      await loadGroupReservationDates(selectedGroupFilter.value)
     }
 
     // Always initialize after loading
@@ -1052,8 +1063,9 @@ const getOverallPercentage = (): number => {
 }
 
 // Watch for month/year changes
-watch([selectedMonth, selectedYear], () => {
-  loadAttendanceData()
+watch([selectedMonth, selectedYear], async () => {
+  // loadAttendanceData içinde grup filtresi kontrolü yapılıyor ve rezervasyon tarihleri yükleniyor
+  await loadAttendanceData()
 })
 
 // Update the click handler
@@ -1131,20 +1143,30 @@ const loadGroupReservationDates = async (groupId: string) => {
     // Client-side sıralama (eskiden yeniye)
     reservationDates.sort((a, b) => a.getTime() - b.getTime())
     
-    // Bugünden sonraki ilk 8 rezervasyon tarihini al
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const futureDates = reservationDates.filter(d => d >= today)
+    // Seçilen ay/yıl aralığına göre filtrele
+    // selectedMonth.value 1-indexed (1=Ocak, 12=Aralık), JavaScript months 0-indexed
+    const selectedMonthStart = new Date(selectedYear.value, selectedMonth.value - 1, 1)
+    selectedMonthStart.setHours(0, 0, 0, 0)
     
-    if (futureDates.length > 0) {
-      monthLessons.value = futureDates.slice(0, 8).map((date, index) => ({
+    // Son günü almak için: selectedMonth.value (1-indexed) kullanarak bir sonraki ayın 0. günü
+    const selectedMonthEnd = new Date(selectedYear.value, selectedMonth.value, 0, 23, 59, 59)
+    
+    // Seçilen ay içindeki tarihleri filtrele
+    const monthDates = reservationDates.filter(d => {
+      const date = new Date(d)
+      date.setHours(0, 0, 0, 0)
+      return date >= selectedMonthStart && date <= selectedMonthEnd
+    })
+    
+    if (monthDates.length > 0) {
+      monthLessons.value = monthDates.slice(0, 8).map((date, index) => ({
         date: date,
         dateString: date.toISOString().split('T')[0],
         lessonNumber: index + 1
       }))
-      console.log(`✅ ${monthLessons.value.length} rezervasyon tarihi yüklendi`)
+      console.log(`✅ ${monthLessons.value.length} rezervasyon tarihi yüklendi (${selectedMonth.value}/${selectedYear.value})`)
     } else {
-      console.log('📝 Bu grup için rezervasyon bulunamadı, varsayılan tarihler kullanılıyor')
+      console.log(`📝 ${selectedMonth.value}/${selectedYear.value} için bu grup için rezervasyon bulunamadı, varsayılan tarihler kullanılıyor`)
       initializeLessons()
     }
   } catch (error) {
