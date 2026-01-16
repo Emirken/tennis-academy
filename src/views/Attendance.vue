@@ -245,6 +245,9 @@
                       <div class="stat-header-cell"><strong>%</strong></div>
                     </div>
                   </th>
+                  <th class="action-header-cell" v-if="authStore.isAdmin">
+                    <strong>İŞLEM</strong>
+                  </th>
                 </tr>
                 </thead>
 
@@ -311,6 +314,21 @@
                       <div class="stat-value percentage">{{ getAttendancePercentage(student.id) }}%</div>
                     </div>
                   </td>
+
+                  <!-- Kaydet Butonu -->
+                  <td class="action-cell" v-if="authStore.isAdmin" style="text-align: center;">
+                    <v-btn
+                        color="success"
+                        size="small"
+                        variant="flat"
+                        :loading="savingStudentId === student.id"
+                        :disabled="!hasStudentChanges(student.id)"
+                        @click="saveStudentAttendance(student.id)"
+                    >
+                      <v-icon icon="mdi-content-save" size="18" class="mr-1" />
+                      Kaydet
+                    </v-btn>
+                  </td>
                 </tr>
 
                 <!-- Summary Row -->
@@ -333,6 +351,7 @@
                       <div class="stat-value percentage"><strong>{{ getOverallPercentage() }}%</strong></div>
                     </div>
                   </td>
+                  <td v-if="authStore.isAdmin" class="summary-action-cell"></td>
                 </tr>
                 </tbody>
               </table>
@@ -520,6 +539,8 @@ const availableGroups = ref<Array<{id: string, name: string}>>([])
 const loadingGroups = ref(false)
 const showUncheckConfirmDialog = ref(false)
 const pendingUncheckData = ref<{studentId: string, lessonIndex: number} | null>(null)
+const savingStudentId = ref<string | null>(null)
+const pendingChanges = reactive<Record<string, boolean>>({})
 
 // Selections
 const selectedMonth = ref(new Date().getMonth() + 1)
@@ -651,15 +672,16 @@ const updateAttendanceValue = async (studentId: string, lessonIndex: number, val
   
   attendanceData[studentId][lessonIndex] = value
 
-  // Auto-save after each change
-  await autoSaveAttendance()
+  // Değişiklik yapıldığını işaretle (otomatik kaydetme kaldırıldı)
+  pendingChanges[studentId] = true
 }
 
 const confirmUncheck = async () => {
   if (pendingUncheckData.value) {
     const { studentId, lessonIndex } = pendingUncheckData.value
     attendanceData[studentId][lessonIndex] = false
-    await autoSaveAttendance()
+    // Değişiklik yapıldığını işaretle (otomatik kaydetme kaldırıldı)
+    pendingChanges[studentId] = true
   }
   showUncheckConfirmDialog.value = false
   pendingUncheckData.value = null
@@ -668,6 +690,52 @@ const confirmUncheck = async () => {
 const cancelUncheck = () => {
   showUncheckConfirmDialog.value = false
   pendingUncheckData.value = null
+}
+
+// Öğrencinin yoklamasında değişiklik olup olmadığını kontrol et
+const hasStudentChanges = (studentId: string): boolean => {
+  return pendingChanges[studentId] === true
+}
+
+// Tek öğrencinin yoklamasını kaydet
+const saveStudentAttendance = async (studentId: string) => {
+  if (!authStore.isAdmin) return
+
+  savingStudentId.value = studentId
+
+  try {
+    const docId = `attendance-${selectedYear.value}-${selectedMonth.value}`
+    const attendanceRecord = {
+      year: selectedYear.value,
+      month: selectedMonth.value,
+      attendanceData: { ...attendanceData },
+      students: classStudents.value,
+      lessons: monthLessons.value.map(lesson => ({
+        date: lesson.date,
+        lessonNumber: lesson.lessonNumber
+      })),
+      updatedAt: serverTimestamp(),
+      updatedBy: authStore.user?.email || 'Bilinmeyen'
+    }
+
+    await setDoc(doc(db, 'attendance', docId), attendanceRecord)
+    
+    // Değişiklik bayrağını temizle
+    delete pendingChanges[studentId]
+    
+    // Başarı mesajı göster
+    const student = classStudents.value.find(s => s.id === studentId)
+    successMessage.value = `${student?.name || 'Öğrenci'} yoklaması kaydedildi`
+    showSuccessMessage.value = true
+    
+    console.log('✅ Öğrenci yoklaması kaydedildi:', studentId)
+  } catch (error) {
+    console.error('❌ Yoklama kaydetme hatası:', error)
+    errorMessage.value = 'Yoklama kaydedilirken hata oluştu'
+    showErrorMessage.value = true
+  } finally {
+    savingStudentId.value = null
+  }
 }
 
 const getAttendanceValue = (studentId: string, lessonIndex: number): boolean => {
