@@ -162,6 +162,177 @@
             </v-col>
           </v-row>
 
+          <!-- Attendance Section -->
+          <v-row class="mb-8">
+            <v-col cols="12">
+              <div class="section-header mb-6">
+                <h2 class="section-title">Yoklama Durumunuz</h2>
+                <p class="section-subtitle">Aylık devam durumunuzu ve yoklama geçmişinizi görüntüleyin</p>
+              </div>
+
+              <!-- Attendance Stats Cards -->
+              <v-row class="mb-6">
+                <v-col cols="12" sm="6" md="3">
+                  <v-card class="stat-card modern-card" elevation="0">
+                    <div class="stat-card-overlay"></div>
+                    <v-card-text class="stat-content">
+                      <div class="stat-icon-wrapper primary-gradient">
+                        <v-icon icon="mdi-calendar-multiple" size="32" color="white" />
+                      </div>
+                      <div class="stat-details">
+                        <h3 class="stat-number primary--text">{{ totalAttendanceLessons }}</h3>
+                        <p class="stat-label">Toplam Ders</p>
+                        <div class="stat-trend">
+                          <v-icon size="16" color="primary">mdi-book-open</v-icon>
+                          <span class="trend-text">Bu ay</span>
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" md="3">
+                  <v-card class="stat-card modern-card" elevation="0">
+                    <div class="stat-card-overlay"></div>
+                    <v-card-text class="stat-content">
+                      <div class="stat-icon-wrapper success-gradient">
+                        <v-icon icon="mdi-check-circle" size="32" color="white" />
+                      </div>
+                      <div class="stat-details">
+                        <h3 class="stat-number success--text">{{ attendedLessons }}</h3>
+                        <p class="stat-label">Katılım</p>
+                        <div class="stat-trend">
+                          <v-icon size="16" color="success">mdi-trending-up</v-icon>
+                          <span class="trend-text">Katıldı</span>
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" md="3">
+                  <v-card class="stat-card modern-card" elevation="0">
+                    <div class="stat-card-overlay"></div>
+                    <v-card-text class="stat-content">
+                      <div class="stat-icon-wrapper error-gradient">
+                        <v-icon icon="mdi-close-circle" size="32" color="white" />
+                      </div>
+                      <div class="stat-details">
+                        <h3 class="stat-number error--text">{{ absentLessons }}</h3>
+                        <p class="stat-label">Devamsızlık</p>
+                        <div class="stat-trend">
+                          <v-icon size="16" color="error">mdi-trending-down</v-icon>
+                          <span class="trend-text">Katılmadı</span>
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+
+                <v-col cols="12" sm="6" md="3">
+                  <v-card class="stat-card modern-card" elevation="0">
+                    <div class="stat-card-overlay"></div>
+                    <v-card-text class="stat-content">
+                      <div class="stat-icon-wrapper info-gradient">
+                        <v-icon icon="mdi-percent" size="32" color="white" />
+                      </div>
+                      <div class="stat-details">
+                        <h3 class="stat-number info--text">{{ attendancePercentage }}%</h3>
+                        <p class="stat-label">Devam Yüzdesi</p>
+                        <div class="stat-trend">
+                          <v-icon size="16" color="info">mdi-chart-line</v-icon>
+                          <span class="trend-text">Oran</span>
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <!-- Attendance Filters and Table -->
+              <v-card class="modern-card" elevation="0">
+                <div class="activity-header">
+                  <div class="activity-header-content">
+                    <v-icon icon="mdi-clipboard-list" class="header-icon" />
+                    <div class="header-text">
+                      <h3 class="header-title">Detaylı Yoklama Geçmişi</h3>
+                      <p class="header-subtitle">Ders bazlı katılım durumunuz</p>
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <v-select
+                        v-model="selectedAttendanceMonth"
+                        :items="attendanceMonths"
+                        item-title="label"
+                        item-value="value"
+                        label="Ay"
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        style="max-width: 120px;"
+                    />
+                    <v-select
+                        v-model="selectedAttendanceYear"
+                        :items="attendanceYears"
+                        label="Yıl"
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        style="max-width: 100px;"
+                    />
+                  </div>
+                </div>
+
+                <v-divider />
+
+                <v-card-text class="activity-content">
+                  <div v-if="loadingAttendance" class="loading-state">
+                    <v-progress-circular indeterminate color="primary" size="48" />
+                    <p class="loading-text">Yoklama verileri yükleniyor...</p>
+                  </div>
+
+                  <div v-else-if="attendanceLessons.length === 0" class="empty-state">
+                    <v-icon icon="mdi-calendar-blank" size="64" color="grey" />
+                    <p class="empty-text">Bu ay için yoklama kaydı bulunmuyor</p>
+                    <p class="text-caption text-grey">Lütfen farklı bir ay seçin</p>
+                  </div>
+
+                  <div v-else class="attendance-table-wrapper">
+                    <v-table>
+                      <thead>
+                        <tr>
+                          <th class="text-left">Ders #</th>
+                          <th class="text-left">Tarih</th>
+                          <th class="text-center">Durum</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(lesson, index) in attendanceLessons" :key="index">
+                          <td class="font-weight-bold">{{ lesson.lessonNumber }}</td>
+                          <td>{{ lesson.dateString }}</td>
+                          <td class="text-center">
+                            <v-chip
+                                :color="studentAttendanceData[index] ? 'success' : 'error'"
+                                size="small"
+                                variant="flat"
+                            >
+                              <v-icon 
+                                  :icon="studentAttendanceData[index] ? 'mdi-check' : 'mdi-close'" 
+                                  size="16" 
+                                  class="mr-1"
+                              />
+                              {{ studentAttendanceData[index] ? 'Katıldı' : 'Katılmadı' }}
+                            </v-chip>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </v-table>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+
           <!-- Enhanced Recent Activity -->
           <v-row>
             <v-col cols="12">
@@ -269,9 +440,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
 console.log('📦 Firebase imports loaded:', { db, collection, query, where })
@@ -323,6 +494,28 @@ const totalHours = ref(0)
 const recentReservations = ref<any[]>([])
 const loading = ref(true)
 
+// Attendance data
+const studentAttendanceData = ref<boolean[]>([])
+const attendanceLessons = ref<Array<{date: any, dateString: string, lessonNumber: number}>>([])
+const selectedAttendanceMonth = ref(new Date().getMonth() + 1)
+const selectedAttendanceYear = ref(new Date().getFullYear())
+const loadingAttendance = ref(false)
+const attendanceMonths = [
+  { value: 1, label: 'Ocak' },
+  { value: 2, label: 'Şubat' },
+  { value: 3, label: 'Mart' },
+  { value: 4, label: 'Nisan' },
+  { value: 5, label: 'Mayıs' },
+  { value: 6, label: 'Haziran' },
+  { value: 7, label: 'Temmuz' },
+  { value: 8, label: 'Ağustos' },
+  { value: 9, label: 'Eylül' },
+  { value: 10, label: 'Ekim' },
+  { value: 11, label: 'Kasım' },
+  { value: 12, label: 'Aralık' }
+]
+const attendanceYears = [2024, 2025, 2026]
+
 // Firebase listener
 let unsubscribe: (() => void) | null = null
 
@@ -362,6 +555,54 @@ const quickActions = computed(() => [
     route: { name: 'Courts' }
   }
 ])
+
+// Attendance Functions
+const fetchStudentAttendance = async () => {
+  if (!authStore.user?.id) return
+  
+  loadingAttendance.value = true
+  try {
+    const docId = `attendance-${selectedAttendanceYear.value}-${selectedAttendanceMonth.value}`
+    const attendanceDocRef = doc(db, 'attendance', docId)
+    const attendanceDoc = await getDoc(attendanceDocRef)
+    
+    if (attendanceDoc.exists()) {
+      const data = attendanceDoc.data()
+      // Öğrencinin verilerini çıkar
+      studentAttendanceData.value = data.attendanceData?.[authStore.user.id] || []
+      attendanceLessons.value = (data.lessons || []).map((lesson: any) => {
+        let dateObj = lesson.date
+        if (lesson.date?.toDate) {
+          dateObj = lesson.date.toDate()
+        }
+        return {
+          ...lesson,
+          date: dateObj,
+          dateString: dateObj instanceof Date ? dateObj.toLocaleDateString('tr-TR') : 'N/A'
+        }
+      })
+    } else {
+      studentAttendanceData.value = []
+      attendanceLessons.value = []
+    }
+  } catch (error) {
+    console.error('Yoklama verileri yüklenemedi:', error)
+    studentAttendanceData.value = []
+    attendanceLessons.value = []
+  } finally {
+    loadingAttendance.value = false
+  }
+}
+
+// Attendance computed properties
+const totalAttendanceLessons = computed(() => attendanceLessons.value.length)
+const attendedLessons = computed(() => studentAttendanceData.value.filter(Boolean).length)
+const absentLessons = computed(() => totalAttendanceLessons.value - attendedLessons.value)
+const attendancePercentage = computed(() => 
+  totalAttendanceLessons.value > 0 
+    ? Math.round((attendedLessons.value / totalAttendanceLessons.value) * 100) 
+    : 0
+)
 
 // Date and Time functions
 const getCurrentDate = () => {
@@ -580,6 +821,8 @@ onMounted(async () => {
       // Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir
       // fetchUserReservations()
       loading.value = false
+      // Fetch attendance data
+      await fetchStudentAttendance()
     } else {
       console.log('❌ No authenticated user after waiting')
       loading.value = false
@@ -598,6 +841,11 @@ onUnmounted(() => {
   // if (unsubscribe) {
   //   unsubscribe()
   // }
+})
+
+// Watch for attendance filter changes
+watch([selectedAttendanceMonth, selectedAttendanceYear], async () => {
+  await fetchStudentAttendance()
 })
 
 const formatDate = (date: Date) => {
