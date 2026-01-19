@@ -449,7 +449,12 @@ const getStudentInfo = (slotData: any) => {
   const status = slotData.status || 'available'
   if (status !== 'occupied') return null
 
-  // Grup dersi kontrolü
+  // Öğrenciler için hiçbir detay gösterme, sadece admin'ler görebilir
+  if (!authStore.isAdmin) {
+    return null
+  }
+
+  // Admin kullanıcılar için grup dersi kontrolü
   const isGroupLesson = slotData.reservationType === 'group-lesson' ||
       slotData.membershipType?.includes('_group_') ||
       slotData.groupAssignment
@@ -481,11 +486,17 @@ const getStudentInfo = (slotData: any) => {
 }
 
 const getSlotTooltip = (slotData: any) => {
-  if (!slotData || typeof slotData !== 'object') return null
+  if (!slotData || typeof slotData !== 'object') return undefined
 
   const status = slotData.status || 'available'
-  if (status !== 'occupied') return null
+  if (status !== 'occupied') return undefined
 
+  // Öğrenciler için tooltip gösterme
+  if (!authStore.isAdmin) {
+    return undefined
+  }
+
+  // Admin kullanıcılar için detaylı tooltip
   let tooltip = ''
 
   if (slotData.studentFullName) {
