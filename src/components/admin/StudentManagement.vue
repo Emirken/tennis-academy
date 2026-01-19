@@ -1677,14 +1677,22 @@ const getBalanceColor = (balance: number) => {
 }
 
 // Rezervasyon oluşturma fonksiyonları
-const createGroupReservations = async (student: Student, weeklyPlan: WeeklyPlan[]): Promise<void> => {
+const createGroupReservations = async (student: Student, weeklyPlan: WeeklyPlan[], fromToday: boolean = false): Promise<void> => {
   try {
     const today = new Date()
+    today.setHours(0, 0, 0, 0) // Günün başlangıcı
     const endDate = new Date()
     endDate.setMonth(today.getMonth() + 12) // 1 yıl ileri (12 ay)
 
+    // Eğer fromToday true ise bugünden başla (güncelleme işlemleri için)
+    // Değilse student.joinDate'den başla (yeni kayıt için)
+    const startDate = fromToday ? today : new Date(student.joinDate)
+    
+    // Güncelleme durumunda bugünden önceki tarihlere rezervasyon oluşturma
+    const effectiveStartDate = startDate < today && fromToday ? today : startDate
+
     for (const plan of weeklyPlan) {
-      const dates = getReservationDatesForDay(new Date(student.joinDate), endDate, plan.day)
+      const dates = getReservationDatesForDay(effectiveStartDate, endDate, plan.day)
       const courtId = convertCourtIdToScheduleFormat(plan.court)
 
       await Promise.all(dates.map(async date => {
@@ -1824,6 +1832,66 @@ const clearCourtScheduleSlots = async (student: Student) => {
 
   } catch (error) {
     console.error('❌ Court schedule güncellerken hata:', error)
+  }
+}
+
+// SADECE gelecekteki court schedule slotlarını temizle (geçmişe dokunma)
+const clearFutureCourtScheduleSlots = async (student: Student) => {
+  if (!student.groupSchedule?.weeklyPlan) return
+
+  try {
+    console.log('🔄 Gelecekteki court schedule slotları temizleniyor...')
+    
+    // Bugünün başlangıcını al
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // 1 yıl sonrasına kadar olan tarihler için
+    const endDate = new Date()
+    endDate.setMonth(endDate.getMonth() + 12)
+
+    for (const plan of student.groupSchedule.weeklyPlan) {
+      if (plan.day && plan.time && plan.court) {
+        // Bugünden 1 yıl sonrasına kadar olan tarihleri al
+        const reservationDates = getReservationDatesForDay(
+            today,
+            endDate,
+            plan.day
+        )
+
+        for (const date of reservationDates) {
+          const dateString = date.toISOString().split('T')[0]
+          const docRef = doc(db, 'courtSchedule', dateString)
+          const docSnap = await getDoc(docRef)
+
+          if (docSnap.exists()) {
+            const schedule = docSnap.data().schedule || {}
+            const courtId = convertCourtIdToScheduleFormat(plan.court)
+
+            // Önce bu slotun bu öğrenciye ait olup olmadığını kontrol et
+            const currentSlot = schedule[courtId]?.[plan.time]
+
+            if (currentSlot &&
+                (currentSlot === 'occupied' || // Eski format
+                    (typeof currentSlot === 'object' && currentSlot.studentId === student.id))) { // Yeni format
+
+              schedule[courtId][plan.time] = 'available'
+
+              await setDoc(docRef, {
+                schedule: schedule,
+                lastUpdated: new Date(),
+                updatedBy: 'group-lesson-future-delete'
+              })
+
+              console.log(`✅ Gelecek court schedule temizlendi: ${dateString} ${courtId} ${plan.time}`)
+            }
+          }
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Gelecek court schedule temizlerken hata:', error)
   }
 }
 
@@ -2361,31 +2429,38 @@ const saveStudentChanges = async (): Promise<void> => {
         (groupAssignment !== oldStudent.groupAssignment ||
             JSON.stringify(validWeeklyPlan) !== JSON.stringify(oldStudent.groupSchedule?.weeklyPlan || []))
 
-    // 1. Grup kaldırıldıysa veya değiştirildiyse eski rezervasyonları sil
-    if ((hadGroup && !hasGroup) || groupChanged) {
-      if (oldStudent.groupSchedule?.weeklyPlan) {
-        await Promise.all(
-            oldStudent.groupSchedule.weeklyPlan.map(plan =>
-                deleteReservationsForPlan(studentId, plan, oldStudent.joinDate)
-            )
-        )
-      }
-    }
-    // 2. Silinen planları temizle (grup aynı kalsa bile)
-    if (hadGroup && hasGroup && oldStudent.groupSchedule?.weeklyPlan) {
-      const removedPlans = oldStudent.groupSchedule.weeklyPlan.filter(oldPlan =>
-          !validWeeklyPlan.some(newPlan =>
-              newPlan.day === oldPlan.day &&
-              newPlan.time === oldPlan.time &&
-              newPlan.court === oldPlan.court
-          )
-      )
+    // Haftalık program değişti mi kontrol et
+    const weeklyPlanActuallyChanged = hadGroup && 
+        JSON.stringify(validWeeklyPlan) !== JSON.stringify(oldStudent.groupSchedule?.weeklyPlan || [])
 
-      await Promise.all(
-          removedPlans.map(plan =>
-              deleteReservationsForPlan(studentId, plan, oldStudent.joinDate)
-          )
+    // 1. Program değiştiyse SADECE GELECEKTEKİ rezervasyonları sil
+    // Geçmiş rezervasyonlara dokunmuyoruz
+    if ((hadGroup && !hasGroup) || groupChanged || weeklyPlanActuallyChanged) {
+      console.log('🗑️ Öğrencinin GELECEKTEKİ grup rezervasyonları siliniyor...')
+      
+      // Bugünün başlangıcını al (saat 00:00:00)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      // Öğrencinin SADECE gelecekteki grup rezervasyonlarını sil
+      const reservationsRef = collection(db, 'reservations')
+      const q = query(
+        reservationsRef,
+        where('studentId', '==', studentId),
+        where('groupSchedule', '==', true),
+        where('date', '>=', today)
       )
+      
+      const snapshot = await getDocs(q)
+      const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref))
+      await Promise.all(deletePromises)
+      
+      console.log(`✅ ${snapshot.docs.length} gelecekteki rezervasyon silindi (geçmiş korundu)`)
+      
+      // Court schedule'dan da SADECE gelecekteki slotları temizle
+      if (oldStudent.groupSchedule?.weeklyPlan) {
+        await clearFutureCourtScheduleSlots(oldStudent)
+      }
     }
 
     // 3. Öğrenci bilgilerini güncelle
@@ -2412,7 +2487,7 @@ const saveStudentChanges = async (): Promise<void> => {
         ...oldStudent,
         groupAssignment,
         groupSchedule
-      }, validWeeklyPlan)
+      }, validWeeklyPlan, true) // fromToday: true - sadece bugünden itibaren rezervasyon oluştur
     }
 
     // 4.1. GRUP PROGRAM SENKRONİZASYONU
@@ -2454,7 +2529,7 @@ const saveStudentChanges = async (): Promise<void> => {
                 updatedAt: serverTimestamp()
               })
               
-              // Yeni rezervasyonları oluştur
+              // Yeni rezervasyonları oluştur - sadece bugünden itibaren
               await createGroupReservations({
                 id: member.id,
                 firstName: member.name?.split(' ')[0] || '',
@@ -2462,7 +2537,7 @@ const saveStudentChanges = async (): Promise<void> => {
                 groupAssignment,
                 groupSchedule: { weeklyPlan: validWeeklyPlan },
                 joinDate: memberData.joinDate?.toDate() || new Date()
-              } as any, validWeeklyPlan)
+              } as any, validWeeklyPlan, true) // fromToday: true
               
               console.log(`✅ Üye güncellendi: ${member.name}`)
             }
