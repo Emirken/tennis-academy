@@ -202,6 +202,7 @@
                 {{ getTotalLessons() }} Ders
               </v-chip>
               <v-btn
+                  class="mr-1"
                 color="success"
                 variant="tonal"
                 size="small"
@@ -211,6 +212,20 @@
               >
                 <v-icon icon="mdi-microsoft-excel" class="mr-1" size="18" />
                 Excel İndir
+              </v-btn>
+              
+              <!-- Toplu Kaydet Butonu -->
+              <v-btn
+                v-if="authStore.isAdmin"
+                color="primary"
+                variant="flat"
+                size="small"
+                @click="saveAllAttendance"
+                :loading="savingAll"
+                :disabled="!hasAnyChanges()"
+              >
+                <v-icon icon="mdi-content-save-all" class="mr-1" size="18" />
+                {{ hasAnyChanges() ? 'Tümünü Kaydet' : 'Değişiklik Yok' }}
               </v-btn>
             </div>
           </v-card-title>
@@ -245,9 +260,7 @@
                       <div class="stat-header-cell"><strong>%</strong></div>
                     </div>
                   </th>
-                  <th class="action-header-cell" v-if="authStore.isAdmin">
-                    <strong>İŞLEM</strong>
-                  </th>
+
                 </tr>
                 </thead>
 
@@ -315,20 +328,7 @@
                     </div>
                   </td>
 
-                  <!-- Kaydet Butonu -->
-                  <td class="action-cell" v-if="authStore.isAdmin" style="text-align: center;">
-                    <v-btn
-                        color="success"
-                        size="small"
-                        variant="flat"
-                        :loading="savingStudentId === student.id"
-                        :disabled="!hasStudentChanges(student.id)"
-                        @click="saveStudentAttendance(student.id)"
-                    >
-                      <v-icon icon="mdi-content-save" size="18" class="mr-1" />
-                      Kaydet
-                    </v-btn>
-                  </td>
+
                 </tr>
 
                 <!-- Summary Row -->
@@ -351,7 +351,7 @@
                       <div class="stat-value percentage"><strong>{{ getOverallPercentage() }}%</strong></div>
                     </div>
                   </td>
-                  <td v-if="authStore.isAdmin" class="summary-action-cell"></td>
+
                 </tr>
                 </tbody>
               </table>
@@ -511,7 +511,6 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
-import { GroupTuruLabel, MembershipTypeLabel } from '@/enums/GroupTuru'
 import { exportCurrentViewToExcel } from '@/services/attendanceArchive'
 
 // Store
@@ -541,6 +540,9 @@ const showUncheckConfirmDialog = ref(false)
 const pendingUncheckData = ref<{studentId: string, lessonIndex: number} | null>(null)
 const savingStudentId = ref<string | null>(null)
 const pendingChanges = reactive<Record<string, boolean>>({})
+const savingAll = ref(false)
+const lastSavedData = reactive<Record<string, boolean[]>>({})
+
 
 // Selections
 const selectedMonth = ref(new Date().getMonth() + 1)
@@ -692,22 +694,54 @@ const cancelUncheck = () => {
   pendingUncheckData.value = null
 }
 
-// Öğrencinin yoklamasında değişiklik olup olmadığını kontrol et
-const hasStudentChanges = (studentId: string): boolean => {
-  return pendingChanges[studentId] === true
+/**
+ * Herhangi bir öğrencide değişiklik var mı kontrol eder
+ */
+const hasAnyChanges = (): boolean => {
+  // Eğer öğrenci sayısı değiştiyse
+  if (JSON.stringify(Object.keys(attendanceData)) !== JSON.stringify(Object.keys(lastSavedData))) {
+    return true
+  }
+  
+  // Her öğrencinin verisini karşılaştır
+  return Object.keys(attendanceData).some(studentId => {
+    const current = attendanceData[studentId]
+    const saved = lastSavedData[studentId]
+    
+    if (!saved) return true
+    
+    return JSON.stringify(current) !== JSON.stringify(saved)
+  })
 }
 
-// Tek öğrencinin yoklamasını kaydet
-const saveStudentAttendance = async (studentId: string) => {
+/**
+ * Tüm yoklama verilerini kaydeder
+ */
+const saveAllAttendance = async () => {
   if (!authStore.isAdmin) return
-
-  savingStudentId.value = studentId
-
+  
+  savingAll.value = true
+  
   try {
     const docId = `attendance-${selectedYear.value}-${selectedMonth.value}`
+    
+    // Mevcut görünüm bilgisini belirle
+    let viewType: 'group' | 'person' | null = null
+    let viewId: string | null = null
+    
+    if (selectedGroupFilter.value) {
+      viewType = 'group'
+      viewId = selectedGroupFilter.value
+    } else if (selectedPersonFilter.value) {
+      viewType = 'person'
+      viewId = selectedPersonFilter.value
+    }
+    
     const attendanceRecord = {
       year: selectedYear.value,
       month: selectedMonth.value,
+      viewType: viewType,
+      viewId: viewId,
       attendanceData: { ...attendanceData },
       students: classStudents.value,
       lessons: monthLessons.value.map(lesson => ({
@@ -717,24 +751,29 @@ const saveStudentAttendance = async (studentId: string) => {
       updatedAt: serverTimestamp(),
       updatedBy: authStore.user?.email || 'Bilinmeyen'
     }
-
+    
     await setDoc(doc(db, 'attendance', docId), attendanceRecord)
     
-    // Değişiklik bayrağını temizle
-    delete pendingChanges[studentId]
+    // Kaydedilen veriyi sakla (değişiklik kontrolü için)
+    Object.keys(attendanceData).forEach(studentId => {
+      lastSavedData[studentId] = [...attendanceData[studentId]]
+    })
     
-    // Başarı mesajı göster
-    const student = classStudents.value.find(s => s.id === studentId)
-    successMessage.value = `${student?.name || 'Öğrenci'} yoklaması kaydedildi`
+    // Tüm pending changes'i temizle
+    Object.keys(pendingChanges).forEach(key => {
+      delete pendingChanges[key]
+    })
+    
+    successMessage.value = 'Tüm yoklamalar başarıyla kaydedildi!'
     showSuccessMessage.value = true
     
-    console.log('✅ Öğrenci yoklaması kaydedildi:', studentId)
+    console.log('✅ Tüm yoklamalar kaydedildi')
   } catch (error) {
     console.error('❌ Yoklama kaydetme hatası:', error)
-    errorMessage.value = 'Yoklama kaydedilirken hata oluştu'
+    errorMessage.value = 'Yoklamalar kaydedilirken hata oluştu'
     showErrorMessage.value = true
   } finally {
-    savingStudentId.value = null
+    savingAll.value = false
   }
 }
 
@@ -782,15 +821,30 @@ const loadAttendanceData = async () => {
     if (attendanceDoc.exists()) {
       const data = attendanceDoc.data()
 
+      // YENİ: Kaydedilmiş görünümü otomatik yükle
+      if (data.viewType && data.viewId && !selectedGroupFilter.value && !selectedPersonFilter.value) {
+        if (data.viewType === 'group') {
+          selectedGroupFilter.value = data.viewId
+          console.log('✅ Kaydedilmiş grup görünümü yüklendi:', data.viewId)
+        } else if (data.viewType === 'person') {
+          selectedPersonFilter.value = data.viewId
+          console.log('✅ Kaydedilmiş kişi görünümü yüklendi:', data.viewId)
+        }
+      }
+
       // Load students from Firebase data (sadece grup filtresi yoksa)
       // Eğer grup filtresi seçiliyse, öğrenciler grup üyelerinden gelecek
       if (!selectedGroupFilter.value && data.students && data.students.length > 0) {
         studentsData['baslangic-a'] = data.students
-        console.log('✅ Öğrenciler Firebase\'den yüklendi:', data.students.length)
+        console.log('✅ Öğrenciler Firebase den yüklendi:', data.students.length)
       }
 
       if (data.attendanceData) {
         Object.assign(attendanceData, data.attendanceData)
+        // Kaydedilen veriyi kopyala (değişiklik kontrolü için)
+        Object.keys(data.attendanceData).forEach(studentId => {
+          lastSavedData[studentId] = [...data.attendanceData[studentId]]
+        })
       }
       if (data.lessons && data.lessons.length > 0 && !selectedGroupFilter.value) {
         // Grup filtresi yoksa Firebase'deki ders tarihlerini kullan
