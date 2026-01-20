@@ -9,6 +9,14 @@
             <p class="calendar-subtitle">Tüm ders programlarını görüntüleyin</p>
           </v-col>
           <v-col cols="12" md="8" class="text-md-right">
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-plus"
+              class="mr-3"
+              @click="openReservationDialog"
+            >
+              Kort Rezervasyonu
+            </v-btn>
             <v-btn-toggle
               v-model="currentView"
               mandatory
@@ -167,6 +175,9 @@
                         <div class="week-event-time">
                           {{ formatTime(event.start) }}
                         </div>
+                        <div class="week-event-court">
+                          {{ event.courtName }}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -213,7 +224,7 @@
                         @click="showEventDetails(event)"
                       >
                         <span class="month-event-text">
-                          {{ formatTime(event.start) }} - {{ event.title }}
+                          {{ formatTime(event.start) }} - {{ event.title }} ({{ event.courtName }})
                         </span>
                       </div>
                       <div
@@ -317,13 +328,181 @@
           </v-card-actions>
         </v-card>
       </v-dialog>
+
+      <!-- Court Reservation Dialog -->
+      <v-dialog v-model="reservationDialog" max-width="600" persistent>
+        <v-card>
+          <v-card-title class="d-flex align-center justify-space-between bg-primary">
+            <span class="text-white">
+              <v-icon left color="white">mdi-tennis-ball</v-icon>
+              Kort Rezervasyonu
+            </span>
+            <v-btn
+              icon="mdi-close"
+              variant="text"
+              color="white"
+              @click="closeReservationDialog"
+            ></v-btn>
+          </v-card-title>
+          <v-divider></v-divider>
+          <v-card-text class="pt-6">
+            <v-form ref="reservationFormRef" v-model="formValid">
+              <v-row>
+                <!-- Telefon Numarası -->
+                <v-col cols="12">
+                  <v-text-field
+                    v-model="reservationForm.phone"
+                    label="Telefon Numarası"
+                    prepend-icon="mdi-phone"
+                    :rules="phoneRules"
+                    required
+                    placeholder="5XX XXX XX XX"
+                  ></v-text-field>
+                </v-col>
+
+                <!-- Kayıtlı Öğrenci Seçimi -->
+                <v-col cols="12">
+                  <v-select
+                    v-model="reservationForm.studentId"
+                    :items="studentsList"
+                    item-title="fullName"
+                    item-value="id"
+                    label="Kayıtlı Öğrenci (Opsiyonel)"
+                    prepend-icon="mdi-account"
+                    clearable
+                    @update:model-value="onStudentSelected"
+                  ></v-select>
+                </v-col>
+
+                <!-- Kayıtlı Olmayan Kişi -->
+                <v-col cols="12">
+                  <v-text-field
+                    v-model="reservationForm.nonRegisteredName"
+                    label="Kayıtlı Olmayan Kişi Adı"
+                    prepend-icon="mdi-account-outline"
+                    :disabled="!!reservationForm.studentId"
+                    :rules="nameRules"
+                    placeholder="Ad Soyad"
+                  ></v-text-field>
+                </v-col>
+
+                <!-- Kort Seçimi -->
+                <v-col cols="12" md="6">
+                  <v-select
+                    v-model="reservationForm.courtId"
+                    :items="courts"
+                    item-title="name"
+                    item-value="id"
+                    label="Kort"
+                    prepend-icon="mdi-tennis-ball"
+                    :rules="[v => !!v || 'Kort seçimi zorunludur']"
+                    required
+                  ></v-select>
+                </v-col>
+
+                <!-- Gün -->
+                <v-col cols="12" md="6">
+                  <v-text-field
+                    v-model="reservationForm.date"
+                    label="Gün"
+                    type="date"
+                    prepend-icon="mdi-calendar"
+                    :rules="dateRules"
+                    required
+                  ></v-text-field>
+                </v-col>
+
+                <!-- Başlangıç Saati -->
+                <v-col cols="12" md="6">
+                  <v-select
+                    v-model="reservationForm.startTime"
+                    :items="availableTimeSlots"
+                    label="Başlangıç Saati"
+                    prepend-icon="mdi-clock-start"
+                    :rules="[v => !!v || 'Başlangıç saati zorunludur']"
+                    required
+                    :disabled="!reservationForm.courtId || !reservationForm.date"
+                    :hint="!reservationForm.courtId || !reservationForm.date ? 'Önce kort ve tarih seçiniz' : availableTimeSlots.length === 0 ? 'Bu kortta müsait saat yok' : ''"
+                    persistent-hint
+                  >
+                    <template v-slot:no-data>
+                      <v-list-item>
+                        <v-list-item-title>Bu kort ve tarih için müsait saat yok</v-list-item-title>
+                      </v-list-item>
+                    </template>
+                  </v-select>
+                </v-col>
+
+                <!-- Bitiş Saati -->
+                <v-col cols="12" md="6">
+                  <v-select
+                    v-model="reservationForm.endTime"
+                    :items="availableEndTimeSlots"
+                    label="Bitiş Saati"
+                    prepend-icon="mdi-clock-end"
+                    :rules="endTimeRules"
+                    required
+                    :disabled="!reservationForm.startTime"
+                    :hint="!reservationForm.startTime ? 'Önce başlangıç saati seçiniz' : ''"
+                    persistent-hint
+                  >
+                    <template v-slot:no-data>
+                      <v-list-item>
+                        <v-list-item-title>Müsait bitiş saati yok</v-list-item-title>
+                      </v-list-item>
+                    </template>
+                  </v-select>
+                </v-col>
+              </v-row>
+            </v-form>
+          </v-card-text>
+          <v-divider></v-divider>
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn
+              color="grey"
+              variant="text"
+              @click="closeReservationDialog"
+            >
+              İptal
+            </v-btn>
+            <v-btn
+              color="primary"
+              variant="flat"
+              :disabled="!formValid || isSaving"
+              :loading="isSaving"
+              @click="saveReservation"
+            >
+              Kaydet
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Success/Error Snackbar -->
+      <v-snackbar
+        v-model="snackbar.show"
+        :color="snackbar.color"
+        :timeout="3000"
+      >
+        {{ snackbar.message }}
+        <template v-slot:actions>
+          <v-btn
+            color="white"
+            variant="text"
+            @click="snackbar.show = false"
+          >
+            Kapat
+          </v-btn>
+        </template>
+      </v-snackbar>
     </v-container>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
 interface CalendarEvent {
@@ -357,6 +536,31 @@ const selectedEvent = ref<CalendarEvent | null>(null)
 const calendarEvents = ref<CalendarEvent[]>([])
 const loading = ref(false)
 
+// Reservation Dialog State
+const reservationDialog = ref(false)
+const reservationFormRef = ref<any>(null)
+const formValid = ref(false)
+const isSaving = ref(false)
+const studentsList = ref<any[]>([])
+
+// Reservation Form Data
+const reservationForm = ref({
+  phone: '',
+  studentId: '',
+  nonRegisteredName: '',
+  courtId: '',
+  date: new Date().toISOString().split('T')[0],
+  startTime: '09:00',
+  endTime: '10:00'
+})
+
+// Snackbar State
+const snackbar = ref({
+  show: false,
+  message: '',
+  color: 'success'
+})
+
 // Courts data
 const courts = ref([
   { id: 'K1', name: 'Kort 1' },
@@ -370,7 +574,83 @@ const hours = Array.from({ length: 14 }, (_, i) => i + 8)
 // Month day names
 const monthDayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 
+// Time slots for reservation form (08:00 - 22:00)
+const timeSlots = Array.from({ length: 15 }, (_, i) => {
+  const hour = i + 8
+  return `${hour.toString().padStart(2, '0')}:00`
+})
+
 // Computed
+const endTimeSlots = computed(() => {
+  if (!reservationForm.value.startTime) return timeSlots
+  const startIndex = timeSlots.indexOf(reservationForm.value.startTime)
+  return timeSlots.slice(startIndex + 1)
+})
+
+// Get available time slots considering existing reservations
+const availableTimeSlots = computed(() => {
+  if (!reservationForm.value.courtId || !reservationForm.value.date) {
+    return timeSlots
+  }
+
+  // Get reservations for selected court and date
+  const selectedDate = new Date(reservationForm.value.date)
+  const courtReservations = calendarEvents.value.filter(event => {
+    const eventDate = new Date(event.start)
+    return event.courtId === reservationForm.value.courtId &&
+           eventDate.toDateString() === selectedDate.toDateString()
+  })
+
+  // Filter out time slots that are already booked
+  return timeSlots.filter(timeSlot => {
+    const [hour, minute] = timeSlot.split(':').map(Number)
+    
+    // Check if this time slot conflicts with any existing reservation
+    const hasConflict = courtReservations.some(reservation => {
+      const reservationStartHour = reservation.start.getHours()
+      const reservationEndHour = reservation.end.getHours()
+      
+      // Check if the time slot falls within an existing reservation
+      return hour >= reservationStartHour && hour < reservationEndHour
+    })
+    
+    return !hasConflict
+  })
+})
+
+const availableEndTimeSlots = computed(() => {
+  if (!reservationForm.value.startTime || !reservationForm.value.courtId || !reservationForm.value.date) {
+    return endTimeSlots.value
+  }
+
+  const selectedDate = new Date(reservationForm.value.date)
+  const courtReservations = calendarEvents.value.filter(event => {
+    const eventDate = new Date(event.start)
+    return event.courtId === reservationForm.value.courtId &&
+           eventDate.toDateString() === selectedDate.toDateString()
+  })
+
+  const [startHour, startMinute] = reservationForm.value.startTime.split(':').map(Number)
+
+  // Find the earliest conflicting reservation after start time
+  let maxEndTime = '23:00' // Default max
+  courtReservations.forEach(reservation => {
+    const reservationStartHour = reservation.start.getHours()
+    const reservationStartMinute = reservation.start.getMinutes()
+    
+    if (reservationStartHour > startHour || 
+        (reservationStartHour === startHour && reservationStartMinute > startMinute)) {
+      const nextReservationTime = `${reservationStartHour.toString().padStart(2, '0')}:${reservationStartMinute.toString().padStart(2, '0')}`
+      if (nextReservationTime < maxEndTime) {
+        maxEndTime = nextReservationTime
+      }
+    }
+  })
+
+  // Filter end time slots
+  return endTimeSlots.value.filter(timeSlot => timeSlot <= maxEndTime)
+})
+
 const formattedDate = computed(() => {
   if (currentView.value === 'day') {
     return selectedDate.value.toLocaleDateString('tr-TR', {
@@ -439,6 +719,39 @@ const monthWeeks = computed(() => {
 
   return weeks
 })
+
+// Validation Rules
+const phoneRules = [
+  (v: string) => !!v || 'Telefon numarası zorunludur',
+  (v: string) => /^[\+]?[0-9\s\-\(\)]+$/.test(v) || 'Geçerli bir telefon numarası giriniz'
+]
+
+const nameRules = [
+  (v: string) => {
+    if (!reservationForm.value.studentId && !v) {
+      return 'Kayıtlı öğrenci seçilmediyse isim zorunludur'
+    }
+    return true
+  }
+]
+
+const dateRules = [
+  (v: string) => !!v || 'Tarih zorunludur',
+  (v: string) => {
+    const selectedDate = new Date(v)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return selectedDate >= today || 'Geçmiş tarih seçilemez'
+  }
+]
+
+const endTimeRules = [
+  (v: string) => !!v || 'Bitiş saati zorunludur',
+  (v: string) => {
+    if (!reservationForm.value.startTime) return true
+    return v > reservationForm.value.startTime || 'Bitiş saati başlangıç saatinden sonra olmalıdır'
+  }
+]
 
 // Methods
 const navigateDate = (direction: number) => {
@@ -773,6 +1086,201 @@ const getStatusColor = (status: string): string => {
   return colors[status] || 'grey'
 }
 
+// Reservation Dialog Functions
+const openReservationDialog = async () => {
+  // Load students from users collection with role filter
+  try {
+    const usersRef = collection(db, 'users')
+    const q = query(usersRef, where('role', '==', 'student'))
+    const querySnapshot = await getDocs(q)
+    
+    studentsList.value = querySnapshot.docs
+      .map(doc => {
+        const data = doc.data()
+        
+        // Silinmiş öğrencileri atla
+        if (data.deleted === true) {
+          return null
+        }
+        
+        return {
+          id: doc.id,
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          fullName: `${data.firstName || ''} ${data.lastName || ''}`.trim()
+        }
+      })
+      .filter(student => student !== null) // Silinmiş öğrencileri filtrele
+
+    console.log(`✅ ${studentsList.value.length} öğrenci yüklendi`)
+  } catch (error) {
+    console.error('Error loading students:', error)
+    studentsList.value = []
+  }
+
+  reservationDialog.value = true
+}
+
+const closeReservationDialog = () => {
+  reservationDialog.value = false
+  resetReservationForm()
+}
+
+const resetReservationForm = () => {
+  reservationForm.value = {
+    phone: '',
+    studentId: '',
+    nonRegisteredName: '',
+    courtId: '',
+    date: new Date().toISOString().split('T')[0],
+    startTime: '09:00',
+    endTime: '10:00'
+  }
+  formValid.value = false
+  if (reservationFormRef.value) {
+    reservationFormRef.value.reset()
+  }
+}
+
+const onStudentSelected = (studentId: string) => {
+  if (studentId) {
+    const student = studentsList.value.find(s => s.id === studentId)
+    if (student && student.phone) {
+      reservationForm.value.phone = student.phone
+    }
+    reservationForm.value.nonRegisteredName = ''
+  }
+}
+
+// Check if a time slot conflicts with existing reservations
+const checkTimeConflict = (courtId: string, date: string, startTime: string, endTime: string): boolean => {
+  const selectedDate = new Date(date)
+  const [startHour, startMinute] = startTime.split(':').map(Number)
+  const [endHour, endMinute] = endTime.split(':').map(Number)
+
+  // Get reservations for the selected court and date
+  const conflictingReservations = calendarEvents.value.filter(event => {
+    const eventDate = new Date(event.start)
+    if (event.courtId !== courtId || eventDate.toDateString() !== selectedDate.toDateString()) {
+      return false
+    }
+
+    const eventStartHour = event.start.getHours()
+    const eventStartMinute = event.start.getMinutes()
+    const eventEndHour = event.end.getHours()
+    const eventEndMinute = event.end.getMinutes()
+
+    // Convert to minutes for easier comparison
+    const newStartMinutes = startHour * 60 + startMinute
+    const newEndMinutes = endHour * 60 + endMinute
+    const existingStartMinutes = eventStartHour * 60 + eventStartMinute
+    const existingEndMinutes = eventEndHour * 60 + eventEndMinute
+
+    // Check for overlap
+    // Two intervals overlap if: start1 < end2 && start2 < end1
+    return newStartMinutes < existingEndMinutes && existingStartMinutes < newEndMinutes
+  })
+
+  return conflictingReservations.length > 0
+}
+
+const saveReservation = async () => {
+  if (!formValid.value) {
+    showSnackbar('Lütfen tüm zorunlu alanları doldurun', 'error')
+    return
+  }
+
+  // Check for time conflicts before saving
+  const hasConflict = checkTimeConflict(
+    reservationForm.value.courtId,
+    reservationForm.value.date,
+    reservationForm.value.startTime,
+    reservationForm.value.endTime
+  )
+
+  if (hasConflict) {
+    showSnackbar('Bu kort, tarih ve saat aralığında zaten bir rezervasyon mevcut', 'error')
+    return
+  }
+
+  isSaving.value = true
+
+  try {
+    // Determine student name
+    let studentName = ''
+    let studentFirstName = ''
+    let studentLastName = ''
+    
+    if (reservationForm.value.studentId) {
+      const student = studentsList.value.find(s => s.id === reservationForm.value.studentId)
+      if (student) {
+        studentName = student.fullName
+        studentFirstName = student.firstName
+        studentLastName = student.lastName
+      }
+    } else {
+      studentName = reservationForm.value.nonRegisteredName
+      const nameParts = reservationForm.value.nonRegisteredName.split(' ')
+      studentFirstName = nameParts[0] || ''
+      studentLastName = nameParts.slice(1).join(' ') || ''
+    }
+
+    // Parse date and times
+    const reservationDate = new Date(reservationForm.value.date)
+    const [startHour, startMinute] = reservationForm.value.startTime.split(':').map(Number)
+    const [endHour, endMinute] = reservationForm.value.endTime.split(':').map(Number)
+
+    // Calculate duration
+    const startMinutes = startHour * 60 + startMinute
+    const endMinutes = endHour * 60 + endMinute
+    const duration = endMinutes - startMinutes
+
+    // Create reservation object
+    const reservation = {
+      courtId: reservationForm.value.courtId,
+      courtName: getCourtName(reservationForm.value.courtId),
+      date: Timestamp.fromDate(reservationDate),
+      startTime: reservationForm.value.startTime,
+      endTime: reservationForm.value.endTime,
+      duration,
+      type: 'court_rental',
+      reservationType: 'court-rental',
+      status: 'confirmed',
+      contactPhone: reservationForm.value.phone,
+      studentId: reservationForm.value.studentId || null,
+      studentName,
+      studentFirstName,
+      studentLastName,
+      studentFullName: studentName,
+      paymentStatus: 'pending',
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    }
+
+    // Save to Firestore
+    await addDoc(collection(db, 'reservations'), reservation)
+
+    showSnackbar('Rezervasyon başarıyla oluşturuldu', 'success')
+    closeReservationDialog()
+    
+    // Refresh calendar
+    await fetchReservations()
+  } catch (error) {
+    console.error('Error saving reservation:', error)
+    showSnackbar('Rezervasyon kaydedilirken bir hata oluştu', 'error')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+const showSnackbar = (message: string, color: string = 'success') => {
+  snackbar.value.message = message
+  snackbar.value.color = color
+  snackbar.value.show = true
+}
+
 // Lifecycle
 onMounted(async () => {
   await fetchReservations()
@@ -970,6 +1478,12 @@ watch([currentView, selectedDate], async () => {
 .week-event-time {
   font-size: 10px;
   opacity: 0.9;
+}
+
+.week-event-court {
+  font-size: 0.7em;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 2px;
 }
 
 /* Month View */
