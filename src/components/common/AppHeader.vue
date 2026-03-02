@@ -41,6 +41,7 @@
         </v-btn>
 
         <v-btn
+            v-if="authStore.isAuthenticated"
             variant="text"
             color="white"
             :to="{ name: 'Courts' }"
@@ -51,6 +52,7 @@
         </v-btn>
 
         <v-btn
+            v-if="authStore.isAdmin"
             variant="text"
             color="white"
             :to="{ name: 'Pricing' }"
@@ -125,8 +127,7 @@
                 </v-list-item-title>
               </v-list-item>
 
-              <!-- Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir -->
-              <!-- <v-list-item
+              <v-list-item
                   v-if="authStore.isStudent"
                   :to="{ name: 'Reservations' }"
                   class="dropdown-item"
@@ -135,7 +136,7 @@
                   <v-icon icon="mdi-calendar-clock" class="mr-2" />
                   Rezervasyonlar
                 </v-list-item-title>
-              </v-list-item> -->
+              </v-list-item>
 
               <v-list-item
                   v-if="authStore.isAdmin"
@@ -234,6 +235,7 @@
       </v-list-item>
 
       <v-list-item
+          v-if="authStore.isAuthenticated"
           :to="{ name: 'Courts' }"
           class="drawer-item"
           @click="drawer = false"
@@ -245,6 +247,7 @@
       </v-list-item>
 
       <v-list-item
+          v-if="authStore.isAdmin"
           :to="{ name: 'Pricing' }"
           class="drawer-item"
           @click="drawer = false"
@@ -311,8 +314,7 @@
           <v-list-item-title>Admin Panel</v-list-item-title>
         </v-list-item>
 
-        <!-- Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir -->
-        <!-- <v-list-item
+        <v-list-item
             v-if="authStore.isStudent"
             :to="{ name: 'Reservations' }"
             class="drawer-item"
@@ -322,7 +324,7 @@
             <v-icon icon="mdi-calendar-clock" />
           </template>
           <v-list-item-title>Rezervasyonlar</v-list-item-title>
-        </v-list-item> -->
+        </v-list-item>
         <v-list-item
             v-if="authStore.isAdmin"
             :to="{ name: 'Attendance' }"

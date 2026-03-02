@@ -97,9 +97,20 @@
                 md="4"
               >
                 <v-card class="court-card" elevation="2">
-                  <v-card-title class="court-header">
-                    <v-icon left color="primary">mdi-tennis-ball</v-icon>
-                    {{ court.name }}
+                  <v-card-title class="court-header d-flex align-center justify-space-between">
+                    <span>
+                      <v-icon left color="white">mdi-tennis-ball</v-icon>
+                      {{ court.name }}
+                    </span>
+                    <v-chip
+                      v-if="getCourtEvents(court.id, selectedDate).length > 0"
+                      size="small"
+                      color="white"
+                      variant="flat"
+                      class="court-badge"
+                    >
+                      {{ getCourtEvents(court.id, selectedDate).length }}
+                    </v-chip>
                   </v-card-title>
                   <v-card-text class="time-slots">
                     <div
@@ -163,21 +174,28 @@
                     :key="day.date.toISOString()"
                     class="day-cell"
                   >
-                    <div
-                      v-for="event in getHourEvents(day.date, hour)"
-                      :key="event.id"
-                      class="week-event"
-                      :style="{ backgroundColor: event.color }"
-                      @click="showEventDetails(event)"
-                    >
-                      <div class="week-event-content">
-                        <strong>{{ event.title }}</strong>
-                        <div class="week-event-time">
-                          {{ formatTime(event.start) }}
+                    <div class="day-cell-events">
+                      <div
+                        v-for="event in getHourEvents(day.date, hour).slice(0, 4)"
+                        :key="event.id"
+                        class="week-event"
+                        :style="{ backgroundColor: event.color, borderLeftColor: getCourtColor(event.courtId) }"
+                        @click="showEventDetails(event)"
+                      >
+                        <div class="week-event-content">
+                          <span class="week-event-court-badge">{{ event.courtId }}</span>
+                          <strong>{{ event.title }}</strong>
+                          <div class="week-event-time">
+                            {{ formatTime(event.start) }}
+                          </div>
                         </div>
-                        <div class="week-event-court">
-                          {{ event.courtName }}
-                        </div>
+                      </div>
+                      <div
+                        v-if="getHourEvents(day.date, hour).length > 4"
+                        class="week-more-events"
+                        @click.stop="selectDate(day.date)"
+                      >
+                        +{{ getHourEvents(day.date, hour).length - 4 }} daha
                       </div>
                     </div>
                   </div>
@@ -204,37 +222,57 @@
                   :key="weekIndex"
                   class="month-week"
                 >
-                  <div
+                  <v-tooltip
                     v-for="(day, dayIndex) in week"
                     :key="dayIndex"
-                    class="month-day"
-                    :class="{
-                      'other-month': !day.currentMonth,
-                      'today': day.isToday
-                    }"
-                    @click="selectDate(day.date)"
+                    location="top"
+                    :disabled="getDayEvents(day.date).length === 0"
+                    class="month-day-tooltip-wrapper"
                   >
-                    <div class="month-day-number">{{ day.day }}</div>
-                    <div class="month-events">
+                    <template v-slot:activator="{ props }">
                       <div
-                        v-for="event in getDayEvents(day.date).slice(0, 3)"
-                        :key="event.id"
-                        class="month-event"
-                        :style="{ backgroundColor: event.color }"
-                        @click="showEventDetails(event)"
+                        v-bind="props"
+                        class="month-day"
+                        :class="{
+                          'other-month': !day.currentMonth,
+                          'today': day.isToday
+                        }"
+                        @click="selectDate(day.date)"
                       >
-                        <span class="month-event-text">
-                          {{ formatTime(event.start) }} - {{ event.title }} ({{ event.courtName }})
-                        </span>
+                        <div class="month-day-number">{{ day.day }}</div>
+                        <div class="month-events">
+                          <div
+                            v-for="event in getDayEvents(day.date).slice(0, 3)"
+                            :key="event.id"
+                            class="month-event"
+                            :style="{ backgroundColor: event.color, borderLeftColor: getCourtColor(event.courtId) }"
+                            @click.stop="showEventDetails(event)"
+                          >
+                            <span class="month-event-badge">{{ event.courtId }}</span>
+                            <span class="month-event-text">
+                              {{ formatTime(event.start) }} - {{ event.title }}
+                            </span>
+                          </div>
+                          <div
+                            v-if="getDayEvents(day.date).length > 3"
+                            class="more-events"
+                            @click.stop="selectDate(day.date)"
+                          >
+                            +{{ getDayEvents(day.date).length - 3 }} daha
+                          </div>
+                        </div>
                       </div>
+                    </template>
+                    <div class="month-day-tooltip">
                       <div
-                        v-if="getDayEvents(day.date).length > 3"
-                        class="more-events"
+                        v-for="event in getDayEvents(day.date)"
+                        :key="event.id"
+                        class="month-day-tooltip-item"
                       >
-                        +{{ getDayEvents(day.date).length - 3 }} daha
+                        {{ formatTime(event.start) }} - {{ event.title }} ({{ event.courtName }})
                       </div>
                     </div>
-                  </div>
+                  </v-tooltip>
                 </div>
               </div>
             </div>
@@ -815,6 +853,16 @@ const getCourtName = (courtId: string): string => {
   return court?.name || courtId
 }
 
+// Court-based color palette for consistent visual distinction (K1: green, K2: blue, K3: orange)
+const getCourtColor = (courtId: string): string => {
+  const courtColors: Record<string, string> = {
+    'K1': '#2E7D32',
+    'K2': '#1976D2',
+    'K3': '#E65100'
+  }
+  return courtColors[courtId] || '#757575'
+}
+
 const getMembershipDisplayName = (type: string) => {
   const texts: { [key: string]: string } = {
     'private_1_45': 'Özel Ders 1 Kişi (45dk)',
@@ -1339,6 +1387,11 @@ watch([currentView, selectedDate], async () => {
   font-weight: 600;
 }
 
+.court-badge {
+  color: #2E7D32 !important;
+  font-weight: 700;
+}
+
 .time-slots {
   min-height: 400px;
   max-height: 600px;
@@ -1453,11 +1506,19 @@ watch([currentView, selectedDate], async () => {
   padding: 4px;
   position: relative;
   min-width: 100px;
+  overflow: hidden;
+}
+
+.day-cell-events {
+  max-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .week-event {
   padding: 4px 8px;
   border-radius: 4px;
+  border-left: 3px solid;
   color: white;
   font-size: 11px;
   cursor: pointer;
@@ -1475,15 +1536,36 @@ watch([currentView, selectedDate], async () => {
   white-space: nowrap;
 }
 
+.week-event-court-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.3);
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 .week-event-time {
   font-size: 10px;
   opacity: 0.9;
 }
 
-.week-event-court {
-  font-size: 0.7em;
-  color: rgba(255, 255, 255, 0.9);
+.week-more-events {
+  font-size: 10px;
+  color: #1976D2;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  text-align: center;
   margin-top: 2px;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.week-more-events:hover {
+  background: #e3f2fd;
 }
 
 /* Month View */
@@ -1522,6 +1604,11 @@ watch([currentView, selectedDate], async () => {
   gap: 1px;
 }
 
+.month-day-tooltip-wrapper {
+  min-height: 100%;
+  display: block;
+}
+
 .month-day {
   background: white;
   min-height: 100px;
@@ -1557,24 +1644,59 @@ watch([currentView, selectedDate], async () => {
   padding: 2px 6px;
   margin-bottom: 2px;
   border-radius: 3px;
+  border-left: 3px solid;
   font-size: 11px;
   color: white;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.month-event-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.3);
+  padding: 1px 4px;
+  border-radius: 2px;
 }
 
 .month-event-text {
-  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .more-events {
   font-size: 10px;
-  color: #666;
-  font-weight: 500;
-  margin-top: 2px;
+  color: #1976D2;
+  font-weight: 600;
+  margin-top: 4px;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: opacity 0.2s;
+}
+
+.more-events:hover {
+  text-decoration: underline;
+}
+
+.month-day-tooltip {
+  max-width: 280px;
+  padding: 4px 0;
+}
+
+.month-day-tooltip-item {
+  font-size: 12px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.month-day-tooltip-item:last-child {
+  border-bottom: none;
 }
 
 /* Responsive */

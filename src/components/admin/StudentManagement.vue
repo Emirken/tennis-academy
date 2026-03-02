@@ -1025,6 +1025,8 @@ import {
   exportToExcel,
   exportStudentAttendanceToExcel
 } from '@/services/attendanceArchive'
+import { syncGroupSchedule } from '@/services/groupScheduleSync'
+import { normalizeForComparison, groupToStudentFormat } from '@/utils/scheduleFormats'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 
 interface WeeklyPlan {
@@ -2332,6 +2334,11 @@ const viewStudentDetails = (student: Student) => {
 
 const toggleEditMode = () => {
   if (!isEditMode.value && selectedStudent.value) {
+    // weeklyPlan Firestore'dan Pazartesi/K1 veya monday/court-1 formatında gelebilir
+    // Form dayOptions (monday) ve courtOptions (court-1) kullanıyor - Student formatına çevir
+    const rawPlan = selectedStudent.value.groupSchedule?.weeklyPlan || []
+    const weeklyPlan = rawPlan.length > 0 ? groupToStudentFormat(rawPlan) : []
+
     editForm.value = {
       firstName: selectedStudent.value.firstName,
       lastName: selectedStudent.value.lastName,
@@ -2341,7 +2348,7 @@ const toggleEditMode = () => {
       emergencyContact: selectedStudent.value.emergencyContact,
       membershipType: selectedStudent.value.membershipType,
       groupAssignment: selectedStudent.value.groupAssignment || '',
-      weeklyPlan: selectedStudent.value.groupSchedule?.weeklyPlan || [],
+      weeklyPlan,
       status: selectedStudent.value.status,
       balance: selectedStudent.value.balance,
       notes: selectedStudent.value.notes || ''
@@ -2429,20 +2436,25 @@ const saveStudentChanges = async (): Promise<void> => {
         (groupAssignment !== oldStudent.groupAssignment ||
             JSON.stringify(validWeeklyPlan) !== JSON.stringify(oldStudent.groupSchedule?.weeklyPlan || []))
 
-    // Haftalık program değişti mi kontrol et
-    const weeklyPlanActuallyChanged = hadGroup && 
-        JSON.stringify(validWeeklyPlan) !== JSON.stringify(oldStudent.groupSchedule?.weeklyPlan || [])
+    // Haftalık program değişti mi - normalize ederek karşılaştır (Pazartesi/K1 vs monday/court-1 aynı sayılır)
+    const oldPlan = oldStudent.groupSchedule?.weeklyPlan || []
+    const newPlanNormalized = normalizeForComparison(validWeeklyPlan)
+    const oldPlanNormalized = normalizeForComparison(oldPlan)
+    const weeklyPlanActuallyChanged = hadGroup && newPlanNormalized !== oldPlanNormalized
 
-    // 1. Program değiştiyse SADECE GELECEKTEKİ rezervasyonları sil
-    // Geçmiş rezervasyonlara dokunmuyoruz
-    if ((hadGroup && !hasGroup) || groupChanged || weeklyPlanActuallyChanged) {
+    // Aynı grupta program değiştiyse merkezi sync servisi kullanılacak (Group + tüm üyeler)
+    const stayingInSameGroup = hadGroup && hasGroup && !!groupAssignment && groupAssignment === (oldStudent.groupAssignment || '')
+    const weeklyPlanChanged = newPlanNormalized !== oldPlanNormalized
+    const willRunSync = stayingInSameGroup && weeklyPlanChanged && validWeeklyPlan.length > 0
+
+    // 1. Program değiştiyse SADECE GELECEKTEKİ rezervasyonları sil (sync kullanılmayacaksa)
+    // Sync kullanılacaksa syncGroupSchedule hepsini halleder
+    if (((hadGroup && !hasGroup) || groupChanged || weeklyPlanActuallyChanged) && !willRunSync) {
       console.log('🗑️ Öğrencinin GELECEKTEKİ grup rezervasyonları siliniyor...')
       
-      // Bugünün başlangıcını al (saat 00:00:00)
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       
-      // Öğrencinin SADECE gelecekteki grup rezervasyonlarını sil
       const reservationsRef = collection(db, 'reservations')
       const q = query(
         reservationsRef,
@@ -2457,13 +2469,12 @@ const saveStudentChanges = async (): Promise<void> => {
       
       console.log(`✅ ${snapshot.docs.length} gelecekteki rezervasyon silindi (geçmiş korundu)`)
       
-      // Court schedule'dan da SADECE gelecekteki slotları temizle
       if (oldStudent.groupSchedule?.weeklyPlan) {
         await clearFutureCourtScheduleSlots(oldStudent)
       }
     }
 
-    // 3. Öğrenci bilgilerini güncelle
+    // 2. Öğrenci bilgilerini güncelle
     const userDocRef = doc(db, 'users', studentId)
     await updateDoc(userDocRef, {
       firstName: editForm.value.firstName,
@@ -2481,8 +2492,8 @@ const saveStudentChanges = async (): Promise<void> => {
       updatedAt: serverTimestamp()
     })
 
-    // 4. Yeni grup rezervasyonları oluştur
-    if (groupSchedule && validWeeklyPlan.length > 0) {
+    // 3. Yeni grup rezervasyonları oluştur (sync kullanılmayacaksa - tek öğrenci için)
+    if (groupSchedule && validWeeklyPlan.length > 0 && !willRunSync) {
       await createGroupReservations({
         ...oldStudent,
         groupAssignment,
@@ -2490,64 +2501,17 @@ const saveStudentChanges = async (): Promise<void> => {
       }, validWeeklyPlan, true) // fromToday: true - sadece bugünden itibaren rezervasyon oluştur
     }
 
-    // 4.1. GRUP PROGRAM SENKRONİZASYONU
-    // Eğer aynı grupta kalıyor ve program değiştiyse, diğer grup üyelerini de güncelle
-    const stayingInSameGroup = hadGroup && hasGroup && groupAssignment === oldStudent.groupAssignment
-    const weeklyPlanChanged = JSON.stringify(validWeeklyPlan) !== JSON.stringify(oldStudent.groupSchedule?.weeklyPlan || [])
-
-    if (stayingInSameGroup && weeklyPlanChanged && validWeeklyPlan.length > 0) {
-      console.log('🔄 Grup programı değişti, diğer üyeler güncelleniyor...')
-      
-      // Grup üyelerini bul
-      const currentGroup = groups.value.find(g => g.id === groupAssignment)
-      
-      if (currentGroup && currentGroup.members) {
-        const otherMembers = currentGroup.members.filter((m: any) => m.id !== studentId)
-        
-        for (const member of otherMembers) {
-          try {
-            // Üyenin mevcut bilgilerini al
-            const memberDocRef = doc(db, 'users', member.id)
-            const memberSnap = await getDoc(memberDocRef)
-            
-            if (memberSnap.exists()) {
-              const memberData = memberSnap.data()
-              const memberOldPlan = memberData.groupSchedule?.weeklyPlan || []
-              
-              // Eski rezervasyonları sil
-              if (memberOldPlan.length > 0) {
-                await Promise.all(
-                  memberOldPlan.map((plan: any) =>
-                    deleteReservationsForPlan(member.id, plan, memberData.joinDate?.toDate() || new Date())
-                  )
-                )
-              }
-              
-              // Üyenin groupSchedule'ını güncelle
-              await updateDoc(memberDocRef, {
-                groupSchedule: { weeklyPlan: validWeeklyPlan },
-                updatedAt: serverTimestamp()
-              })
-              
-              // Yeni rezervasyonları oluştur - sadece bugünden itibaren
-              await createGroupReservations({
-                id: member.id,
-                firstName: member.name?.split(' ')[0] || '',
-                lastName: member.name?.split(' ').slice(1).join(' ') || '',
-                groupAssignment,
-                groupSchedule: { weeklyPlan: validWeeklyPlan },
-                joinDate: memberData.joinDate?.toDate() || new Date()
-              } as any, validWeeklyPlan, true) // fromToday: true
-              
-              console.log(`✅ Üye güncellendi: ${member.name}`)
-            }
-          } catch (memberError) {
-            console.error(`❌ Üye güncellenirken hata (${member.name}):`, memberError)
-          }
-        }
-        
-        console.log(`✅ ${otherMembers.length} grup üyesinin programı güncellendi`)
-      }
+    // 4. GRUP PROGRAM SENKRONİZASYONU - merkezi sync servisi
+    // Aynı grupta program değiştiyse: Group.schedule + tüm üyeler + rezervasyonlar + courtSchedule güncellenir
+    if (willRunSync && groupAssignment) {
+      console.log('🔄 Grup programı değişti, sync servisi ile tüm veriler güncelleniyor...')
+      await syncGroupSchedule(groupAssignment, validWeeklyPlan, {
+        fromToday: true,
+        membershipType: editForm.value.membershipType
+      })
+      // Tüm grup üyelerinin profilleri Firestore'da güncellendi - local state'i yenile
+      // ki diğer üyelerin profilleri açıldığında güncel program görünsün
+      await fetchStudents()
     }
 
     // 4.5. Grup members array'ini güncelle
@@ -2616,7 +2580,9 @@ const saveStudentChanges = async (): Promise<void> => {
       }
     }
 
-    successMessage.value = 'Öğrenci bilgileri başarıyla güncellendi!'
+    successMessage.value = willRunSync
+      ? 'Öğrenci ve grup programı güncellendi! Tüm grup üyelerinin profilleri yenilendi.'
+      : 'Öğrenci bilgileri başarıyla güncellendi!'
     successSnackbar.value = true
     isEditMode.value = false
   } catch (error) {

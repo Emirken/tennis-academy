@@ -345,8 +345,7 @@
                       <p class="header-subtitle">Gelecek derslerin ve programların</p>
                     </div>
                   </div>
-                  <!-- Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir -->
-                  <!-- <v-btn
+                  <v-btn
                       variant="outlined"
                       class="text-white"
                       size="small"
@@ -354,7 +353,7 @@
                       prepend-icon="mdi-plus"
                   >
                     Yeni Rezervasyon
-                  </v-btn> -->
+                  </v-btn>
                 </div>
 
                 <v-divider />
@@ -368,10 +367,9 @@
                   <div v-else-if="recentReservations.length === 0" class="empty-state">
                     <v-icon icon="mdi-calendar-blank" size="64" color="grey" />
                     <p class="empty-text">Yaklaşan rezervasyonunuz bulunmuyor</p>
-                    <!-- Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir -->
-                    <!-- <v-btn color="primary" size="small" :to="{ name: 'Reservations' }">
+                    <v-btn color="primary" size="small" :to="{ name: 'Reservations' }">
                       Rezervasyon Oluştur
-                    </v-btn> -->
+                    </v-btn>
                   </div>
 
                   <div v-else class="reservations-list">
@@ -530,31 +528,35 @@ const getMembershipTitle = (type: string): string => {
   return membershipTypeOptions[type as keyof typeof membershipTypeOptions] || type
 }
 
-// Quick Actions Data
-const quickActions = computed(() => [
-  // Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir
-  // {
-  //   title: 'Kort Rezervasyonu',
-  //   description: 'Bir sonraki oyununuz için kort rezerve edin',
-  //   icon: 'mdi-calendar-plus',
-  //   gradient: 'primary-gradient',
-  //   route: { name: 'Reservations' }
-  // },
-  {
-    title: 'Aidat Takibi',
-    description: 'Ödeme geçmişinizi ve aidat durumunuzu görüntüleyin',
-    icon: 'mdi-currency-try',
-    gradient: 'info-gradient',
-    route: { name: 'Dues' }
-  },
-  {
-    title: 'Kort Durumu',
-    description: 'Mevcut kort müsaitlik durumunu kontrol edin',
-    icon: 'mdi-tennis-ball',
-    gradient: 'warning-gradient',
-    route: { name: 'Courts' }
-  }
-])
+// Quick Actions Data - Aidat Takibi basic (Temel Üyelik) üyeler için gizlenir
+const quickActions = computed(() => {
+  const actions = [
+    {
+      title: 'Kort Rezervasyonu',
+      description: 'Bir sonraki oyununuz için kort rezerve edin',
+      icon: 'mdi-calendar-plus',
+      gradient: 'primary-gradient',
+      route: { name: 'Reservations' }
+    },
+    {
+      title: 'Aidat Takibi',
+      description: 'Ödeme geçmişinizi ve aidat durumunuzu görüntüleyin',
+      icon: 'mdi-currency-try',
+      gradient: 'info-gradient',
+      route: { name: 'Dues' }
+    },
+    {
+      title: 'Kort Durumu',
+      description: 'Mevcut kort müsaitlik durumunu kontrol edin',
+      icon: 'mdi-tennis-ball',
+      gradient: 'warning-gradient',
+      route: { name: 'Courts' }
+    }
+  ]
+  return currentMembershipType.value === 'basic'
+    ? actions.filter((a) => a.title !== 'Aidat Takibi')
+    : actions
+})
 
 // Attendance Functions
 const fetchStudentAttendance = async () => {
@@ -650,154 +652,153 @@ const minutesToHours = (minutes: number): number => {
   return Math.round((minutes / 60) * 10) / 10
 }
 
-// Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir
 // Fetch user reservations
-// const fetchUserReservations = () => {
-//   if (!authStore.user?.id) {
-//     console.log('❌ User not found in fetchUserReservations')
-//     loading.value = false
-//     return
-//   }
-//
-//   console.log('🔍 Fetching reservations for student:', authStore.user.id)
-//
-//   const now = new Date()
-//   console.log('📅 Current time:', now.toISOString())
-//
-//   const reservationsQuery = query(
-//       collection(db, 'reservations'),
-//       where('studentId', '==', authStore.user.id)
-//   )
-//
-//   unsubscribe = onSnapshot(reservationsQuery, (snapshot) => {
-//     console.log('📊 Total reservations for user:', snapshot.size)
-//
-//     const reservationRecords = snapshot.docs
-//         .map(doc => {
-//           const data = doc.data()
-//
-//           let reservationDateTime = new Date()
-//
-//           if (data.date) {
-//             if (data.date.toDate) {
-//               reservationDateTime = data.date.toDate()
-//             } else if (typeof data.date === 'string') {
-//               reservationDateTime = new Date(data.date)
-//             } else if (data.date instanceof Date) {
-//               reservationDateTime = data.date
-//             }
-//
-//             if (data.startTime) {
-//               const [hours, minutes] = data.startTime.split(':').map(Number)
-//               reservationDateTime.setHours(hours, minutes, 0, 0)
-//             }
-//           }
-//
-//           const actualDurationMinutes = calculateDurationFromTimes(data.startTime, data.endTime)
-//           const actualDurationHours = minutesToHours(actualDurationMinutes)
-//
-//           return {
-//             id: doc.id,
-//             ...data,
-//             date: reservationDateTime,
-//             fullDateTime: reservationDateTime,
-//             calculatedDuration: actualDurationMinutes,
-//             calculatedHours: actualDurationHours
-//           }
-//         })
-//         .filter((reservation: any) => {
-//           const isFuture = reservation.fullDateTime > now
-//           const isActive = reservation.status === 'confirmed' || reservation.status === 'pending'
-//
-//           console.log('⏰ Reservation check:', {
-//             id: reservation.id,
-//             reservationTime: reservation.fullDateTime.toISOString(),
-//             currentTime: now.toISOString(),
-//             isFuture: isFuture,
-//             status: reservation.status,
-//             isActive: isActive
-//           })
-//
-//           return isFuture && isActive
-//         })
-//         .sort((a, b) => a.fullDateTime.getTime() - b.fullDateTime.getTime())
-//
-//     console.log('🚀 Future reservations count:', reservationRecords.length)
-//
-//     recentReservations.value = reservationRecords.map((reservation: any) => ({
-//       id: reservation.id,
-//       courtName: reservation.courtName || `Kort ${reservation.courtId}`,
-//       date: reservation.date,
-//       startTime: reservation.startTime,
-//       endTime: reservation.endTime,
-//       status: reservation.status,
-//       type: reservation.type || 'court-rental',
-//       duration: reservation.calculatedDuration,
-//       instructorName: reservation.instructorName || null,
-//       totalCost: reservation.totalCost || 0,
-//       actualHours: reservation.calculatedHours
-//     }))
-//
-//     upcomingReservations.value = reservationRecords.length
-//
-//     const thisMonth = new Date().getMonth()
-//     const thisYear = new Date().getFullYear()
-//
-//     const thisMonthReservations = snapshot.docs
-//         .map(doc => {
-//           const data = doc.data()
-//           let reservationDate = new Date()
-//
-//           if (data.date) {
-//             if (data.date.toDate) {
-//               reservationDate = data.date.toDate()
-//             } else if (typeof data.date === 'string') {
-//               reservationDate = new Date(data.date)
-//             } else if (data.date instanceof Date) {
-//               reservationDate = data.date
-//             }
-//           }
-//
-//           return {
-//             ...data,
-//             date: reservationDate
-//           }
-//         })
-//         .filter((reservation:any) => {
-//           const resMonth = reservation.date.getMonth()
-//           const resYear = reservation.date.getFullYear()
-//           const isThisMonth = resMonth === thisMonth && resYear === thisYear
-//           const isValidStatus = reservation.status === 'confirmed' ||
-//               reservation.status === 'completed' ||
-//               reservation.status === 'pending'
-//
-//           return isThisMonth && isValidStatus
-//         })
-//
-//     lessonsThisMonth.value = thisMonthReservations.length
-//
-//     totalHours.value = reservationRecords.reduce((total, reservation: any) => {
-//       return total + (reservation.calculatedHours || 0)
-//     }, 0)
-//
-//     totalHours.value = Math.round(totalHours.value * 10) / 10
-//
-//     console.log('📈 Final stats:', {
-//       upcomingReservations: upcomingReservations.value,
-//       lessonsThisMonth: lessonsThisMonth.value,
-//       totalHours: totalHours.value
-//     })
-//
-//     loading.value = false
-//   }, (error) => {
-//     console.error('❌ Error fetching reservations:', error)
-//     loading.value = false
-//     recentReservations.value = []
-//     upcomingReservations.value = 0
-//     lessonsThisMonth.value = 0
-//     totalHours.value = 0
-//   })
-// }
+const fetchUserReservations = () => {
+  if (!authStore.user?.id) {
+    console.log('❌ User not found in fetchUserReservations')
+    loading.value = false
+    return
+  }
+
+  console.log('🔍 Fetching reservations for student:', authStore.user.id)
+
+  const now = new Date()
+  console.log('📅 Current time:', now.toISOString())
+
+  const reservationsQuery = query(
+      collection(db, 'reservations'),
+      where('studentId', '==', authStore.user.id)
+  )
+
+  unsubscribe = onSnapshot(reservationsQuery, (snapshot) => {
+    console.log('📊 Total reservations for user:', snapshot.size)
+
+    const reservationRecords = snapshot.docs
+        .map(doc => {
+          const data = doc.data()
+
+          let reservationDateTime = new Date()
+
+          if (data.date) {
+            if (data.date.toDate) {
+              reservationDateTime = data.date.toDate()
+            } else if (typeof data.date === 'string') {
+              reservationDateTime = new Date(data.date)
+            } else if (data.date instanceof Date) {
+              reservationDateTime = data.date
+            }
+
+            if (data.startTime) {
+              const [hours, minutes] = data.startTime.split(':').map(Number)
+              reservationDateTime.setHours(hours, minutes, 0, 0)
+            }
+          }
+
+          const actualDurationMinutes = calculateDurationFromTimes(data.startTime, data.endTime)
+          const actualDurationHours = minutesToHours(actualDurationMinutes)
+
+          return {
+            id: doc.id,
+            ...data,
+            date: reservationDateTime,
+            fullDateTime: reservationDateTime,
+            calculatedDuration: actualDurationMinutes,
+            calculatedHours: actualDurationHours
+          }
+        })
+        .filter((reservation: any) => {
+          const isFuture = reservation.fullDateTime > now
+          const isActive = reservation.status === 'confirmed' || reservation.status === 'pending'
+
+          console.log('⏰ Reservation check:', {
+            id: reservation.id,
+            reservationTime: reservation.fullDateTime.toISOString(),
+            currentTime: now.toISOString(),
+            isFuture: isFuture,
+            status: reservation.status,
+            isActive: isActive
+          })
+
+          return isFuture && isActive
+        })
+        .sort((a, b) => a.fullDateTime.getTime() - b.fullDateTime.getTime())
+
+    console.log('🚀 Future reservations count:', reservationRecords.length)
+
+    recentReservations.value = reservationRecords.map((reservation: any) => ({
+      id: reservation.id,
+      courtName: reservation.courtName || `Kort ${reservation.courtId}`,
+      date: reservation.date,
+      startTime: reservation.startTime,
+      endTime: reservation.endTime,
+      status: reservation.status,
+      type: reservation.type || 'court-rental',
+      duration: reservation.calculatedDuration,
+      instructorName: reservation.instructorName || null,
+      totalCost: reservation.totalCost || 0,
+      actualHours: reservation.calculatedHours
+    }))
+
+    upcomingReservations.value = reservationRecords.length
+
+    const thisMonth = new Date().getMonth()
+    const thisYear = new Date().getFullYear()
+
+    const thisMonthReservations = snapshot.docs
+        .map(doc => {
+          const data = doc.data()
+          let reservationDate = new Date()
+
+          if (data.date) {
+            if (data.date.toDate) {
+              reservationDate = data.date.toDate()
+            } else if (typeof data.date === 'string') {
+              reservationDate = new Date(data.date)
+            } else if (data.date instanceof Date) {
+              reservationDate = data.date
+            }
+          }
+
+          return {
+            ...data,
+            date: reservationDate
+          }
+        })
+        .filter((reservation:any) => {
+          const resMonth = reservation.date.getMonth()
+          const resYear = reservation.date.getFullYear()
+          const isThisMonth = resMonth === thisMonth && resYear === thisYear
+          const isValidStatus = reservation.status === 'confirmed' ||
+              reservation.status === 'completed' ||
+              reservation.status === 'pending'
+
+          return isThisMonth && isValidStatus
+        })
+
+    lessonsThisMonth.value = thisMonthReservations.length
+
+    totalHours.value = reservationRecords.reduce((total, reservation: any) => {
+      return total + (reservation.calculatedHours || 0)
+    }, 0)
+
+    totalHours.value = Math.round(totalHours.value * 10) / 10
+
+    console.log('📈 Final stats:', {
+      upcomingReservations: upcomingReservations.value,
+      lessonsThisMonth: lessonsThisMonth.value,
+      totalHours: totalHours.value
+    })
+
+    loading.value = false
+  }, (error) => {
+    console.error('❌ Error fetching reservations:', error)
+    loading.value = false
+    recentReservations.value = []
+    upcomingReservations.value = 0
+    lessonsThisMonth.value = 0
+    totalHours.value = 0
+  })
+}
 
 // Lifecycle hooks
 onMounted(async () => {
@@ -818,9 +819,7 @@ onMounted(async () => {
     // Check if user exists after auth is ready
     if (authStore.user?.id) {
       console.log('✅ User authenticated:', authStore.user.email)
-      // Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir
-      // fetchUserReservations()
-      loading.value = false
+      fetchUserReservations()
       // Fetch attendance data
       await fetchStudentAttendance()
     } else {
@@ -837,10 +836,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   console.log('🧹 Cleaning up StudentDashboard')
-  // Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı - İleride tekrar aktif edilebilir
-  // if (unsubscribe) {
-  //   unsubscribe()
-  // }
+  if (unsubscribe) {
+    unsubscribe()
+  }
 })
 
 // Watch for attendance filter changes

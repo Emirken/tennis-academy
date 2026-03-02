@@ -23,12 +23,14 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/courts',
     name: 'Courts',
-    component: () => import('@/views/Courts.vue')
+    component: () => import('@/views/Courts.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/pricing',
     name: 'Pricing',
-    component: () => import('@/views/Pricing.vue')
+    component: () => import('@/views/Pricing.vue'),
+    meta: { requiresAuth: true, role: 'admin' }
   },
   {
     path: '/contact',
@@ -50,13 +52,11 @@ const routes: Array<RouteRecordRaw> = [
         name: 'StudentDashboard',
         component: () => import('@/views/StudentDashboard.vue')
       },
-      // Rezervasyon modülü geçici olarak öğrencilerden kaldırıldı
-      // İleride tekrar aktif edilebilir
-      // {
-      //   path: 'reservations',
-      //   name: 'Reservations',
-      //   component: () => import('@/views/Reservations.vue')
-      // },
+      {
+        path: 'reservations',
+        name: 'Reservations',
+        component: () => import('@/views/Reservations.vue')
+      },
       {
         path: 'dues',
         name: 'Dues',
@@ -161,6 +161,15 @@ router.beforeEach(async (to, from, next) => {
       next()
     }
     return
+  }
+
+  // Aidat Takibi - basic (Temel Üyelik) üyeler erişemez
+  if (to.name === 'Dues' && authStore.user?.role === 'student') {
+    const membershipType = (authStore.user as { membershipType?: string })?.membershipType ?? 'basic'
+    if (membershipType === 'basic') {
+      next('/student/dashboard')
+      return
+    }
   }
 
   console.log('✅ Navigation izin verildi')

@@ -458,6 +458,8 @@ import {
   exportToExcel,
   exportGroupAttendanceToExcel
 } from '@/services/attendanceArchive'
+import { syncGroupSchedule, createFutureGroupReservations } from '@/services/groupScheduleSync'
+import { groupToStudentFormat, courtToKFormat } from '@/utils/scheduleFormats'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 
 // Types
@@ -710,59 +712,23 @@ const saveGroup = async () => {
     }
     
     //---------------------------------------------------------
-    // REZERVASYON SENKRONİZASYONU (Sadece Gelecek)
+    // REZERVASYON SENKRONİZASYONU - Merkezi sync servisi
     //---------------------------------------------------------
     
-    // 1. Bu grubun GELECEKTEKİ tüm rezervasyonlarını temizle
-    if (isUpdate && groupId) {
-      console.log('🔄 Eski gelecek rezervasyonları temizleniyor...')
-      await deleteFutureGroupReservations(groupId)
-    }
-    
-    // 2. Grubun üyeleri için yeni gelecek rezervasyonları oluştur
-    // Not: groupFormData.members eski olabilir, güncel gruplar listesinden veya editingGroup üzerinden alalım
-    // Eğer yeni grupsa members boştur zaten.
     let currentMembers = groupFormData.value.members
-    
     if (isUpdate && groupId) {
-        // En güncel üye listesini bulmaya çalışalım
-        const currentGroup = groups.value.find(g => g.id === groupId)
-        if (currentGroup) {
-            currentMembers = currentGroup.members
-        }
+      const currentGroup = groups.value.find(g => g.id === groupId)
+      if (currentGroup) {
+        currentMembers = currentGroup.members
+      }
     }
 
-    if (groupId && groupFormData.value.schedule.length > 0 && currentMembers && currentMembers.length > 0) {
-      console.log(`➕ ${currentMembers.length} üye için rezervasyonlar oluşturuluyor...`)
-      await createFutureGroupReservations(groupId, groupFormData.value, currentMembers)
-    }
-
-    // 3. Öğrencilerin 'weeklyPlan' alanını güncelle (StudentManagement uyumluluğu için)
-    if (groupId && currentMembers && currentMembers.length > 0) {
-      const weeklyPlan = groupFormData.value.schedule.map(slot => ({
-        day: convertTurkisDayToEnglish(slot.day), // StudentManagement 'monday' bekler
-        time: slot.time,
-        court: slot.court // 'K1' bekler mi? StudentManagement 'court-1' kullanıyor ama biz K1 kaydediyoruz.
-        // StudentManagement K1'i court-1'e çeviriyor genelde.
-        // Court schedule K1.
-        // StudentManagement groupSchedule kaydederken court: slot.court (K1) olarak kaydediyor mu?
-        // Bir dakika, StudentManagement'ta: 
-        // groupSchedule: { weeklyPlan: [{ day: 'monday', time: '10:00', court: 'court-1' }] }
-        // Bizim schedule: { day: 'Pazartesi', time: '10:00', court: 'K1' }
-        // Çeviri yapmamız lazım!
-      }))
-
-      const updatePromises = currentMembers.map(member => {
-        const studentRef = doc(db, 'users', member.id)
-        return updateDoc(studentRef, {
-          groupSchedule: {
-            weeklyPlan: weeklyPlan
-          }
-        })
+    if (isUpdate && groupId && groupFormData.value.schedule.length > 0 && currentMembers && currentMembers.length > 0) {
+      console.log('🔄 Grup programı sync servisi ile güncelleniyor...')
+      await syncGroupSchedule(groupId, groupFormData.value.schedule, {
+        fromToday: false,
+        membershipType: groupFormData.value.membershipType
       })
-
-      await Promise.all(updatePromises)
-      console.log(`✅ ${currentMembers.length} öğrencinin profili güncellendi`)
     }
 
     closeGroupDialog()
@@ -770,74 +736,6 @@ const saveGroup = async () => {
   } catch (error) {
     console.error('Grup kaydedilirken hata:', error)
     showSnackbar('Grup kaydedilirken hata oluştu', 'error')
-  }
-}
-
-// Gelecekteki grup rezervasyonlarını sil
-const deleteFutureGroupReservations = async (groupId: string) => {
-  try {
-    // Bugünün başlangıcı
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const reservationsRef = collection(db, 'reservations')
-    
-    // Bu gruba ait VE tarihi bugünden büyük/eşit olanlar
-    const q = query(
-        reservationsRef, 
-        where('groupId', '==', groupId),
-        where('date', '>=', today)
-    )
-    
-    const snapshot = await getDocs(q)
-    
-    // Her rezervasyonu sil ve courtSchedule'ı temizle
-    const deletePromises = snapshot.docs.map(async (resDoc) => {
-        const data = resDoc.data()
-        
-        // 1. Doc sil
-        await deleteDoc(resDoc.ref)
-        
-        // 2. Court Schedule güncelle
-        if (data.date) {
-            try {
-                const dateObj = data.date.toDate() // Firestore Timestamp -> Date
-                const dateString = dateObj.toISOString().split('T')[0]
-                const courtId = data.courtId // 'K1' vb.
-                
-                const scheduleRef = doc(db, 'courtSchedule', dateString)
-                const docSnap = await getDoc(scheduleRef)
-                
-                if (docSnap.exists()) {
-                    const schedule = docSnap.data().schedule || {}
-                    // İlgili saatteki slotu kontrol et
-                    // Eğer slot 'occupied' ise veya bu gruba aitse temizle
-                    // Basitçe o saati 'available' yapabiliriz, çünkü rezervasyonu sildik.
-                    // Ancak başkasının rezervasyonunu silmeyelim (teorik çakışma).
-                    // groupId kontrolü yapabiliriz ama slot yapısı detaylı.
-                    
-                    if (schedule[courtId] && schedule[courtId][data.startTime]) {
-                        // Slotu temizle
-                        schedule[courtId][data.startTime] = 'available'
-                        
-                        await updateDoc(scheduleRef, {
-                            schedule: schedule,
-                            lastUpdated: serverTimestamp(),
-                            updatedBy: 'group-update-auto'
-                        })
-                    }
-                }
-            } catch (err) {
-                console.error('Court schedule temizlenirken hata:', err)
-            }
-        }
-    })
-    
-    await Promise.all(deletePromises)
-    console.log(`✅ ${snapshot.docs.length} gelecek rezervasyon silindi`)
-    
-  } catch (error) {
-    console.error('Rezervasyonlar silinirken hata:', error)
   }
 }
 
@@ -869,7 +767,7 @@ const deleteFutureMemberReservations = async (groupId: string, memberId: string)
             try {
                 const dateObj = data.date.toDate()
                 const dateString = dateObj.toISOString().split('T')[0]
-                const courtId = data.courtId
+                const courtId = courtToKFormat(data.courtId) // courtSchedule uses K1/K2/K3
                 
                 const scheduleRef = doc(db, 'courtSchedule', dateString)
                 const docSnap = await getDoc(scheduleRef)
@@ -903,163 +801,6 @@ const deleteFutureMemberReservations = async (groupId: string, memberId: string)
   } catch (error) {
     console.error('Üye rezervasyonları silinirken hata:', error)
   }
-}
-
-const createFutureGroupReservations = async (
-    groupId: string, 
-    groupData: Group, 
-    members: GroupMember[]
-) => {
-  try {
-    const today = new Date()
-    today.setHours(0,0,0,0) // Bugünden başla
-    
-    const oneYearLater = new Date()
-    oneYearLater.setMonth(today.getMonth() + 12)
-
-    const lessonDuration = getLessonDuration(groupData.membershipType)
-    let createdCount = 0
-
-    // Schedule üzerinde dön
-    for (const slot of groupData.schedule) {
-      if (!slot.day || !slot.time || !slot.court) continue
-
-      // Tarihleri hesapla
-      const dates = getDatesByDayOfWeek(slot.day, today, oneYearLater)
-
-      // Her tarih için
-      for (const date of dates) {
-          const dateString = date.toISOString().split('T')[0]
-          const [startHour, startMinute] = slot.time.split(':').map(Number)
-          
-          const startDateTime = new Date(date)
-          startDateTime.setHours(startHour, startMinute, 0, 0)
-
-          const endDateTime = new Date(startDateTime)
-          endDateTime.setMinutes(endDateTime.getMinutes() + lessonDuration)
-          
-          const endTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`
-
-          // HER ÜYE İÇİN REZERVASYON OLUŞTUR
-          for (const member of members) {
-              const reservation = {
-                  date: startDateTime,
-                  courtId: slot.court,
-                  startTime: slot.time,
-                  endTime: endTime,
-                  groupId: groupId,
-                  studentId: member.id, // ÖNEMLİ: Üye bazlı
-                  studentName: member.name,
-                  groupAssignment: groupId, // StudentManagement uyumu
-                  membershipType: groupData.membershipType,
-                  reservationType: 'group-lesson',
-                  status: 'confirmed',
-                  type: 'lesson',
-                  groupSchedule: true, // StudentManagement bu flag'i kullanıyor
-                  createdAt: serverTimestamp(),
-                  createdBy: 'admin-group-manager'
-              }
-              
-              await addDoc(collection(db, 'reservations'), reservation)
-              createdCount++
-              
-              // COURT SCHEDULE GÜNCELLE
-              // Detaylı bilgi yaz (StudentManagement formatı)
-              // Birden fazla üye varsa, sonuncusu yazar. 'Occupied' olması yeterli.
-              // Detaylarda bir öğrenciyi görmek kabul edilebilir, veya "Group X" yazılabilir.
-              // StudentManagement kendi öğrenci bilgisini yazıyor. Biz de öyle yapalım.
-              
-              const scheduleRef = doc(db, 'courtSchedule', dateString)
-              const scheduleSnap = await getDoc(scheduleRef)
-              
-              let schedule = scheduleSnap.exists() ? scheduleSnap.data().schedule || {} : {}
-              if (!schedule[slot.court]) schedule[slot.court] = {}
-              
-              schedule[slot.court][slot.time] = {
-                  status: 'occupied',
-                  studentId: member.id,
-                  studentFirstName: member.name.split(' ')[0], // Basit parse
-                  studentLastName: member.name.split(' ').slice(1).join(' '),
-                  studentFullName: member.name,
-                  groupAssignment: groupId,
-                  membershipType: groupData.membershipType,
-                  reservationType: 'group-lesson',
-                  updatedAt: new Date(), // serverTimestamp array içinde çalışmayabilir bazen object olarak
-                  updatedBy: 'group-manager'
-              }
-              
-              await setDoc(scheduleRef, {
-                  schedule: schedule,
-                  lastUpdated: serverTimestamp()
-              }, { merge: true })
-          }
-      }
-    }
-
-    console.log(`✅ Toplam ${createdCount} üye rezervasyonu oluşturuldu`)
-    showSnackbar(`${createdCount} rezervasyon oluşturuldu`, 'success')
-  } catch (error) {
-    console.error('Rezervasyonlar oluşturulurken hata:', error)
-    showSnackbar('Rezervasyonlar oluşturulurken hata oluştu', 'error')
-  }
-}
-
-// Helper: Türkçe gün ismini İngilizceye çevir (StudentManagement uyumu için)
-const convertTurkisDayToEnglish = (turkishDay: string): string => {
-    const map: { [key: string]: string } = {
-        'Pazartesi': 'monday',
-        'Salı': 'tuesday',
-        'Çarşamba': 'wednesday',
-        'Perşembe': 'thursday',
-        'Cuma': 'friday',
-        'Cumartesi': 'saturday',
-        'Pazar': 'sunday'
-    }
-    return map[turkishDay] || 'monday'
-}
-
-
-const getDatesByDayOfWeek = (dayName: string, startDate: Date, endDate: Date): Date[] => {
-  const dayMap: { [key: string]: number } = {
-    'Pazar': 0,
-    'Pazartesi': 1,
-    'Salı': 2,
-    'Çarşamba': 3,
-    'Perşembe': 4,
-    'Cuma': 5,
-    'Cumartesi': 6
-  }
-
-  const targetDay = dayMap[dayName]
-  const dates: Date[] = []
-  const current = new Date(startDate)
-
-  // Find the first occurrence of the target day
-  while (current.getDay() !== targetDay) {
-    current.setDate(current.getDate() + 1)
-  }
-
-  // Collect all occurrences
-  while (current <= endDate) {
-    dates.push(new Date(current))
-    current.setDate(current.getDate() + 7)
-  }
-
-  return dates
-}
-
-const getLessonDuration = (membershipType: string): number => {
-  // Return duration in minutes based on membership type
-  const durations: { [key: string]: number } = {
-    'private_1_45': 45,
-    'private_2_60': 60,
-    'private_group_3_8': 60,
-    'private_group_4_8': 60,
-    'adult_group': 60,
-    'tennis_school_age': 60,
-    'tennis_school_performance': 90
-  }
-  return durations[membershipType] || 60
 }
 
 const deleteGroup = async (group: Group) => {
@@ -1153,12 +894,8 @@ const addMemberToGroup = async () => {
         members: selectedGroup.value.members
       })
 
-      // Grup schedule bilgilerini weeklyPlan'a dönüştür
-      const weeklyPlan = selectedGroup.value.schedule.map(slot => ({
-        day: slot.day,
-        time: slot.time,
-        court: slot.court
-      }))
+      // Grup schedule bilgilerini StudentManagement formatına dönüştür (monday, court-1)
+      const weeklyPlan = groupToStudentFormat(selectedGroup.value.schedule)
 
 
       // Öğrencinin grup atamasını, membershipType ve schedule'ını güncelle
@@ -1179,7 +916,13 @@ const addMemberToGroup = async () => {
     // -----------------------------------------------------------------------
     if (selectedGroup.value.id && selectedGroup.value.schedule.length > 0) {
        console.log(`➕ Yeni üye (${newMember.name}) için rezervasyonlar oluşturuluyor...`)
-       await createFutureGroupReservations(selectedGroup.value.id, selectedGroup.value, [newMember])
+       await createFutureGroupReservations(
+         selectedGroup.value.id,
+         selectedGroup.value.schedule,
+         [newMember],
+         selectedGroup.value.membershipType,
+         true
+       )
     }
     
     showSnackbar('Üye gruba eklendi, haftalık program atandı ve rezervasyonlar oluşturuldu', 'success')
