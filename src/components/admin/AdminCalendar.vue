@@ -175,27 +175,42 @@
                     class="day-cell"
                   >
                     <div class="day-cell-events">
-                      <div
-                        v-for="event in getHourEvents(day.date, hour).slice(0, 4)"
+                      <v-tooltip
+                        v-for="event in getHourEvents(day.date, hour).slice(0, 3)"
                         :key="event.id"
-                        class="week-event"
-                        :style="{ backgroundColor: event.color, borderLeftColor: getCourtColor(event.courtId) }"
-                        @click="showEventDetails(event)"
+                        location="top"
+                        :open-delay="300"
                       >
-                        <div class="week-event-content">
-                          <span class="week-event-court-badge">{{ event.courtId }}</span>
-                          <strong>{{ event.title }}</strong>
-                          <div class="week-event-time">
-                            {{ formatTime(event.start) }}
+                        <template v-slot:activator="{ props: tooltipProps }">
+                          <div
+                            class="week-event"
+                            :class="{ 'week-event-single': getHourEvents(day.date, hour).length === 1 }"
+                            v-bind="tooltipProps"
+                            :style="{ backgroundColor: event.color, borderLeftColor: getCourtColor(event.courtId) }"
+                            @click="showEventDetails(event)"
+                          >
+                            <div class="week-event-court-badge">{{ event.courtId }}</div>
+                            <div class="week-event-title">{{ event.title }}</div>
+                            <div class="week-event-time">{{ formatTime(event.start) }}</div>
                           </div>
+                        </template>
+                        <div class="week-event-tooltip">
+                          <div class="week-event-tooltip-court">
+                            <span class="week-event-tooltip-dot" :style="{ backgroundColor: getCourtColor(event.courtId) }"></span>
+                            {{ event.courtName || event.courtId }}
+                          </div>
+                          <div class="week-event-tooltip-title">{{ event.title }}</div>
+                          <div class="week-event-tooltip-time">{{ formatTime(event.start) }} - {{ formatTime(event.end) }}</div>
+                          <div v-if="event.groupName" class="week-event-tooltip-group">Grup: {{ event.groupName }}</div>
+                          <div v-if="event.studentName" class="week-event-tooltip-student">{{ event.studentName }}</div>
                         </div>
-                      </div>
+                      </v-tooltip>
                       <div
-                        v-if="getHourEvents(day.date, hour).length > 4"
+                        v-if="getHourEvents(day.date, hour).length > 3"
                         class="week-more-events"
                         @click.stop="selectDate(day.date)"
                       >
-                        +{{ getHourEvents(day.date, hour).length - 4 }} daha
+                        +{{ getHourEvents(day.date, hour).length - 3 }}
                       </div>
                     </div>
                   </div>
@@ -942,6 +957,8 @@ const fetchReservations = async () => {
     }
 
     const events: CalendarEvent[] = []
+    // Track group events to avoid duplicates (key: groupId-date-startTime-courtId)
+    const groupEventKeys = new Set<string>()
 
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data()
@@ -969,6 +986,18 @@ const fetchReservations = async () => {
       if (groupId && !existingGroupIds.has(groupId)) {
         console.log(`⏭️ Skipping reservation ${docSnap.id} - group ${groupId} no longer exists`)
         continue
+      }
+
+      // For group lessons, deduplicate by groupId + date + time + court
+      if (isGroupLesson && groupId) {
+        const dateKey = startDateTime.toDateString()
+        const groupEventKey = `${groupId}-${dateKey}-${data.startTime}-${data.courtId}`
+        
+        if (groupEventKeys.has(groupEventKey)) {
+          // Skip duplicate group event
+          continue
+        }
+        groupEventKeys.add(groupEventKey)
       }
 
       const courtName = getCourtName(data.courtId)
@@ -1488,7 +1517,7 @@ watch([currentView, selectedDate], async () => {
 
 .week-body {
   display: grid;
-  grid-template-rows: repeat(14, 60px);
+  grid-template-rows: repeat(14, minmax(60px, auto));
   gap: 1px;
   background: #e0e0e0;
   border: 1px solid #e0e0e0;
@@ -1503,69 +1532,138 @@ watch([currentView, selectedDate], async () => {
 
 .day-cell {
   background: white;
-  padding: 4px;
+  padding: 3px;
   position: relative;
   min-width: 100px;
   overflow: hidden;
 }
 
 .day-cell-events {
-  max-height: 120px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  height: 100%;
+  align-items: stretch;
 }
 
 .week-event {
-  padding: 4px 8px;
-  border-radius: 4px;
-  border-left: 3px solid;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 5px;
+  border-radius: 5px;
+  border-left: 4px solid;
   color: white;
   font-size: 11px;
   cursor: pointer;
-  margin-bottom: 2px;
-  transition: opacity 0.2s;
+  transition: all 0.2s ease;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .week-event:hover {
-  opacity: 0.85;
+  opacity: 0.88;
+  transform: scale(1.02);
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.week-event-content {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.week-event-single {
+  max-width: 100%;
 }
 
 .week-event-court-badge {
-  display: inline-block;
   font-size: 9px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.3);
-  padding: 1px 4px;
-  border-radius: 2px;
-  margin-right: 4px;
-  vertical-align: middle;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  display: inline-block;
+  align-self: flex-start;
+  letter-spacing: 0.3px;
+}
+
+.week-event-title {
+  font-weight: 600;
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 
 .week-event-time {
-  font-size: 10px;
-  opacity: 0.9;
+  font-size: 9px;
+  opacity: 0.85;
+  margin-top: 1px;
 }
 
 .week-more-events {
+  flex-shrink: 0;
+  min-width: 24px;
   font-size: 10px;
   color: #1976D2;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   padding: 2px 4px;
   text-align: center;
-  margin-top: 2px;
-  border-radius: 3px;
+  border-radius: 4px;
   transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border: 1px dashed #ccc;
 }
 
 .week-more-events:hover {
   background: #e3f2fd;
+  border-color: #1976D2;
+}
+
+/* Tooltip styles */
+.week-event-tooltip {
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.week-event-tooltip-court {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.week-event-tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.week-event-tooltip-title {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.week-event-tooltip-time {
+  opacity: 0.9;
+  font-size: 12px;
+}
+
+.week-event-tooltip-group,
+.week-event-tooltip-student {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 2px;
 }
 
 /* Month View */
