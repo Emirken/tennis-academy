@@ -715,15 +715,37 @@ const hasAnyChanges = (): boolean => {
 }
 
 /**
+ * Dokuman ID'sini oluşturur (grup/kişi bazlı)
+ */
+const getAttendanceDocId = (): string => {
+  const baseId = `attendance-${selectedYear.value}-${selectedMonth.value}`
+  
+  if (selectedGroupFilter.value) {
+    return `${baseId}-group-${selectedGroupFilter.value}`
+  } else if (selectedPersonFilter.value) {
+    return `${baseId}-person-${selectedPersonFilter.value}`
+  }
+  
+  return baseId
+}
+
+/**
  * Tüm yoklama verilerini kaydeder
  */
 const saveAllAttendance = async () => {
   if (!authStore.isAdmin) return
   
+  // Grup veya kişi seçili değilse kaydetme
+  if (!selectedGroupFilter.value && !selectedPersonFilter.value) {
+    errorMessage.value = 'Lütfen önce bir grup veya kişi seçin'
+    showErrorMessage.value = true
+    return
+  }
+  
   savingAll.value = true
   
   try {
-    const docId = `attendance-${selectedYear.value}-${selectedMonth.value}`
+    const docId = getAttendanceDocId()
     
     // Mevcut görünüm bilgisini belirle
     let viewType: 'group' | 'person' | null = null
@@ -767,7 +789,7 @@ const saveAllAttendance = async () => {
     successMessage.value = 'Tüm yoklamalar başarıyla kaydedildi!'
     showSuccessMessage.value = true
     
-    console.log('✅ Tüm yoklamalar kaydedildi')
+    console.log('✅ Tüm yoklamalar kaydedildi, DocID:', docId)
   } catch (error) {
     console.error('❌ Yoklama kaydetme hatası:', error)
     errorMessage.value = 'Yoklamalar kaydedilirken hata oluştu'
@@ -786,9 +808,12 @@ const getAttendanceValue = (studentId: string, lessonIndex: number): boolean => 
 
 const autoSaveAttendance = async () => {
   if (!authStore.isAdmin) return
+  
+  // Grup veya kişi seçili değilse kaydetme
+  if (!selectedGroupFilter.value && !selectedPersonFilter.value) return
 
   try {
-    const docId = `attendance-${selectedYear.value}-${selectedMonth.value}`
+    const docId = getAttendanceDocId()
     const attendanceRecord = {
       year: selectedYear.value,
       month: selectedMonth.value,
@@ -809,36 +834,29 @@ const autoSaveAttendance = async () => {
 }
 
 const loadAttendanceData = async () => {
+  // Eğer ne grup ne de kişi seçiliyse, sadece mevcut verileri temizle
+  if (!selectedGroupFilter.value && !selectedPersonFilter.value) {
+    Object.keys(attendanceData).forEach(key => delete attendanceData[key])
+    Object.keys(lastSavedData).forEach(key => delete lastSavedData[key])
+    studentsData['baslangic-a'] = []
+    initializeLessons()
+    console.log('📂 Filtre seçili değil, veriler temizlendi')
+    return
+  }
+  
   try {
-    const docId = `attendance-${selectedYear.value}-${selectedMonth.value}`
+    const docId = getAttendanceDocId()
+    console.log('📂 Yoklama verisi yükleniyor, DocID:', docId)
     const attendanceDoc = await getDoc(doc(db, 'attendance', docId))
 
-    // Clear existing data first
-    Object.keys(attendanceData).forEach(key => {
-      delete attendanceData[key]
-    })
+    // Mevcut yoklama verilerini temizle
+    Object.keys(attendanceData).forEach(key => delete attendanceData[key])
+    Object.keys(lastSavedData).forEach(key => delete lastSavedData[key])
 
     if (attendanceDoc.exists()) {
       const data = attendanceDoc.data()
 
-      // YENİ: Kaydedilmiş görünümü otomatik yükle
-      if (data.viewType && data.viewId && !selectedGroupFilter.value && !selectedPersonFilter.value) {
-        if (data.viewType === 'group') {
-          selectedGroupFilter.value = data.viewId
-          console.log('✅ Kaydedilmiş grup görünümü yüklendi:', data.viewId)
-        } else if (data.viewType === 'person') {
-          selectedPersonFilter.value = data.viewId
-          console.log('✅ Kaydedilmiş kişi görünümü yüklendi:', data.viewId)
-        }
-      }
-
-      // Load students from Firebase data (sadece grup filtresi yoksa)
-      // Eğer grup filtresi seçiliyse, öğrenciler grup üyelerinden gelecek
-      if (!selectedGroupFilter.value && data.students && data.students.length > 0) {
-        studentsData['baslangic-a'] = data.students
-        console.log('✅ Öğrenciler Firebase den yüklendi:', data.students.length)
-      }
-
+      // Attendance data'ı yükle
       if (data.attendanceData) {
         Object.assign(attendanceData, data.attendanceData)
         // Kaydedilen veriyi kopyala (değişiklik kontrolü için)
@@ -846,25 +864,18 @@ const loadAttendanceData = async () => {
           lastSavedData[studentId] = [...data.attendanceData[studentId]]
         })
       }
+      
+      // Ders tarihlerini yükle (eğer kaydedilmiş varsa ve grup filtresi seçili değilse)
       if (data.lessons && data.lessons.length > 0 && !selectedGroupFilter.value) {
-        // Grup filtresi yoksa Firebase'deki ders tarihlerini kullan
         monthLessons.value = data.lessons.map((lesson: any, index: number) => ({
           date: lesson.date?.toDate() || new Date(),
           dateString: lesson.date?.toDate().toISOString().split('T')[0] || '',
           lessonNumber: index + 1
         }))
-      } else if (!selectedGroupFilter.value) {
-        initializeLessons()
       }
       console.log('✅ Yoklama verileri yüklendi')
     } else {
-      console.log('📝 Bu dönem için yoklama verisi bulunamadı')
-      // Eğer grup filtresi seçiliyse, öğrenci listesini temizleme
-      // Grup öğrencileri zaten yüklü olacak
-      if (!selectedGroupFilter.value) {
-        studentsData['baslangic-a'] = []
-        initializeLessons()
-      }
+      console.log('📝 Bu dönem/görünüm için yoklama verisi bulunamadı')
     }
 
     // Eğer grup filtresi seçiliyse, öğrencileri ve rezervasyon tarihlerini yeniden yükle
@@ -873,7 +884,7 @@ const loadAttendanceData = async () => {
       await loadGroupReservationDates(selectedGroupFilter.value)
     }
 
-    // Always initialize after loading
+    // Her zaman attendance data'ı başlat
     initializeAttendanceData()
   } catch (error) {
     console.error('❌ Yoklama verilerini yükleme hatası:', error)
@@ -1064,6 +1075,9 @@ const onPersonSelected = async (personId: string | null) => {
     // Seçim temizlendiyse ve grup filtresi de yoksa listeyi temizle
     if (!selectedGroupFilter.value) {
       studentsData['baslangic-a'] = []
+      // Yoklama verilerini de temizle
+      Object.keys(attendanceData).forEach(key => delete attendanceData[key])
+      Object.keys(lastSavedData).forEach(key => delete lastSavedData[key])
     }
     return
   }
@@ -1082,13 +1096,11 @@ const onPersonSelected = async (personId: string | null) => {
     membershipType: selectedPerson.membershipType
   }]
   
-  // Attendance data'yı başlat
-  if (!attendanceData[selectedPerson.id]) {
-    attendanceData[selectedPerson.id] = new Array(8).fill(false)
-  }
-  
   // Varsayılan tarihleri yükle
   initializeLessons()
+  
+  // Kişi için kaydedilmiş yoklama verilerini yükle
+  await loadGroupAttendanceData()
   
   console.log(`✅ ${selectedPerson.name} yoklama listesinde gösteriliyor`)
 }
@@ -1204,12 +1216,54 @@ watch(selectedGroupFilter, async (newGroupId) => {
     selectedPersonFilter.value = null
     await loadGroupStudents(newGroupId)
     await loadGroupReservationDates(newGroupId)
+    // Grup için kaydedilmiş yoklama verilerini yükle
+    await loadGroupAttendanceData()
   } else if (!selectedPersonFilter.value) {
     // Her iki filtre de boşsa listeyi temizle
     studentsData['baslangic-a'] = []
     initializeLessons()
+    // Yoklama verilerini de temizle
+    Object.keys(attendanceData).forEach(key => delete attendanceData[key])
+    Object.keys(lastSavedData).forEach(key => delete lastSavedData[key])
   }
 })
+
+/**
+ * Grup/Kişi için kaydedilmiş yoklama verilerini yükler (studentsData yüklü olduktan sonra çağrılır)
+ */
+const loadGroupAttendanceData = async () => {
+  try {
+    const docId = getAttendanceDocId()
+    console.log('📂 Grup/Kişi yoklama verisi yükleniyor, DocID:', docId)
+    const attendanceDoc = await getDoc(doc(db, 'attendance', docId))
+    
+    // Mevcut yoklama verilerini temizle
+    Object.keys(attendanceData).forEach(key => delete attendanceData[key])
+    Object.keys(lastSavedData).forEach(key => delete lastSavedData[key])
+    
+    if (attendanceDoc.exists()) {
+      const data = attendanceDoc.data()
+      
+      // Kaydedilmiş attendance data'yı yükle
+      if (data.attendanceData) {
+        Object.assign(attendanceData, data.attendanceData)
+        // Kaydedilen veriyi kopyala (değişiklik kontrolü için)
+        Object.keys(data.attendanceData).forEach(studentId => {
+          lastSavedData[studentId] = [...data.attendanceData[studentId]]
+        })
+        console.log('✅ Kaydedilmiş yoklama verileri yüklendi')
+      }
+    } else {
+      console.log('📝 Bu grup/kişi için kaydedilmiş yoklama verisi bulunamadı')
+    }
+    
+    // Her zaman tüm öğrenciler için attendance data'yı başlat
+    initializeAttendanceData()
+  } catch (error) {
+    console.error('❌ Grup yoklama verileri yüklenirken hata:', error)
+    initializeAttendanceData()
+  }
+}
 
 // Grup üyelerini Firebase'den yükle
 const loadGroupStudents = async (groupId: string) => {
@@ -1280,13 +1334,23 @@ const loadGroupReservationDates = async (groupId: string) => {
       return date >= selectedMonthStart && date <= selectedMonthEnd
     })
     
-    if (monthDates.length > 0) {
-      monthLessons.value = monthDates.slice(0, 8).map((date, index) => ({
+    // Aynı gündeki mükerrer tarihleri kaldır (deduplicate by date string)
+    const uniqueDatesMap = new Map<string, Date>()
+    monthDates.forEach(date => {
+      const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+      if (!uniqueDatesMap.has(dateKey)) {
+        uniqueDatesMap.set(dateKey, date)
+      }
+    })
+    const uniqueMonthDates = Array.from(uniqueDatesMap.values())
+    
+    if (uniqueMonthDates.length > 0) {
+      monthLessons.value = uniqueMonthDates.slice(0, 8).map((date, index) => ({
         date: date,
         dateString: date.toISOString().split('T')[0],
         lessonNumber: index + 1
       }))
-      console.log(`✅ ${monthLessons.value.length} rezervasyon tarihi yüklendi (${selectedMonth.value}/${selectedYear.value})`)
+      console.log(`✅ ${monthLessons.value.length} benzersiz rezervasyon tarihi yüklendi (${selectedMonth.value}/${selectedYear.value})`)
     } else {
       console.log(`📝 ${selectedMonth.value}/${selectedYear.value} için bu grup için rezervasyon bulunamadı, varsayılan tarihler kullanılıyor`)
       initializeLessons()

@@ -259,17 +259,25 @@
                   <v-col cols="3">
                     <v-select
                         v-model="slot.time"
-                        :items="timeOptions"
+                        :items="getTimeOptionsForSlot(idx)"
+                        item-title="title"
+                        item-value="value"
+                        :item-props="(item: any) => ({ disabled: item.disabled })"
                         label="Saat"
                         variant="outlined"
                         density="compact"
                         hide-details
+                        :disabled="!slot.day || !slot.court"
+                        :hint="!slot.day || !slot.court ? 'Önce gün ve kort seçin' : ''"
                     ></v-select>
                   </v-col>
                   <v-col cols="3">
                     <v-select
                         v-model="slot.court"
-                        :items="courtOptions"
+                        :items="getCourtOptionsForSlot(idx)"
+                        item-title="title"
+                        item-value="value"
+                        :item-props="(item: any) => ({ disabled: item.disabled })"
                         label="Kort"
                         variant="outlined"
                         density="compact"
@@ -446,7 +454,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, getDoc, serverTimestamp, FieldValue } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import AttendanceArchiveWarning from '@/components/common/AttendanceArchiveWarning.vue'
@@ -461,6 +469,12 @@ import {
 import { syncGroupSchedule, createFutureGroupReservations } from '@/services/groupScheduleSync'
 import { groupToStudentFormat, courtToKFormat } from '@/utils/scheduleFormats'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
+import { 
+  loadOccupiedSlots, 
+  getAvailableTimeOptions, 
+  getAvailableCourtOptions,
+  type OccupiedSlot 
+} from '@/services/courtAvailability'
 
 // Types
 interface ScheduleSlot {
@@ -534,6 +548,10 @@ const groupFormData = ref<Group>({
   members: []
 })
 
+// Occupied slots for availability checking
+const occupiedSlots = ref<OccupiedSlot[]>([])
+const loadingSlots = ref(false)
+
 // Options
 const membershipTypeOptions = [
   { title: 'Özel Grup (3 Kişi)', value: 'private_group_3_8' },
@@ -583,6 +601,38 @@ const isGroupFull = computed(() => {
   return selectedGroup.value.members.length >= selectedGroup.value.maxCapacity
 })
 
+// Get time options with availability info for a specific schedule slot
+const getTimeOptionsForSlot = (slotIndex: number) => {
+  const slot = groupFormData.value.schedule[slotIndex]
+  if (!slot?.day || !slot?.court) {
+    return timeOptions.map(t => ({ title: t, value: t, disabled: false }))
+  }
+  return getAvailableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeOptions)
+}
+
+// Get court options with availability info for a specific schedule slot
+const getCourtOptionsForSlot = (slotIndex: number) => {
+  const slot = groupFormData.value.schedule[slotIndex]
+  if (!slot?.day || !slot?.time) {
+    return courtOptions
+  }
+  return getAvailableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'K')
+}
+
+// Load occupied slots when dialog opens
+const loadOccupiedSlotsData = async () => {
+  loadingSlots.value = true
+  try {
+    // Exclude current group when editing
+    const excludeId = editingGroup.value?.id
+    occupiedSlots.value = await loadOccupiedSlots(excludeId)
+  } catch (error) {
+    console.error('Error loading occupied slots:', error)
+  } finally {
+    loadingSlots.value = false
+  }
+}
+
 // Methods
 const loadGroups = async () => {
   try {
@@ -612,7 +662,7 @@ const loadStudents = async () => {
   }
 }
 
-const openAddGroupDialog = () => {
+const openAddGroupDialog = async () => {
   editingGroup.value = null
   groupFormData.value = {
     name: '',
@@ -623,12 +673,14 @@ const openAddGroupDialog = () => {
     members: []
   }
   groupDialog.value = true
+  await loadOccupiedSlotsData()
 }
 
-const editGroup = (group: Group) => {
+const editGroup = async (group: Group) => {
   editingGroup.value = group
   groupFormData.value = { ...group }
   groupDialog.value = true
+  await loadOccupiedSlotsData()
 }
 
 const closeGroupDialog = () => {

@@ -672,10 +672,15 @@
                               <v-select
                                   v-model="dayPlan.time"
                                   label="Saat"
-                                  :items="timeOptions"
+                                  :items="getTimeOptionsForDayPlan(index)"
+                                  item-title="title"
+                                  item-value="value"
+                                  :item-props="(item: any) => ({ disabled: item.disabled })"
                                   variant="outlined"
                                   density="compact"
                                   placeholder="Saat seçiniz"
+                                  :disabled="!dayPlan.day || !dayPlan.court"
+                                  :hint="!dayPlan.day || !dayPlan.court ? 'Önce gün ve kort seçin' : ''"
                               >
                                 <template #prepend-inner>
                                   <v-icon color="green" size="16">mdi-clock</v-icon>
@@ -688,7 +693,10 @@
                               <v-select
                                   v-model="dayPlan.court"
                                   label="Kort"
-                                  :items="courtOptions"
+                                  :items="getCourtOptionsForDayPlan(index)"
+                                  item-title="title"
+                                  item-value="value"
+                                  :item-props="(item: any) => ({ disabled: item.disabled })"
                                   variant="outlined"
                                   density="compact"
                                   placeholder="Kort seçiniz"
@@ -1015,7 +1023,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { collection, deleteDoc, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import AttendanceArchiveWarning from '@/components/common/AttendanceArchiveWarning.vue'
@@ -1028,6 +1036,12 @@ import {
 import { syncGroupSchedule } from '@/services/groupScheduleSync'
 import { normalizeForComparison, groupToStudentFormat } from '@/utils/scheduleFormats'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
+import { 
+  loadOccupiedSlots, 
+  getAvailableTimeOptions, 
+  getAvailableCourtOptions,
+  type OccupiedSlot 
+} from '@/services/courtAvailability'
 
 interface WeeklyPlan {
   day: string
@@ -1200,6 +1214,44 @@ const courtOptions = [
   { title: 'Kort 2', value: 'court-2' },
   { title: 'Kort 3', value: 'court-3' }
 ]
+
+// Occupied slots for availability checking
+const occupiedSlots = ref<OccupiedSlot[]>([])
+const loadingSlots = ref(false)
+
+// Get time options with availability info for a specific day plan slot
+const getTimeOptionsForDayPlan = (slotIndex: number) => {
+  const slot = editForm.value.weeklyPlan[slotIndex]
+  if (!slot?.day || !slot?.court) {
+    return timeOptions
+  }
+  // Convert time values for the service
+  const timeValues = timeOptions.map(t => t.value)
+  return getAvailableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeValues)
+}
+
+// Get court options with availability info for a specific day plan slot
+const getCourtOptionsForDayPlan = (slotIndex: number) => {
+  const slot = editForm.value.weeklyPlan[slotIndex]
+  if (!slot?.day || !slot?.time) {
+    return courtOptions
+  }
+  return getAvailableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'court')
+}
+
+// Load occupied slots
+const loadOccupiedSlotsData = async () => {
+  loadingSlots.value = true
+  try {
+    // Exclude current student when editing
+    const excludeId = selectedStudent.value?.id
+    occupiedSlots.value = await loadOccupiedSlots(undefined, excludeId)
+  } catch (error) {
+    console.error('Error loading occupied slots:', error)
+  } finally {
+    loadingSlots.value = false
+  }
+}
 
 // Validation rules
 const nameRules = [
@@ -2332,7 +2384,7 @@ const viewStudentDetails = (student: Student) => {
   isEditMode.value = false
 }
 
-const toggleEditMode = () => {
+const toggleEditMode = async () => {
   if (!isEditMode.value && selectedStudent.value) {
     // weeklyPlan Firestore'dan Pazartesi/K1 veya monday/court-1 formatında gelebilir
     // Form dayOptions (monday) ve courtOptions (court-1) kullanıyor - Student formatına çevir
@@ -2353,6 +2405,9 @@ const toggleEditMode = () => {
       balance: selectedStudent.value.balance,
       notes: selectedStudent.value.notes || ''
     }
+    
+    // Load occupied slots when entering edit mode
+    await loadOccupiedSlotsData()
   }
   isEditMode.value = !isEditMode.value
 }
