@@ -374,6 +374,13 @@ const managementActions = [
     route: { name: 'Courts' }
   },
   {
+    title: 'Üyelik Türleri',
+    description: 'Üyelik türlerini ve fiyatlarını yönet',
+    icon: 'mdi-card-account-details-star',
+    gradient: 'info-gradient',
+    route: { name: 'MembershipTypeManagement' }
+  },
+  {
     title: 'Fiyat Yönetimi',
     description: 'Fiyatları ve paketleri güncelle',
     icon: 'mdi-currency-try',

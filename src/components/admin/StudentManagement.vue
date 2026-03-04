@@ -1042,6 +1042,7 @@ import {
   getAvailableCourtOptions,
   type OccupiedSlot 
 } from '@/services/courtAvailability'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 
 interface WeeklyPlan {
   day: string
@@ -1078,6 +1079,7 @@ interface Student {
 }
 
 // Reactive state
+const membershipTypesStore = useMembershipTypesStore()
 const students = ref<Student[]>([])
 const groups = ref<any[]>([]) // GroupManagement'tan gelen gerçek gruplar
 const loading = ref(false)
@@ -1161,18 +1163,7 @@ const headers = [
   { title: 'İşlemler', key: 'actions', sortable: false, align: 'center' }
 ]
 
-// Options
-const membershipTypes = [
-  { title: 'Özel Ders 1 Kişi (45dk)', value: 'private_1_45' },
-  { title: 'Özel Ders 2 Kişi (60dk)', value: 'private_2_60' },
-  { title: 'Özel Grup 3 Kişi (8ders)', value: 'private_group_3_8' },
-  { title: 'Özel Grup 4 Kişi (8ders)', value: 'private_group_4_8' },
-  { title: 'Özel Paket 1 Kişi (8ders)', value: 'private_package_1_8' },
-  { title: 'Özel Paket 2 Kişi (8ders)', value: 'private_package_2_8' },
-  { title: 'Yetişkin Grup', value: 'adult_group' },
-  { title: 'Tenis Okulu Yaş Grubu', value: 'tennis_school_age' },
-  { title: 'Tenis Okulu Performans', value: 'tennis_school_performance' }
-]
+const membershipTypes = computed(() => membershipTypesStore.selectOptions)
 
 const statusOptions = [
   { title: 'Aktif', value: 'active' },
@@ -1278,15 +1269,6 @@ const confirmPasswordRules = computed(() => [
 const groupCapacityInfo = computed(() => {
   const capacityMap: { [key: string]: { [key: string]: { current: number, max: number } } } = {}
 
-  // Her üyelik türü için grup kapasitelerini tanımla
-  const groupCapacities: { [key: string]: number } = {
-    'private_group_3_8': 3,
-    'private_group_4_8': 4,
-    'adult_group': 8,
-    'tennis_school_age': 6,
-    'tennis_school_performance': 8
-  }
-
   // Mevcut öğrencileri gruplar halinde say
   students.value.forEach(student => {
     if (student.groupAssignment && isGroupMembership(student.membershipType)) {
@@ -1300,7 +1282,7 @@ const groupCapacityInfo = computed(() => {
       if (!capacityMap[membershipType][groupId]) {
         capacityMap[membershipType][groupId] = {
           current: 0,
-          max: groupCapacities[membershipType] || 10
+          max: membershipTypesStore.getMaxCapacity(membershipType) || 10
         }
       }
 
@@ -1313,14 +1295,7 @@ const groupCapacityInfo = computed(() => {
 
 // Grup üyelik türlerini kontrol eden fonksiyon
 const isGroupMembership = (membershipType: string): boolean => {
-  const groupMemberships = [
-    'private_group_3_8',
-    'private_group_4_8',
-    'adult_group',
-    'tennis_school_age',
-    'tennis_school_performance'
-  ]
-  return groupMemberships.includes(membershipType)
+  return membershipTypesStore.isGroupType(membershipType)
 }
 
 // Grup seçeneklerini kapasite bilgisiyle birlikte getiren fonksiyon
@@ -1662,39 +1637,11 @@ const formatDate = (date: any) => {
 }
 
 const getMembershipColor = (type: string) => {
-  const colors: { [key: string]: string } = {
-    'basic': 'info',
-    'premium': 'warning',
-    'vip': 'error',
-    'private_1_45': 'purple',
-    'private_2_60': 'purple',
-    'private_group_3_8': 'indigo',
-    'private_group_4_8': 'indigo',
-    'private_package_1_8': 'deep-purple',
-    'private_package_2_8': 'deep-purple',
-    'adult_group': 'teal',
-    'tennis_school_age': 'orange',
-    'tennis_school_performance': 'red'
-  }
-  return colors[type] || 'grey'
+  return membershipTypesStore.getDisplayInfo(type)?.color || 'grey'
 }
 
 const getMembershipDisplayName = (type: string) => {
-  const texts: { [key: string]: string } = {
-    'basic': 'Temel',
-    'premium': 'Premium',
-    'vip': 'VIP',
-    'private_1_45': 'Özel Ders 1 Kişi (45dk)',
-    'private_2_60': 'Özel Ders 2 Kişi (60dk)',
-    'private_group_3_8': 'Özel Grup 3 Kişi (8ders)',
-    'private_group_4_8': 'Özel Grup 4 Kişi (8ders)',
-    'private_package_1_8': 'Özel Paket 1 Kişi (8ders)',
-    'private_package_2_8': 'Özel Paket 2 Kişi (8ders)',
-    'adult_group': 'Yetişkin Grup',
-    'tennis_school_age': 'Tenis Okulu Yaş Grubu',
-    'tennis_school_performance': 'Tenis Okulu Performans'
-  }
-  return texts[type] || type || 'Belirtilmemiş'
+  return membershipTypesStore.getDisplayInfo(type)?.name || type || 'Belirtilmemiş'
 }
 
 const getStatusColor = (status: string) => {
@@ -2835,7 +2782,8 @@ const handleExportStudentAttendance = async () => {
 }
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  await membershipTypesStore.initialize()
   fetchStudents()
   fetchGroups()
 })

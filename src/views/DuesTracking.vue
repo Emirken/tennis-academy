@@ -445,133 +445,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 
 const authStore = useAuthStore()
-
-// Package pricing and info (2025 Fiyat Listesi'ne göre)
-const packagePricing = {
-  'private_1_45': {
-    name: 'Özel Ders 1 Kişi (45dk)',
-    monthlyPrice: 2000,
-    monthlyLessons: 8,
-    description: 'Kişiye özel 45 dakikalık dersler, ayda 8 ders',
-    icon: 'mdi-account',
-    color: 'primary'
-  },
-  'private_2_60': {
-    name: 'Özel Ders 2 Kişi (60dk)',
-    monthlyPrice: 3500,
-    monthlyLessons: 8,
-    description: 'İki kişilik özel dersler, 60 dakika, ayda 8 ders',
-    icon: 'mdi-account-multiple',
-    color: 'success'
-  },
-  'private_group_3_8': {
-    name: 'Özel Grup 3 Kişi (8ders)',
-    monthlyPrice: 10000,
-    monthlyLessons: 8,
-    description: '3 kişilik grup dersleri, ayda 8 ders',
-    icon: 'mdi-account-group',
-    color: 'info'
-  },
-  'private_group_4_8': {
-    name: 'Özel Grup 4 Kişi (8ders)',
-    monthlyPrice: 7500,
-    monthlyLessons: 8,
-    description: '4 kişilik grup dersleri, ayda 8 ders',
-    icon: 'mdi-account-multiple-plus',
-    color: 'warning'
-  },
-  'private_package_1_8': {
-    name: 'Özel Paket 1 Kişi (8ders)',
-    monthlyPrice: 15000,
-    monthlyLessons: 8,
-    description: 'Kişiye özel paket, ayda 8 ders (maksimum 45 gün içinde tamamlanmalı)',
-    icon: 'mdi-package-variant',
-    color: 'purple'
-  },
-  'private_package_2_8': {
-    name: 'Özel Paket 2 Kişi (8ders)',
-    monthlyPrice: 25000,
-    monthlyLessons: 8,
-    description: 'İki kişilik özel paket, ayda 8 ders (maksimum 45 gün içinde tamamlanmalı)',
-    icon: 'mdi-package-variant-closed',
-    color: 'pink'
-  },
-  'adult_group': {
-    name: 'Yetişkin Grup Dersleri',
-    monthlyPrice: 6000,
-    monthlyLessons: 8,
-    description: 'Başlangıç - Orta - İleri seviye yetişkin grup dersleri, ayda 8 ders',
-    icon: 'mdi-human-male-female',
-    color: 'teal'
-  },
-  'tennis_school_age': {
-    name: 'Tenis Okulu Yaş Grubu',
-    monthlyPrice: 6000,
-    monthlyLessons: 8,
-    description: '5-7, 8-9, 10-12, 12-14, 15-17 yaş grupları, ayda 8 ders',
-    icon: 'mdi-school',
-    color: 'orange'
-  },
-  'tennis_school_performance': {
-    name: 'Tenis Okulu Performans',
-    monthlyPrice: 10000,
-    monthlyLessons: 8,
-    description: 'Performans odaklı okul dersleri (4 gün), ayda 8 ders',
-    icon: 'mdi-trophy',
-    color: 'amber'
-  },
-  'court_rental_1h': {
-    name: 'Kort Kiralama (1 Saat)',
-    monthlyPrice: 1000,
-    monthlyLessons: 1,
-    description: 'Saatlik kort kiralama',
-    icon: 'mdi-tennis-ball',
-    color: 'blue'
-  },
-  'court_rental_10h': {
-    name: 'Kort Kiralama (10 Saat Paket)',
-    monthlyPrice: 7500,
-    monthlyLessons: 10,
-    description: '10 saatlik kort kiralama paketi',
-    icon: 'mdi-package',
-    color: 'indigo'
-  },
-  'court_rental_equipment': {
-    name: 'Raket & Top (1 Saat)',
-    monthlyPrice: 500,
-    monthlyLessons: 1,
-    description: 'Raket ve top kiralama (1 saat)',
-    icon: 'mdi-tennis',
-    color: 'green'
-  },
-  // Legacy support
-  'basic': {
-    name: 'Temel Üyelik',
-    monthlyPrice: 6000,
-    monthlyLessons: 8,
-    description: 'Temel üyelik paketi, ayda 8 ders',
-    icon: 'mdi-star',
-    color: 'grey'
-  },
-  'premium': {
-    name: 'Premium Üyelik',
-    monthlyPrice: 10000,
-    monthlyLessons: 8,
-    description: 'Premium üyelik paketi, ayda 8 ders',
-    icon: 'mdi-star-circle',
-    color: 'primary'
-  },
-  'vip': {
-    name: 'VIP Üyelik',
-    monthlyPrice: 15000,
-    monthlyLessons: 8,
-    description: 'VIP üyelik paketi, ayda 8 ders',
-    icon: 'mdi-crown',
-    color: 'amber'
-  }
-}
+const membershipTypesStore = useMembershipTypesStore()
 
 // State
 const loading = ref(true)
@@ -581,8 +458,29 @@ let unsubscribe: (() => void) | null = null
 
 // Computed properties
 const packageInfo = computed(() => {
-  const membershipType = authStore.user?.membershipType || 'basic'
-  return packagePricing[membershipType as keyof typeof packagePricing] || packagePricing.basic
+  const membershipTypeKey = authStore.user?.membershipType || 'basic'
+  const membershipType = membershipTypesStore.getByKey(membershipTypeKey)
+  
+  if (membershipType) {
+    return {
+      name: membershipType.name,
+      monthlyPrice: membershipType.monthlyPrice || 0,
+      monthlyLessons: membershipType.monthlyLessons || 0,
+      description: membershipType.description || '',
+      icon: membershipType.icon || 'mdi-star',
+      color: membershipType.color || 'primary'
+    }
+  }
+
+  // Fallback if not found or store not loaded yet
+  return {
+    name: 'Bilinmeyen Paket',
+    monthlyPrice: 0,
+    monthlyLessons: 0,
+    description: 'Paket bilgisi bulunamadı',
+    icon: 'mdi-help-circle',
+    color: 'grey'
+  }
 })
 
 const currentDate = new Date()
@@ -755,6 +653,8 @@ const fetchReservations = () => {
 
 // Lifecycle
 onMounted(async () => {
+  await membershipTypesStore.initialize()
+  
   if (authStore.user?.id) {
     fetchReservations()
   } else {

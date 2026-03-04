@@ -475,6 +475,9 @@ import {
   getAvailableCourtOptions,
   type OccupiedSlot 
 } from '@/services/courtAvailability'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
+
+const membershipTypesStore = useMembershipTypesStore()
 
 // Types
 interface ScheduleSlot {
@@ -552,14 +555,13 @@ const groupFormData = ref<Group>({
 const occupiedSlots = ref<OccupiedSlot[]>([])
 const loadingSlots = ref(false)
 
-// Options
-const membershipTypeOptions = [
-  { title: 'Özel Grup (3 Kişi)', value: 'private_group_3_8' },
-  { title: 'Özel Grup (4 Kişi)', value: 'private_group_4_8' },
-  { title: 'Yetişkin Grup', value: 'adult_group' },
-  { title: 'Tenis Okulu (Yaş Grubu)', value: 'tennis_school_age' },
-  { title: 'Tenis Okulu (Performans)', value: 'tennis_school_performance' }
-]
+// Computed membership options
+const membershipTypeOptions = computed(() => {
+  return membershipTypesStore.activeTypes.map((type: any) => ({
+    title: type.name,
+    value: type.key
+  }))
+})
 
 const dayOptions = [
   { title: 'Pazartesi', value: 'Pazartesi' },
@@ -1054,8 +1056,7 @@ const performRemoveMemberFromGroup = async (memberId: string) => {
 }
 
 const getMembershipTypeLabel = (type: string): string => {
-  const option = membershipTypeOptions.find(o => o.value === type)
-  return option ? option.title : type
+  return membershipTypesStore.getDisplayInfo(type)?.name || type
 }
 
 const getGroupColor = (type: string): string => {
@@ -1215,6 +1216,7 @@ const handleExportGroupAttendance = async () => {
 }
 
 onMounted(async () => {
+  await membershipTypesStore.initialize()
   await loadGroups()
   await loadStudents()
 })

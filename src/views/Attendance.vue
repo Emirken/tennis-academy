@@ -287,7 +287,7 @@
                           variant="flat"
                           class="ml-2"
                       >
-                        {{ MembershipTypeLabel[student.membershipType as keyof typeof MembershipTypeLabel] || student.membershipType }}
+                        {{ membershipTypesStore.getDisplayInfo(student.membershipType)?.name || student.membershipType }}
                       </v-chip>
                       <v-chip
                           v-if="student.groupAssignment"
@@ -512,9 +512,11 @@ import { useAuthStore } from '@/store/modules/auth'
 import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { exportCurrentViewToExcel } from '@/services/attendanceArchive'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 
 // Store
 const authStore = useAuthStore()
+const membershipTypesStore = useMembershipTypesStore()
 
 // Reactive data
 const formValid = ref(false)
@@ -571,25 +573,6 @@ const months = [
 // Year options
 const years = ref([2024, 2025, 2026])
 
-// Membership type labels mapping
-const MembershipTypeLabel: Record<string, string> = {
-  'private_1_45': 'Özel Ders 1 Kişi (45dk)',
-  'private_2_60': 'Özel Ders 2 Kişi (60dk)',
-  'private_group_3_8': 'Özel Grup 3 Kişi (8ders)',
-  'private_group_4_8': 'Özel Grup 4 Kişi (8ders)',
-  'private_group_5_8': 'Özel Grup 5 Kişi (8ders)',
-  'private_group_6_8': 'Özel Grup 6 Kişi (8ders)',
-  'private_group_7_8': 'Özel Grup 7 Kişi (8ders)',
-  'private_group_8_8': 'Özel Grup 8 Kişi (8ders)',
-  'private_package_1_8': 'Özel Paket 1 Kişi (8ders)',
-  'private_package_2_8': 'Özel Paket 2 Kişi (8ders)',
-  'adult_group': 'Yetişkin Grup',
-  'tennis_school_age': 'Tenis Okulu Yaş Grubu',
-  'tennis_school_performance': 'Tenis Okulu Performans',
-  'basic': 'Temel Üyelik',
-  'premium': 'Premium Üyelik',
-  'vip': 'VIP Üyelik'
-}
 
 // Group labels - will be populated from Firebase
 const GroupTuruLabel = ref<Record<string, string>>({})
@@ -965,7 +948,8 @@ const onStudentSelected = (studentId: string) => {
 
   // Seçilen öğrencinin grup ve üyelik bilgilerini kontrol et
   if (selectedStudent.groupAssignment && selectedStudent.membershipType) {
-    selectedStudentGroup.value = `${selectedStudent.membershipType} - ${selectedStudent.groupAssignment}`
+    const membershipDisplayName = membershipTypesStore.getDisplayInfo(selectedStudent.membershipType)?.name || selectedStudent.membershipType
+    selectedStudentGroup.value = `${membershipDisplayName} - ${selectedStudent.groupAssignment}`
 
     // Aynı membershipType VE groupAssignment'a sahip diğer öğrencileri bul
     const currentStudentIds = classStudents.value.map(s => s.id)
@@ -1410,7 +1394,8 @@ const handleExportCurrentView = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await membershipTypesStore.initialize()
   initializeLessons()
   loadGroupsFromFirebase()
   loadStudentsFromFirebase() // Kişi Listesi için öğrencileri yükle

@@ -557,6 +557,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 
 interface CalendarEvent {
   id: string
@@ -582,6 +583,7 @@ interface CalendarEvent {
 }
 
 // State
+const membershipTypesStore = useMembershipTypesStore()
 const currentView = ref<'day' | 'week' | 'month'>('week')
 const selectedDate = ref(new Date())
 const detailsDialog = ref(false)
@@ -879,22 +881,7 @@ const getCourtColor = (courtId: string): string => {
 }
 
 const getMembershipDisplayName = (type: string) => {
-  const texts: { [key: string]: string } = {
-    'private_1_45': 'Özel Ders 1 Kişi (45dk)',
-    'private_2_60': 'Özel Ders 2 Kişi (60dk)',
-    'private_group_3_8': 'Özel Grup 3 Kişi',
-    'private_group_4_8': 'Özel Grup 4 Kişi',
-    'private_group_5_8': 'Özel Grup 5 Kişi',
-    'private_group_6_8': 'Özel Grup 6 Kişi',
-    'private_group_7_8': 'Özel Grup 7 Kişi',
-    'private_group_8_8': 'Özel Grup 8 Kişi',
-    'private_package_1_8': 'Özel Paket 1 Kişi',
-    'private_package_2_8': 'Özel Paket 2 Kişi',
-    'adult_group': 'Yetişkin Grup',
-    'tennis_school_age': 'Tenis Okulu Yaş Grubu',
-    'tennis_school_performance': 'Tenis Okulu Performans'
-  }
-  return texts[type] || type
+  return membershipTypesStore.getDisplayInfo(type)?.name || type
 }
 
 const fetchReservations = async () => {
@@ -1360,6 +1347,7 @@ const showSnackbar = (message: string, color: string = 'success') => {
 
 // Lifecycle
 onMounted(async () => {
+  await membershipTypesStore.initialize()
   await fetchReservations()
 })
 

@@ -1,6 +1,7 @@
 import { computed, ref, reactive, watch, nextTick } from 'vue'
 import { useStudentsStore } from '@/store/modules/students'
 import { useAuthStore } from '@/store/modules/auth'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import type {
     StudentProfile,
     StudentActivity,
@@ -24,7 +25,7 @@ export interface StudentFormData {
     occupation?: string
     skillLevel: 'beginner' | 'intermediate' | 'advanced' | 'professional'
     playingHand: 'right' | 'left' | 'ambidextrous'
-    membershipType: 'basic' | 'premium' | 'vip'
+    membershipType: string
     coachingPreferences?: string[]
     goals?: string[]
     medicalConditions?: string[]
@@ -102,6 +103,7 @@ export interface NotificationData {
 export function useStudents() {
     const studentsStore = useStudentsStore()
     const authStore = useAuthStore()
+    const membershipTypesStore = useMembershipTypesStore()
 
     // Local reactive state
     const isCreatingStudent = ref(false)
@@ -673,12 +675,7 @@ export function useStudents() {
     }
 
     const getMembershipColor = (membershipType: StudentProfile['membershipType']): string => {
-        const colors = {
-            basic: 'info',
-            premium: 'warning',
-            vip: 'error'
-        }
-        return colors[membershipType] || 'grey'
+        return membershipTypesStore.getDisplayInfo(membershipType)?.color || 'grey'
     }
 
     const getStatusColor = (status: StudentProfile['membershipStatus']): string => {
@@ -701,12 +698,8 @@ export function useStudents() {
     }
 
     const calculateMembershipValue = (student: StudentProfile): number => {
-        const membershipFees = {
-            basic: 99,
-            premium: 199,
-            vip: 299
-        }
-        return membershipFees[student.membershipType] || 0
+        const typeInfo = membershipTypesStore.getByKey(student.membershipType)
+        return typeInfo?.monthlyPrice || 0
     }
 
     const getDaysUntilMembershipExpiry = (student: StudentProfile): number | null => {

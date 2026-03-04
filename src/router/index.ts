@@ -93,6 +93,11 @@ const routes: Array<RouteRecordRaw> = [
         path: 'groups',
         name: 'GroupManagement',
         component: () => import('@/components/admin/GroupManagement.vue')
+      },
+      {
+        path: 'memberships',
+        name: 'MembershipTypeManagement',
+        component: () => import('@/components/admin/MembershipTypeManagement.vue')
       }
     ]
   }

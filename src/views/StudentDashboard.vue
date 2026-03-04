@@ -440,6 +440,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
@@ -466,21 +467,8 @@ interface User {
   membershipType?: string
 }
 
-// Membership type mappings
-const membershipTypeOptions = {
-  'private_1_45': 'Özel Ders 1 Kişi (45dk)',
-  'private_2_60': 'Özel Ders 2 Kişi (60dk)',
-  'private_group_3_8': 'Özel Grup 3 Kişi (8ders)',
-  'private_group_4_8': 'Özel Grup 4 Kişi (8ders)',
-  'private_package_1_8': 'Özel Paket 1 Kişi (8ders)',
-  'private_package_2_8': 'Özel Paket 2 Kişi (8ders)',
-  'adult_group': 'Yetişkin Grup',
-  'tennis_school_age': 'Tenis Okulu Yaş Grubu',
-  'tennis_school_performance': 'Tenis Okulu Performans',
-  'basic': 'Temel Üyelik',
-  'premium': 'Premium Üyelik',
-  'vip': 'VIP Üyelik'
-} as const
+// Services
+const membershipTypesStore = useMembershipTypesStore()
 
 // Dialog state
 const showProfileDialog = ref(false)
@@ -525,7 +513,7 @@ const currentMembershipType = computed(() => {
 
 // Get membership title function
 const getMembershipTitle = (type: string): string => {
-  return membershipTypeOptions[type as keyof typeof membershipTypeOptions] || type
+  return membershipTypesStore.getDisplayInfo(type)?.name || type
 }
 
 // Quick Actions Data - Aidat Takibi basic (Temel Üyelik) üyeler için gizlenir
@@ -808,6 +796,9 @@ onMounted(async () => {
     user: authStore.user,
     isAuthenticated: authStore.isAuthenticated
   })
+
+  // Initialize membership types store
+  await membershipTypesStore.initialize()
 
   try {
     // Wait for auth to be ready

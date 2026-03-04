@@ -27,7 +27,7 @@ export interface StudentProfile extends Student {
     membershipStartDate: Date
     membershipEndDate?: Date
     membershipStatus: 'active' | 'inactive' | 'suspended' | 'expired'
-    membershipType: 'basic' | 'premium' | 'vip'
+    membershipType: string
 
     // Payment Information
     paymentStatus: 'paid' | 'pending' | 'overdue'
@@ -934,7 +934,7 @@ export const useStudentsStore = defineStore('students', () => {
 
         // Revenue calculations
         const totalRevenue = students.value.reduce((sum, s) => {
-            const membershipFees = {
+            const membershipFees: Record<string, number> = {
                 basic: 99,
                 premium: 199,
                 vip: 299
@@ -978,10 +978,10 @@ export const useStudentsStore = defineStore('students', () => {
                 type: 'membership' as const
             }))
             .concat(
-                students.value.flatMap((s:any) =>
+                students.value.flatMap((s: any) =>
                     s.documents
-                        .filter((d:any) => d.expiryDate && d.expiryDate <= nextMonth)
-                        .map((d:any) => ({
+                        .filter((d: any) => d.expiryDate && d.expiryDate <= nextMonth)
+                        .map((d: any) => ({
                             studentId: s.id,
                             name: `${s.firstName} ${s.lastName}`,
                             expiryDate: d.expiryDate!,

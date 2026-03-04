@@ -10,4 +10,5 @@ export interface User {
     createdAt: Date
     updatedAt: Date
     lastLoginAt?: Date
+    membershipType?: string
 }
