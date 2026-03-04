@@ -489,6 +489,23 @@
                           </v-chip>
                         </div>
                       </div>
+                      <!-- Özel ders haftalık program gösterimi (grup olmayan, basic olmayan üyelikler) -->
+                      <div v-if="!isGroupMembership(selectedStudent?.membershipType) && !isBasicMembership(selectedStudent?.membershipType) && selectedStudent?.weeklyPlan?.length" class="info-item mb-3">
+                        <label class="info-label">Haftalık Program:</label>
+                        <div class="mt-2">
+                          <v-chip
+                              v-for="(plan, index) in selectedStudent.weeklyPlan"
+                              :key="index"
+                              color="purple"
+                              variant="flat"
+                              size="small"
+                              class="mr-2 mb-2"
+                          >
+                            <v-icon start size="16">mdi-calendar-clock</v-icon>
+                            {{ getDayDisplayName(plan.day) }} {{ plan.time }} - {{ getCourtDisplayName(plan.court) }}
+                          </v-chip>
+                        </div>
+                      </div>
                       <div class="info-item mb-3">
                         <label class="info-label">Durum:</label>
                         <v-chip
@@ -618,7 +635,7 @@
                       </v-alert>
 
                       <!-- Haftalık program düzenleyici -->
-                      <div v-if="isGroupMembership(editForm.membershipType) && editForm.groupAssignment">
+                      <div v-if="(isGroupMembership(editForm.membershipType) && editForm.groupAssignment) || (!isGroupMembership(editForm.membershipType) && !isBasicMembership(editForm.membershipType))">
                         <div class="d-flex align-center justify-space-between mb-3">
                           <label class="text-subtitle-1 font-weight-medium">Haftalık Program</label>
                           <v-btn
@@ -1068,6 +1085,11 @@ interface Student {
       court: string
     }>
   }
+  weeklyPlan?: Array<{
+    day: string
+    time: string
+    court: string
+  }>
   status: 'active' | 'inactive' | 'suspended'
   joinDate: Date
   balance: number
@@ -1157,10 +1179,10 @@ const editForm = ref({
 // Table headers
 const headers = [
   { title: 'Öğrenci', key: 'student', sortable: false },
-  { title: 'Üyelik Türü', key: 'membershipType', align: 'center' },
-  { title: 'Durum', key: 'status', align: 'center' },
-  { title: 'Kayıt Tarihi', key: 'joinDate', align: 'center' },
-  { title: 'İşlemler', key: 'actions', sortable: false, align: 'center' }
+  { title: 'Üyelik Türü', key: 'membershipType', align: 'center' as const },
+  { title: 'Durum', key: 'status', align: 'center' as const },
+  { title: 'Kayıt Tarihi', key: 'joinDate', align: 'center' as const },
+  { title: 'İşlemler', key: 'actions', sortable: false, align: 'center' as const }
 ]
 
 const membershipTypes = computed(() => membershipTypesStore.selectOptions)
@@ -1294,8 +1316,17 @@ const groupCapacityInfo = computed(() => {
 })
 
 // Grup üyelik türlerini kontrol eden fonksiyon
-const isGroupMembership = (membershipType: string): boolean => {
+const isGroupMembership = (membershipType: string | undefined | null): boolean => {
+  if (!membershipType) return false
   return membershipTypesStore.isGroupType(membershipType)
+}
+
+// Basic (temel) üyelik türünü kontrol eden fonksiyon
+const isBasicMembership = (membershipType: string | undefined | null): boolean => {
+  if (!membershipType) return false
+  const type = membershipTypesStore.getByKey(membershipType)
+  // key'i 'basic' olan veya açıkça basic olarak işaretlenmiş türler
+  return membershipType === 'basic'
 }
 
 // Grup seçeneklerini kapasite bilgisiyle birlikte getiren fonksiyon
@@ -1431,6 +1462,12 @@ const onGroupSelectionChange = (membershipType: string, groupId: string) => {
 const onMembershipTypeChange = () => {
   if (!isGroupMembership(editForm.value.membershipType)) {
     editForm.value.groupAssignment = ''
+    // Basic üyelikte haftalık programı temizle, diğerlerinde koru
+    if (isBasicMembership(editForm.value.membershipType)) {
+      editForm.value.weeklyPlan = []
+    }
+  } else {
+    // Grup üyeliğine geçince önceki özel ders programını temizle
     editForm.value.weeklyPlan = []
   }
 }
@@ -1636,15 +1673,17 @@ const formatDate = (date: any) => {
   return d.toLocaleDateString('tr-TR')
 }
 
-const getMembershipColor = (type: string) => {
+const getMembershipColor = (type: string | undefined) => {
+  if (!type) return 'grey'
   return membershipTypesStore.getDisplayInfo(type)?.color || 'grey'
 }
 
-const getMembershipDisplayName = (type: string) => {
+const getMembershipDisplayName = (type: string | undefined) => {
+  if (!type) return 'Belirtilmemiş'
   return membershipTypesStore.getDisplayInfo(type)?.name || type || 'Belirtilmemiş'
 }
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: string | undefined) => {
   switch (status) {
     case 'active': return 'success'
     case 'inactive': return 'grey'
@@ -1653,7 +1692,7 @@ const getStatusColor = (status: string) => {
   }
 }
 
-const getStatusIcon = (status: string) => {
+const getStatusIcon = (status: string | undefined) => {
   switch (status) {
     case 'active': return 'mdi-check-circle'
     case 'inactive': return 'mdi-pause-circle'
@@ -1662,16 +1701,17 @@ const getStatusIcon = (status: string) => {
   }
 }
 
-const getStatusDisplayName = (status: string) => {
+const getStatusDisplayName = (status: string | undefined) => {
   switch (status) {
     case 'active': return 'Aktif'
     case 'inactive': return 'Pasif'
     case 'suspended': return 'Askıda'
-    default: return status
+    default: return status || '-'
   }
 }
 
-const getBalanceColor = (balance: number) => {
+const getBalanceColor = (balance: number | undefined) => {
+  if (!balance) return 'text-grey-600'
   if (balance > 0) return 'text-success'
   if (balance < 0) return 'text-error'
   return 'text-grey-600'
@@ -2132,6 +2172,7 @@ const fetchStudents = async () => {
         membershipType: data.membershipType || 'basic',
         groupAssignment: data.groupAssignment || '',
         groupSchedule: data.groupSchedule || undefined,
+        weeklyPlan: data.weeklyPlan || undefined,
         status: data.status || 'active',
         joinDate: data.createdAt?.toDate() || new Date(),
         balance: data.balance || 0,
@@ -2333,10 +2374,18 @@ const viewStudentDetails = (student: Student) => {
 
 const toggleEditMode = async () => {
   if (!isEditMode.value && selectedStudent.value) {
-    // weeklyPlan Firestore'dan Pazartesi/K1 veya monday/court-1 formatında gelebilir
-    // Form dayOptions (monday) ve courtOptions (court-1) kullanıyor - Student formatına çevir
-    const rawPlan = selectedStudent.value.groupSchedule?.weeklyPlan || []
-    const weeklyPlan = rawPlan.length > 0 ? groupToStudentFormat(rawPlan) : []
+    const isGroup = isGroupMembership(selectedStudent.value.membershipType)
+    let weeklyPlan: WeeklyPlan[] = []
+
+    if (isGroup) {
+      // Grup üyeliği: groupSchedule.weeklyPlan kullan
+      const rawPlan = selectedStudent.value.groupSchedule?.weeklyPlan || []
+      weeklyPlan = rawPlan.length > 0 ? groupToStudentFormat(rawPlan) : []
+    } else if (!isBasicMembership(selectedStudent.value.membershipType)) {
+      // Özel ders: weeklyPlan doğrudan kullan
+      const rawPlan = selectedStudent.value.weeklyPlan || []
+      weeklyPlan = rawPlan.length > 0 ? groupToStudentFormat(rawPlan) : []
+    }
 
     editForm.value = {
       firstName: selectedStudent.value.firstName,
@@ -2477,6 +2526,10 @@ const saveStudentChanges = async (): Promise<void> => {
     }
 
     // 2. Öğrenci bilgilerini güncelle
+    // Özel ders (group olmayan, basic olmayan) için weeklyPlan direkt kaydedilir
+    const isPrivateLesson = !isGroup && !isBasicMembership(editForm.value.membershipType)
+    const privateLessonWeeklyPlan = isPrivateLesson ? validWeeklyPlan : null
+
     const userDocRef = doc(db, 'users', studentId)
     await updateDoc(userDocRef, {
       firstName: editForm.value.firstName,
@@ -2488,6 +2541,7 @@ const saveStudentChanges = async (): Promise<void> => {
       membershipType: editForm.value.membershipType,
       groupAssignment,
       groupSchedule,
+      weeklyPlan: privateLessonWeeklyPlan,
       status: editForm.value.status,
       balance: editForm.value.balance,
       notes: editForm.value.notes,
@@ -2575,6 +2629,7 @@ const saveStudentChanges = async (): Promise<void> => {
         membershipType: editForm.value.membershipType,
         groupAssignment,
         groupSchedule,
+        weeklyPlan: privateLessonWeeklyPlan || undefined,
         status: editForm.value.status as 'active' | 'inactive' | 'suspended',
         balance: editForm.value.balance,
         notes: editForm.value.notes,

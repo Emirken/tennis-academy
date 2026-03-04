@@ -441,7 +441,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 
 console.log('📦 Firebase imports loaded:', { db, collection, query, where })
@@ -552,26 +552,45 @@ const fetchStudentAttendance = async () => {
   
   loadingAttendance.value = true
   try {
-    const docId = `attendance-${selectedAttendanceYear.value}-${selectedAttendanceMonth.value}`
-    const attendanceDocRef = doc(db, 'attendance', docId)
-    const attendanceDoc = await getDoc(attendanceDocRef)
+    const userId = authStore.user.id
+    const prefix = `attendance-${selectedAttendanceYear.value}-${selectedAttendanceMonth.value}`
     
-    if (attendanceDoc.exists()) {
+    // Admin yoklama dokümanları "attendance-YYYY-M-group-{groupId}" veya 
+    // "attendance-YYYY-M-person-{personId}" formatında kaydediliyor.
+    // Bu yüzden tüm attendance dokümanlarını sorgulayıp bu öğrencinin 
+    // verisini içereni buluyoruz.
+    const attendanceCollectionRef = collection(db, 'attendance')
+    const allAttendanceDocs = await getDocs(attendanceCollectionRef)
+    
+    let foundStudentData = false
+    
+    for (const attendanceDoc of allAttendanceDocs.docs) {
+      // Doküman ID'si seçili ay/yıl ile eşleşiyor mu kontrol et
+      if (!attendanceDoc.id.startsWith(prefix)) continue
+      
       const data = attendanceDoc.data()
-      // Öğrencinin verilerini çıkar
-      studentAttendanceData.value = data.attendanceData?.[authStore.user.id] || []
-      attendanceLessons.value = (data.lessons || []).map((lesson: any) => {
-        let dateObj = lesson.date
-        if (lesson.date?.toDate) {
-          dateObj = lesson.date.toDate()
-        }
-        return {
-          ...lesson,
-          date: dateObj,
-          dateString: dateObj instanceof Date ? dateObj.toLocaleDateString('tr-TR') : 'N/A'
-        }
-      })
-    } else {
+      
+      // Bu dokümanda bu öğrencinin yoklama verisi var mı?
+      if (data.attendanceData && data.attendanceData[userId]) {
+        studentAttendanceData.value = data.attendanceData[userId]
+        attendanceLessons.value = (data.lessons || []).map((lesson: any) => {
+          let dateObj = lesson.date
+          if (lesson.date?.toDate) {
+            dateObj = lesson.date.toDate()
+          }
+          return {
+            ...lesson,
+            date: dateObj,
+            dateString: dateObj instanceof Date ? dateObj.toLocaleDateString('tr-TR') : 'N/A'
+          }
+        })
+        foundStudentData = true
+        console.log('✅ Yoklama verisi bulundu, döküman:', attendanceDoc.id)
+        break
+      }
+    }
+    
+    if (!foundStudentData) {
       studentAttendanceData.value = []
       attendanceLessons.value = []
     }
