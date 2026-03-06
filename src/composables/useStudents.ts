@@ -15,7 +15,7 @@ import type {
 export interface StudentFormData {
     firstName: string
     lastName: string
-    email: string
+    phone_number: string
     phone: string
     address: string
     emergencyContact: string
@@ -49,7 +49,7 @@ export interface StudentFilter {
 export interface StudentUpdateData {
     firstName?: string
     lastName?: string
-    email?: string
+    phone_number?: string
     phone?: string
     address?: string
     emergencyContact?: string
@@ -281,52 +281,20 @@ export function useStudents() {
             errors.lastName = 'Last name can only contain letters'
         }
 
-        if (!data.email?.trim()) {
-            errors.email = 'Email is required'
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-            errors.email = 'Please enter a valid email address'
+        if (!data.phone_number?.trim()) {
+            errors.phone_number = 'Telefon numarası gereklidir'
+        } else if (!/^[0-9]+$/.test(data.phone_number)) {
+            errors.phone_number = 'Telefon numarası sadece rakamlardan oluşmalıdır'
+        } else if (data.phone_number.length !== 11) {
+            errors.phone_number = 'Telefon numarası 11 haneli olmalıdır'
+        } else if (!data.phone_number.startsWith('0')) {
+            errors.phone_number = 'Telefon numarası 0 ile başlamalıdır'
         }
 
-        if (!data.phone?.trim()) {
-            errors.phone = 'Phone number is required'
-        } else if (!/^[\+]?[0-9\s\-\(\)]+$/.test(data.phone)) {
-            errors.phone = 'Please enter a valid phone number'
-        }
-
-        if (!data.address?.trim()) {
-            errors.address = 'Address is required'
-        } else if (data.address.length < 10) {
-            errors.address = 'Please enter a complete address'
-        }
-
-        if (!data.emergencyContact?.trim()) {
-            errors.emergencyContact = 'Emergency contact is required'
-        }
-
-        if (!data.skillLevel) {
-            errors.skillLevel = 'Skill level is required'
-        }
-
-        if (!data.playingHand) {
-            errors.playingHand = 'Playing hand is required'
-        }
-
-        if (!data.membershipType) {
-            errors.membershipType = 'Membership type is required'
-        }
-
-        // Optional field validations
-        if (data.dateOfBirth) {
-            const age = Math.floor((new Date().getTime() - data.dateOfBirth.getTime()) / (1000 * 60 * 60 * 24 * 365.25))
-            if (age < 5 || age > 100) {
-                errors.dateOfBirth = 'Please enter a valid date of birth'
-            }
-        }
-
-        // Check for duplicate email (exclude current student if updating)
-        const existingStudent = students.value.find(s => s.email === data.email)
+        // Check for duplicate phone_number (exclude current student if updating)
+        const existingStudent = students.value.find(s => (s as any).phone_number === data.phone_number)
         if (existingStudent) {
-            errors.email = 'Email address is already registered'
+            errors.phone_number = 'Bu telefon numarası zaten kayıtlı'
         }
 
         validationErrors.value = errors
@@ -378,7 +346,7 @@ export function useStudents() {
                 // Basic information
                 firstName: data.firstName,
                 lastName: data.lastName,
-                email: data.email,
+                phone_number: data.phone_number,
                 phone: data.phone,
                 address: data.address,
                 emergencyContact: data.emergencyContact,

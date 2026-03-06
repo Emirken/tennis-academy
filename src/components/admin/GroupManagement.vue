@@ -347,7 +347,7 @@
                   <template v-slot:item="{ props, item }">
                     <v-list-item
                         v-bind="props"
-                        :subtitle="item.raw.email"
+                        :subtitle="item.raw.phone_number"
                     ></v-list-item>
                   </template>
                 </v-autocomplete>
@@ -385,7 +385,7 @@
                 </template>
 
                 <v-list-item-title>{{ member.name }}</v-list-item-title>
-                <v-list-item-subtitle>{{ member.email }}</v-list-item-subtitle>
+                <v-list-item-subtitle>{{ member.phone_number }}</v-list-item-subtitle>
 
                 <template v-slot:append>
                   <v-btn
@@ -489,7 +489,7 @@ interface ScheduleSlot {
 interface GroupMember {
   id: string
   name: string
-  email: string
+  phone_number: string
 }
 
 interface Group {
@@ -507,7 +507,7 @@ interface Student {
   id: string
   firstName: string
   lastName: string
-  email: string
+  phone_number: string
   groupAssignment?: string
   membershipType: string
 }
@@ -594,7 +594,7 @@ const availableMembers = computed(() => {
       .map(s => ({
         id: s.id,
         name: `${s.firstName} ${s.lastName}`,
-        email: s.email
+        phone_number: s.phone_number
       }))
 })
 
@@ -937,7 +937,7 @@ const addMemberToGroup = async () => {
     const newMember: GroupMember = {
       id: student.id,
       name: `${student.firstName} ${student.lastName}`,
-      email: student.email
+      phone_number: student.phone_number
     }
 
     selectedGroup.value.members.push(newMember)

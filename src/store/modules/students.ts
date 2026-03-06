@@ -225,7 +225,7 @@ export const useStudentsStore = defineStore('students', () => {
                     id: 'student_001',
                     firstName: 'Ahmet',
                     lastName: 'Yılmaz',
-                    email: 'ahmet@example.com',
+                    phone_number: '05551234567',
                     phone: '+90 555 123 4567',
                     address: 'Atatürk Mah. Cumhuriyet Cad. No:15 Urla/İzmir',
                     emergencyContact: '+90 555 987 6543',
@@ -315,7 +315,7 @@ export const useStudentsStore = defineStore('students', () => {
                     id: 'student_002',
                     firstName: 'Ayşe',
                     lastName: 'Demir',
-                    email: 'ayse@example.com',
+                    phone_number: '05559876543',
                     phone: '+90 555 234 5678',
                     address: 'Yeni Mah. İstiklal Cad. No:28 Urla/İzmir',
                     emergencyContact: '+90 555 876 5432',
@@ -384,7 +384,7 @@ export const useStudentsStore = defineStore('students', () => {
                     id: 'student_003',
                     firstName: 'Mehmet',
                     lastName: 'Kaya',
-                    email: 'mehmet@example.com',
+                    phone_number: '05553456789',
                     phone: '+90 555 345 6789',
                     address: 'Çeşme Yolu No:42 Urla/İzmir',
                     emergencyContact: '+90 555 765 4321',
@@ -463,7 +463,7 @@ export const useStudentsStore = defineStore('students', () => {
                     id: 'student_004',
                     firstName: 'Fatma',
                     lastName: 'Özkan',
-                    email: 'fatma@example.com',
+                    phone_number: '05554567890',
                     phone: '+90 555 456 7890',
                     address: 'Foça Yolu Km.5 Urla/İzmir',
                     emergencyContact: '+90 555 654 3210',
@@ -551,7 +551,7 @@ export const useStudentsStore = defineStore('students', () => {
                     filteredStudents = filteredStudents.filter(s =>
                         s.firstName.toLowerCase().includes(searchTerm) ||
                         s.lastName.toLowerCase().includes(searchTerm) ||
-                        s.email.toLowerCase().includes(searchTerm) ||
+                        s.phone_number.toLowerCase().includes(searchTerm) ||
                         s.phone.includes(searchTerm)
                     )
                 }
@@ -1028,7 +1028,7 @@ export const useStudentsStore = defineStore('students', () => {
             filtered = filtered.filter(student =>
                 student.firstName.toLowerCase().includes(searchTerm) ||
                 student.lastName.toLowerCase().includes(searchTerm) ||
-                student.email.toLowerCase().includes(searchTerm) ||
+                student.phone_number.toLowerCase().includes(searchTerm) ||
                 student.phone.includes(searchTerm) ||
                 student.address.toLowerCase().includes(searchTerm) ||
                 (student.occupation && student.occupation.toLowerCase().includes(searchTerm))

@@ -74,14 +74,15 @@
                     </v-col>
                   </v-row>
 
-                  <!-- Email Field -->
+                  <!-- Phone Number Field -->
                   <v-text-field
-                      v-model="registerData.email"
-                      label="E-posta"
-                      type="email"
+                      v-model="registerData.phone_number"
+                      label="Telefon Numarası"
+                      type="tel"
                       variant="outlined"
-                      :rules="emailRules"
-                      prepend-inner-icon="mdi-email"
+                      :rules="phoneRules"
+                      prepend-inner-icon="mdi-phone"
+                      placeholder="05XX XXX XX XX"
                       class="mb-4 auth-input"
                       required
                   />
@@ -200,7 +201,7 @@ const authStore = useAuthStore()
 const registerData = reactive({
   firstName: '',
   lastName: '',
-  email: '',
+  phone_number: '',
   password: '',
   confirmPassword: '',
   role: 'student' as const
@@ -210,6 +211,7 @@ const registerData = reactive({
 const valid = ref(false)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
+const showPendingOverlay = ref(false)
 
 // Validation rules - Türkçe hata mesajları
 const nameRules = [
@@ -217,9 +219,11 @@ const nameRules = [
   (v: string) => v.length >= 2 || 'Ad/Soyad en az 2 karakter olmalıdır'
 ]
 
-const emailRules = [
-  (v: string) => !!v || 'E-posta gereklidir',
-  (v: string) => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz'
+const phoneRules = [
+  (v: string) => !!v || 'Telefon numarası gereklidir',
+  (v: string) => /^[0-9]+$/.test(v) || 'Telefon numarası sadece rakamlardan oluşmalıdır',
+  (v: string) => v.length === 11 || 'Telefon numarası 11 haneli olmalıdır',
+  (v: string) => v.startsWith('0') || 'Telefon numarası 0 ile başlamalıdır'
 ]
 
 const passwordRules = [
@@ -284,20 +288,44 @@ const handleRegister = async () => {
   if (!valid.value) return
 
   const success = await authStore.register({
-    email: registerData.email,
+    phone_number: registerData.phone_number,
     password: registerData.password,
     firstName: registerData.firstName,
     lastName: registerData.lastName,
     role: registerData.role
   })
 
+  // Do NOT logout the user. Registration automatically logs in,
+  // we redirect them to dashboard where they will see the pending overlay.
   if (success) {
-    // Sadece student olarak kayıt olduğu için Student Dashboard'a yönlendir
     router.push({ name: 'StudentDashboard' })
   }
+}
+
+const goToHome = () => {
+  router.push('/')
 }
 </script>
 
 <style scoped>
 /* Styles are handled in main.css */
+.pending-overlay {
+  background: linear-gradient(135deg, #1A1A2E 0%, #16213E 100%) !important;
+  color: white !important;
+  text-align: center;
+  padding: 2rem;
+}
+.pending-text {
+  max-width: 600px;
+  opacity: 0.9;
+  line-height: 1.6;
+}
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
 </style>

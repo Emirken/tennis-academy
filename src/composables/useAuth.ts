@@ -5,33 +5,31 @@ import type { User } from '@/types/user'
 
 // Interface for login credentials
 export interface LoginCredentials {
-    email: string
+    phone_number: string
     password: string
     rememberMe?: boolean
 }
 
 // Interface for registration data
 export interface RegisterData {
-    email: string
+    phone_number: string
     password: string
     confirmPassword: string
     firstName: string
     lastName: string
-    phone?: string
     role?: 'admin' | 'student'
     agreeToTerms: boolean
 }
 
 // Interface for password reset
 export interface PasswordResetData {
-    email: string
+    phone_number: string
 }
 
 // Interface for profile update
 export interface ProfileUpdateData {
     firstName?: string
     lastName?: string
-    email?: string
     phone?: string
 }
 
@@ -92,10 +90,11 @@ export function useAuth() {
     }
 
     // Validation helpers
-    const validateEmail = (email: string): string | null => {
-        if (!email) return 'Email is required'
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(email)) return 'Please enter a valid email address'
+    const validatePhoneNumber = (phone: string): string | null => {
+        if (!phone) return 'Telefon numarası gereklidir'
+        if (!/^[0-9]+$/.test(phone)) return 'Telefon numarası sadece rakamlardan oluşmalıdır'
+        if (phone.length !== 11) return 'Telefon numarası 11 haneli olmalıdır'
+        if (!phone.startsWith('0')) return 'Telefon numarası 0 ile başlamalıdır'
         return null
     }
 
@@ -114,7 +113,7 @@ export function useAuth() {
     const validatePhone = (phone: string): string | null => {
         if (!phone) return null // Phone is optional
         const phoneRegex = /^[\+]?[0-9\s\-\(\)]+$/
-        if (!phoneRegex.test(phone)) return 'Please enter a valid phone number'
+        if (!phoneRegex.test(phone)) return 'Geçerli bir telefon numarası giriniz'
         return null
     }
 
@@ -132,44 +131,42 @@ export function useAuth() {
     const validateLoginForm = (credentials: LoginCredentials): boolean => {
         clearValidationErrors()
 
-        const emailError = validateEmail(credentials.email)
+        const phoneError = validatePhoneNumber(credentials.phone_number)
         const passwordError = validatePassword(credentials.password)
 
-        if (emailError) validationErrors.value.email = emailError
+        if (phoneError) validationErrors.value.phone_number = phoneError
         if (passwordError) validationErrors.value.password = passwordError
 
-        return !emailError && !passwordError
+        return !phoneError && !passwordError
     }
 
     const validateRegisterForm = (data: RegisterData): boolean => {
         clearValidationErrors()
 
-        const firstNameError = validateName(data.firstName, 'First name')
-        const lastNameError = validateName(data.lastName, 'Last name')
-        const emailError = validateEmail(data.email)
+        const firstNameError = validateName(data.firstName, 'Ad')
+        const lastNameError = validateName(data.lastName, 'Soyad')
+        const phoneError = validatePhoneNumber(data.phone_number)
         const passwordError = validatePassword(data.password)
-        const phoneError = data.phone ? validatePhone(data.phone) : null
 
         let confirmPasswordError = null
         if (data.password !== data.confirmPassword) {
-            confirmPasswordError = 'Passwords do not match'
+            confirmPasswordError = 'Şifreler eşleşmiyor'
         }
 
         let termsError = null
         if (!data.agreeToTerms) {
-            termsError = 'You must agree to the terms and conditions'
+            termsError = 'Şartları ve koşulları kabul etmelisiniz'
         }
 
         if (firstNameError) validationErrors.value.firstName = firstNameError
         if (lastNameError) validationErrors.value.lastName = lastNameError
-        if (emailError) validationErrors.value.email = emailError
+        if (phoneError) validationErrors.value.phone_number = phoneError
         if (passwordError) validationErrors.value.password = passwordError
         if (confirmPasswordError) validationErrors.value.confirmPassword = confirmPasswordError
-        if (phoneError) validationErrors.value.phone = phoneError
         if (termsError) validationErrors.value.agreeToTerms = termsError
 
-        return !firstNameError && !lastNameError && !emailError &&
-            !passwordError && !confirmPasswordError && !phoneError && !termsError
+        return !firstNameError && !lastNameError && !phoneError &&
+            !passwordError && !confirmPasswordError && !termsError
     }
 
     // Authentication actions
@@ -183,19 +180,19 @@ export function useAuth() {
         isLoggingIn.value = true
 
         try {
-            const success = await authStore.login(credentials.email, credentials.password)
+            const success = await authStore.login(credentials.phone_number, credentials.password)
 
             if (success) {
                 // Handle remember me
                 if (credentials.rememberMe) {
                     localStorage.setItem('tennis_academy_remember', 'true')
-                    localStorage.setItem('tennis_academy_email', credentials.email)
+                    localStorage.setItem('tennis_academy_phone', credentials.phone_number)
                 } else {
                     localStorage.removeItem('tennis_academy_remember')
-                    localStorage.removeItem('tennis_academy_email')
+                    localStorage.removeItem('tennis_academy_phone')
                 }
 
-                successMessage.value = 'Login successful!'
+                successMessage.value = 'Giriş başarılı!'
 
                 // Redirect based on role
                 await redirectAfterLogin()
@@ -204,6 +201,9 @@ export function useAuth() {
             return success
         } catch (error: any) {
             console.error('Login error:', error)
+            if (error.message === 'pending_approval') {
+                authStore.error = authStore.getErrorMessage({ code: 'pending_approval' })
+            }
             return false
         } finally {
             isLoggingIn.value = false
@@ -221,7 +221,7 @@ export function useAuth() {
 
         try {
             const success = await authStore.register({
-                email: data.email,
+                phone_number: data.phone_number,
                 password: data.password,
                 firstName: data.firstName,
                 lastName: data.lastName,
@@ -229,7 +229,7 @@ export function useAuth() {
             })
 
             if (success) {
-                successMessage.value = 'Registration successful! Welcome to Urla Tennis Academy.'
+                successMessage.value = 'Kayıt başarılı! Urla Tenis Akademisi\'ne hoş geldiniz.'
 
                 // Redirect based on role
                 setTimeout(async () => {
@@ -240,6 +240,9 @@ export function useAuth() {
             return success
         } catch (error: any) {
             console.error('Registration error:', error)
+            if (error.message === 'pending_approval') {
+                authStore.error = authStore.getErrorMessage({ code: 'pending_approval' })
+            }
             return false
         } finally {
             isRegistering.value = false
@@ -252,9 +255,9 @@ export function useAuth() {
 
             // Clear any stored auth data
             localStorage.removeItem('tennis_academy_remember')
-            localStorage.removeItem('tennis_academy_email')
+            localStorage.removeItem('tennis_academy_phone')
 
-            successMessage.value = 'Logged out successfully'
+            successMessage.value = 'Çıkış başarılı'
 
             // Redirect to home page
             await router.push('/')
@@ -266,19 +269,19 @@ export function useAuth() {
     const resetPassword = async (data: PasswordResetData): Promise<boolean> => {
         clearMessages()
 
-        const emailError = validateEmail(data.email)
-        if (emailError) {
-            validationErrors.value.email = emailError
+        const phoneError = validatePhoneNumber(data.phone_number)
+        if (phoneError) {
+            validationErrors.value.phone_number = phoneError
             return false
         }
 
         isResettingPassword.value = true
 
         try {
-            // In a real app, this would call Firebase auth
+            // Şifre sıfırlama artık admin ile iletişim üzerinden yapılıyor
             await new Promise(resolve => setTimeout(resolve, 2000))
 
-            successMessage.value = 'Password reset link has been sent to your email address'
+            successMessage.value = 'Şifre sıfırlama için yöneticiyle iletişime geçin'
             return true
         } catch (error: any) {
             console.error('Password reset error:', error)
@@ -300,18 +303,13 @@ export function useAuth() {
             const errors: Record<string, string> = {}
 
             if (data.firstName) {
-                const firstNameError = validateName(data.firstName, 'First name')
+                const firstNameError = validateName(data.firstName, 'Ad')
                 if (firstNameError) errors.firstName = firstNameError
             }
 
             if (data.lastName) {
-                const lastNameError = validateName(data.lastName, 'Last name')
+                const lastNameError = validateName(data.lastName, 'Soyad')
                 if (lastNameError) errors.lastName = lastNameError
-            }
-
-            if (data.email) {
-                const emailError = validateEmail(data.email)
-                if (emailError) errors.email = emailError
             }
 
             if (data.phone) {
@@ -324,19 +322,22 @@ export function useAuth() {
                 return false
             }
 
-            // Update user in store (in a real app, this would update Firebase and Firestore)
-            const updatedUser = {
-                ...user.value,
-                ...data,
-                updatedAt: new Date()
-            }
+            // Çağırılacak AuthService (Gerçek Firebase Güncellemesi)
+            const { AuthService } = await import('@/services/auth')
+            await AuthService.updateProfile(user.value.id, {
+                firstName: data.firstName,
+                lastName: data.lastName,
+                phone: data.phone
+            })
 
-            authStore.user = updatedUser
+            // Firestore güncellendi, store'u da güncellemeliyiz.
+            await authStore.fetchUserData(user.value.id)
 
-            successMessage.value = 'Profile updated successfully'
+            successMessage.value = 'Profil başarıyla güncellendi'
             return true
         } catch (error: any) {
             console.error('Profile update error:', error)
+            authStore.error = authStore.getErrorMessage(error)
             return false
         } finally {
             isUpdatingProfile.value = false
@@ -355,7 +356,7 @@ export function useAuth() {
             const errors: Record<string, string> = {}
 
             if (!data.currentPassword) {
-                errors.currentPassword = 'Current password is required'
+                errors.currentPassword = 'Mevcut şifre gereklidir'
             }
 
             const newPasswordError = validatePassword(data.newPassword)
@@ -364,11 +365,11 @@ export function useAuth() {
             }
 
             if (data.newPassword !== data.confirmPassword) {
-                errors.confirmPassword = 'Passwords do not match'
+                errors.confirmPassword = 'Şifreler eşleşmiyor'
             }
 
             if (data.currentPassword === data.newPassword) {
-                errors.newPassword = 'New password must be different from current password'
+                errors.newPassword = 'Yeni şifre mevcut şifreden farklı olmalıdır'
             }
 
             if (Object.keys(errors).length > 0) {
@@ -376,13 +377,18 @@ export function useAuth() {
                 return false
             }
 
-            // In a real app, this would validate current password and update it
-            await new Promise(resolve => setTimeout(resolve, 1500))
+            // Çağırılacak AuthService (Gerçek Firebase Güncellemesi)
+            const { AuthService } = await import('@/services/auth')
+            await AuthService.changePassword({
+                currentPassword: data.currentPassword,
+                newPassword: data.newPassword
+            })
 
-            successMessage.value = 'Password changed successfully'
+            successMessage.value = 'Şifre başarıyla değiştirildi'
             return true
         } catch (error: any) {
             console.error('Password change error:', error)
+            authStore.error = authStore.getErrorMessage(error)
             return false
         } finally {
             isChangingPassword.value = false
@@ -419,11 +425,11 @@ export function useAuth() {
     }
 
     // Auto-login from remembered credentials
-    const loadRememberedCredentials = (): { email: string; rememberMe: boolean } => {
+    const loadRememberedCredentials = (): { phone_number: string; rememberMe: boolean } => {
         const rememberMe = localStorage.getItem('tennis_academy_remember') === 'true'
-        const email = localStorage.getItem('tennis_academy_email') || ''
+        const phone_number = localStorage.getItem('tennis_academy_phone') || ''
 
-        return { email, rememberMe }
+        return { phone_number, rememberMe }
     }
 
     // Session management
@@ -501,7 +507,7 @@ export function useAuth() {
         changePassword,
 
         // Validation
-        validateEmail,
+        validatePhoneNumber,
         validatePassword,
         validateName,
         validatePhone,

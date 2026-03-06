@@ -1171,7 +1171,7 @@ const openReservationDialog = async () => {
           id: doc.id,
           firstName: data.firstName || '',
           lastName: data.lastName || '',
-          email: data.email || '',
+          phone_number: data.phone_number || '',
           phone: data.phone || '',
           fullName: `${data.firstName || ''} ${data.lastName || ''}`.trim()
         }

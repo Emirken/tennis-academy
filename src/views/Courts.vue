@@ -751,7 +751,7 @@ const saveCourtSchedule = async () => {
     const dateString = selectedDate.value.toISOString().split('T')[0]
     const docRef = doc(db, 'courtSchedule', dateString)
 
-    const updatedBy = authStore.user?.id || authStore.user?.email || 'unknown'
+    const updatedBy = authStore.user?.id || authStore.user?.phone_number || 'unknown'
 
     await setDoc(docRef, {
       schedule: schedule.value,

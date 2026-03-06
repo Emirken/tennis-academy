@@ -754,7 +754,7 @@ const saveAllAttendance = async () => {
         lessonNumber: lesson.lessonNumber
       })),
       updatedAt: serverTimestamp(),
-      updatedBy: authStore.user?.email || 'Bilinmeyen'
+      updatedBy: authStore.user?.phone_number || 'Bilinmeyen'
     }
     
     await setDoc(doc(db, 'attendance', docId), attendanceRecord)
@@ -807,7 +807,7 @@ const autoSaveAttendance = async () => {
         lessonNumber: lesson.lessonNumber
       })),
       updatedAt: serverTimestamp(),
-      updatedBy: authStore.user?.email || 'Bilinmeyen'
+      updatedBy: authStore.user?.phone_number || 'Bilinmeyen'
     }
 
     await setDoc(doc(db, 'attendance', docId), attendanceRecord)

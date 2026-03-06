@@ -587,7 +587,7 @@ const savePrices = async () => {
     const pricesData = {
       ...editPricing,
       updatedAt: serverTimestamp(),
-      updatedBy: authStore.user?.email || 'Bilinmeyen'
+      updatedBy: authStore.user?.phone_number || 'Bilinmeyen'
     }
 
     // Save to Firestore

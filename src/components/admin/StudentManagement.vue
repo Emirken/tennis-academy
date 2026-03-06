@@ -211,7 +211,7 @@
                     <div class="font-weight-bold text-body-1">
                       {{ item.firstName }} {{ item.lastName }}
                     </div>
-                    <div class="text-body-2 text-grey-600">{{ item.email }}</div>
+                    <div class="text-body-2 text-grey-600">{{ item.phone_number }}</div>
                   </div>
                 </div>
               </template>
@@ -324,7 +324,7 @@
                     {{ selectedStudent?.firstName }} {{ selectedStudent?.lastName }}
                   </h2>
                   <p class="text-body-1 text-white opacity-90 mb-0">
-                    {{ selectedStudent?.email }}
+                    {{ selectedStudent?.phone_number }}
                   </p>
                 </div>
                 <v-spacer />
@@ -359,7 +359,7 @@
                       </div>
                       <div class="info-item mb-3">
                         <label class="info-label">E-posta:</label>
-                        <span class="info-value">{{ selectedStudent?.email }}</span>
+                        <span class="info-value">{{ selectedStudent?.phone_number }}</span>
                       </div>
                       <div class="info-item mb-3">
                         <label class="info-label">Telefon:</label>
@@ -390,7 +390,7 @@
                           class="mb-3"
                       />
                       <v-text-field
-                          v-model="editForm.email"
+                          v-model="editForm.phone_number"
                           label="E-posta"
                           variant="outlined"
                           density="compact"
@@ -845,7 +845,7 @@
                 </v-list-item-title>
 
                 <v-list-item-subtitle>
-                  {{ member.email }}
+                  {{ member.phone_number }}
                 </v-list-item-subtitle>
 
                 <template #append>
@@ -943,7 +943,7 @@
               <!-- E-posta -->
               <v-col cols="12">
                 <v-text-field
-                    v-model="addStudentForm.email"
+                    v-model="addStudentForm.phone_number"
                     label="E-posta"
                     type="email"
                     variant="outlined"
@@ -1072,7 +1072,7 @@ interface Student {
   id: string
   firstName: string
   lastName: string
-  email: string
+  phone_number: string
   phone: string
   address: string
   emergencyContact: string
@@ -1143,7 +1143,7 @@ const exportingAttendance = ref(false)
 const addStudentForm = ref({
   firstName: '',
   lastName: '',
-  email: '',
+  phone_number: '',
   password: '',
   confirmPassword: ''
 })
@@ -1164,7 +1164,7 @@ const filters = reactive({
 const editForm = ref({
   firstName: '',
   lastName: '',
-  email: '',
+  phone_number: '',
   phone: '',
   address: '',
   emergencyContact: '',
@@ -1617,7 +1617,7 @@ const filteredStudents = computed(() => {
   if (filters.search) {
     filtered = filtered.filter(student =>
         `${student.firstName} ${student.lastName}`.toLowerCase().includes(filters.search.toLowerCase()) ||
-        student.email.toLowerCase().includes(filters.search.toLowerCase()) ||
+        student.phone_number.toLowerCase().includes(filters.search.toLowerCase()) ||
         student.phone.includes(filters.search)
     )
   }
@@ -2155,7 +2155,7 @@ const fetchStudents = async () => {
 
       // Silinmiş öğrencileri atla
       if (data.deleted === true) {
-        console.log('⏭️ Silinmiş öğrenci atlandı:', data.email)
+        console.log('⏭️ Silinmiş öğrenci atlandı:', data.phone_number)
         return
       }
 
@@ -2165,7 +2165,7 @@ const fetchStudents = async () => {
         id: doc.id,
         firstName: data.firstName || '',
         lastName: data.lastName || '',
-        email: data.email || '',
+        phone_number: data.phone_number || '',
         phone: data.phone || '',
         address: data.address || '',
         emergencyContact: data.emergencyContact || '',
@@ -2231,7 +2231,7 @@ const openAddStudentDialog = () => {
   addStudentForm.value = {
     firstName: '',
     lastName: '',
-    email: '',
+    phone_number: '',
     password: '',
     confirmPassword: ''
   }
@@ -2244,7 +2244,7 @@ const closeAddStudentDialog = () => {
   addStudentForm.value = {
     firstName: '',
     lastName: '',
-    email: '',
+    phone_number: '',
     password: '',
     confirmPassword: ''
   }
@@ -2259,7 +2259,7 @@ const createNewStudent = async () => {
   try {
     // Önce silinmiş bir kullanıcı olup olmadığını kontrol et
     const usersRef = collection(db, 'users')
-    const emailQuery = query(usersRef, where('email', '==', addStudentForm.value.email))
+    const emailQuery = query(usersRef, where('phone_number', '==', addStudentForm.value.phone_number))
     const emailSnapshot = await getDocs(emailQuery)
 
     let reactivatedUser = false
@@ -2271,7 +2271,7 @@ const createNewStudent = async () => {
 
       if (existingUserData.deleted === true) {
         // Silinmiş kullanıcıyı yeniden aktif et
-        console.log('🔄 Silinmiş öğrenci yeniden aktif ediliyor:', existingUserData.email)
+        console.log('🔄 Silinmiş öğrenci yeniden aktif ediliyor:', existingUserData.phone_number)
 
         await updateDoc(existingUserDoc.ref, {
           firstName: addStudentForm.value.firstName,
@@ -2309,7 +2309,7 @@ const createNewStudent = async () => {
       // İkinci instance ile yeni öğrenci oluştur
       const userCredential = await createUserWithEmailAndPassword(
           secondaryAuth,
-          addStudentForm.value.email,
+          addStudentForm.value.phone_number,
           addStudentForm.value.password
       )
 
@@ -2318,7 +2318,7 @@ const createNewStudent = async () => {
       await setDoc(userDocRef, {
         firstName: addStudentForm.value.firstName,
         lastName: addStudentForm.value.lastName,
-        email: addStudentForm.value.email,
+        phone_number: addStudentForm.value.phone_number,
         phone: '',
         address: '',
         emergencyContact: '',
@@ -2390,7 +2390,7 @@ const toggleEditMode = async () => {
     editForm.value = {
       firstName: selectedStudent.value.firstName,
       lastName: selectedStudent.value.lastName,
-      email: selectedStudent.value.email,
+      phone_number: selectedStudent.value.phone_number,
       phone: selectedStudent.value.phone,
       address: selectedStudent.value.address,
       emergencyContact: selectedStudent.value.emergencyContact,
@@ -2413,7 +2413,7 @@ const cancelEdit = () => {
   editForm.value = {
     firstName: '',
     lastName: '',
-    email: '',
+    phone_number: '',
     phone: '',
     address: '',
     emergencyContact: '',
@@ -2534,7 +2534,7 @@ const saveStudentChanges = async (): Promise<void> => {
     await updateDoc(userDocRef, {
       firstName: editForm.value.firstName,
       lastName: editForm.value.lastName,
-      email: editForm.value.email,
+      phone_number: editForm.value.phone_number,
       phone: editForm.value.phone,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
@@ -2602,7 +2602,7 @@ const saveStudentChanges = async (): Promise<void> => {
           const memberData = {
             id: studentId,
             name: `${editForm.value.firstName} ${editForm.value.lastName}`,
-            email: editForm.value.email
+            phone_number: editForm.value.phone_number
           }
 
           await updateDoc(newGroupRef, {
@@ -2622,7 +2622,7 @@ const saveStudentChanges = async (): Promise<void> => {
         ...oldStudent,
         firstName: editForm.value.firstName,
         lastName: editForm.value.lastName,
-        email: editForm.value.email,
+        phone_number: editForm.value.phone_number,
         phone: editForm.value.phone,
         address: editForm.value.address,
         emergencyContact: editForm.value.emergencyContact,

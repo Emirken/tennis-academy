@@ -5,7 +5,6 @@ import {
     signOut as firebaseSignOut,
     sendPasswordResetEmail,
     updatePassword,
-    updateEmail,
     updateProfile as firebaseUpdateProfile,
     onAuthStateChanged as firebaseOnAuthStateChanged,
     User as FirebaseUser,
@@ -25,9 +24,14 @@ import {
 import { auth, db } from './firebase'
 import type { User } from '@/types/user'
 
+// Helper: telefon numarasından dummy email oluştur
+function phoneToEmail(phoneNumber: string): string {
+    return `${phoneNumber}@tennis.local`
+}
+
 // Interface for user registration data
 export interface RegisterUserData {
-    email: string
+    phone_number: string
     password: string
     firstName: string
     lastName: string
@@ -51,10 +55,11 @@ export interface ChangePasswordData {
 
 // Authentication service class
 export class AuthService {
-    // Sign in with email and password
-    static async signIn(email: string, password: string): Promise<UserCredential> {
+    // Sign in with phone number and password
+    static async signIn(phoneNumber: string, password: string): Promise<UserCredential> {
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password)
+            const dummyEmail = phoneToEmail(phoneNumber)
+            const userCredential = await signInWithEmailAndPassword(auth, dummyEmail, password)
 
             // Update last login time
             if (userCredential.user) {
@@ -70,10 +75,12 @@ export class AuthService {
     // Register new user
     static async register(userData: RegisterUserData): Promise<UserCredential> {
         try {
+            const dummyEmail = phoneToEmail(userData.phone_number)
+
             // Create Firebase auth user
             const userCredential = await createUserWithEmailAndPassword(
                 auth,
-                userData.email,
+                dummyEmail,
                 userData.password
             )
 
@@ -88,10 +95,11 @@ export class AuthService {
                 updatedAt: Date
             } = {
                 id: userCredential.user.uid,
-                email: userData.email,
+                phone_number: userData.phone_number,
                 firstName: userData.firstName,
                 lastName: userData.lastName,
                 role: userData.role,
+                status: userData.role === 'admin' ? 'approved' : 'pending',
                 createdAt: new Date(),
                 updatedAt: new Date()
             }
@@ -113,10 +121,11 @@ export class AuthService {
         }
     }
 
-    // Send password reset email
-    static async sendPasswordResetEmail(email: string): Promise<void> {
+    // Send password reset (not applicable without email, kept for compatibility)
+    static async sendPasswordResetEmail(phoneNumber: string): Promise<void> {
         try {
-            await sendPasswordResetEmail(auth, email)
+            const dummyEmail = phoneToEmail(phoneNumber)
+            await sendPasswordResetEmail(auth, dummyEmail)
         } catch (error) {
             throw this.handleAuthError(error as AuthError)
         }
@@ -136,28 +145,6 @@ export class AuthService {
 
             // Update password
             await updatePassword(currentUser, data.newPassword)
-        } catch (error) {
-            throw this.handleAuthError(error as AuthError)
-        }
-    }
-
-    // Update email
-    static async changeEmail(newEmail: string, currentPassword: string): Promise<void> {
-        try {
-            const currentUser = auth.currentUser
-            if (!currentUser || !currentUser.email) {
-                throw new Error('No authenticated user')
-            }
-
-            // Re-authenticate user
-            const credential = EmailAuthProvider.credential(currentUser.email, currentPassword)
-            await reauthenticateWithCredential(currentUser, credential)
-
-            // Update email in Firebase Auth
-            await updateEmail(currentUser, newEmail)
-
-            // Update email in Firestore
-            await this.updateUserDocument(currentUser.uid, { email: newEmail })
         } catch (error) {
             throw this.handleAuthError(error as AuthError)
         }
@@ -227,10 +214,11 @@ export class AuthService {
                 const data = userDoc.data() as DocumentData
                 return {
                     id: userDoc.id,
-                    email: data.email,
+                    phone_number: data.phone_number || data.email || '',
                     firstName: data.firstName,
                     lastName: data.lastName,
                     role: data.role,
+                    status: data.status,
                     phone: data.phone,
                     address: data.address,
                     emergencyContact: data.emergencyContact,
@@ -252,10 +240,11 @@ export class AuthService {
         try {
             const userDoc = {
                 id: user.id,
-                email: user.email,
+                phone_number: user.phone_number,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 role: user.role,
+                status: user.status || (user.role === 'admin' ? 'approved' : 'pending'),
                 phone: user.phone || '',
                 address: user.address || '',
                 emergencyContact: user.emergencyContact || '',
@@ -337,43 +326,43 @@ export class AuthService {
 
         switch (error.code) {
             case 'auth/user-not-found':
-                message = 'No account found with this email address'
+                message = 'Bu telefon numarasıyla kayıtlı kullanıcı bulunamadı'
                 break
             case 'auth/wrong-password':
-                message = 'Incorrect password'
+                message = 'Yanlış şifre girdiniz'
                 break
             case 'auth/email-already-in-use':
-                message = 'An account with this email already exists'
+                message = 'Bu telefon numarası zaten kayıtlı'
                 break
             case 'auth/weak-password':
-                message = 'Password is too weak. Please choose a stronger password'
+                message = 'Şifre çok zayıf. Daha güçlü bir şifre seçin'
                 break
             case 'auth/invalid-email':
-                message = 'Please enter a valid email address'
+                message = 'Geçersiz telefon numarası formatı'
                 break
             case 'auth/user-disabled':
-                message = 'This account has been disabled'
+                message = 'Bu hesap devre dışı bırakılmış'
                 break
             case 'auth/too-many-requests':
-                message = 'Too many failed attempts. Please try again later'
+                message = 'Çok fazla başarısız deneme. Lütfen daha sonra tekrar deneyin'
                 break
             case 'auth/network-request-failed':
-                message = 'Network error. Please check your connection'
+                message = 'Ağ bağlantısı hatası. İnternet bağlantınızı kontrol edin'
                 break
             case 'auth/requires-recent-login':
-                message = 'Please sign in again to complete this action'
+                message = 'Bu işlem için tekrar giriş yapmanız gerekiyor'
                 break
             case 'auth/email-already-exists':
-                message = 'An account with this email already exists'
+                message = 'Bu telefon numarası zaten kayıtlı'
                 break
             case 'auth/invalid-credential':
-                message = 'Invalid credentials provided'
+                message = 'Geçersiz kimlik bilgileri'
                 break
             case 'auth/credential-already-in-use':
-                message = 'This credential is already associated with another account'
+                message = 'Bu kimlik bilgisi başka bir hesapla ilişkili'
                 break
             default:
-                message = error.message || 'An authentication error occurred'
+                message = error.message || 'Bir kimlik doğrulama hatası oluştu'
                 break
         }
 
@@ -382,10 +371,10 @@ export class AuthService {
         return customError
     }
 
-    // Validate email format
-    static isValidEmail(email: string): boolean {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        return emailRegex.test(email)
+    // Validate phone number format (11 digits, starts with 0)
+    static isValidPhoneNumber(phoneNumber: string): boolean {
+        const phoneRegex = /^0[0-9]{10}$/
+        return phoneRegex.test(phoneNumber)
     }
 
     // Validate password strength
@@ -398,31 +387,31 @@ export class AuthService {
         let score = 0
 
         if (password.length < 8) {
-            errors.push('Password must be at least 8 characters long')
+            errors.push('Şifre en az 8 karakter olmalıdır')
         } else {
             score += 1
         }
 
         if (!/[A-Z]/.test(password)) {
-            errors.push('Password must contain at least one uppercase letter')
+            errors.push('Şifre en az bir büyük harf içermelidir')
         } else {
             score += 1
         }
 
         if (!/[a-z]/.test(password)) {
-            errors.push('Password must contain at least one lowercase letter')
+            errors.push('Şifre en az bir küçük harf içermelidir')
         } else {
             score += 1
         }
 
         if (!/[0-9]/.test(password)) {
-            errors.push('Password must contain at least one number')
+            errors.push('Şifre en az bir rakam içermelidir')
         } else {
             score += 1
         }
 
         if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-            errors.push('Password must contain at least one special character')
+            errors.push('Şifre en az bir özel karakter içermelidir')
         } else {
             score += 1
         }
@@ -559,7 +548,6 @@ export const register = AuthService.register
 export const signOut = AuthService.signOut
 export const sendResetEmail = AuthService.sendPasswordResetEmail
 export const changePassword = AuthService.changePassword
-export const changeEmail = AuthService.changeEmail
 export const updateProfile = AuthService.updateProfile
 export const getCurrentUserData = AuthService.getCurrentUserData
 export const userExists = AuthService.userExists
@@ -570,7 +558,7 @@ export const onAuthStateChanged = AuthService.onAuthStateChanged
 export const getCurrentUser = AuthService.getCurrentUser
 export const isAuthenticated = AuthService.isAuthenticated
 export const waitForAuthReady = AuthService.waitForAuthReady
-export const isValidEmail = AuthService.isValidEmail
+export const isValidPhoneNumber = AuthService.isValidPhoneNumber
 export const validatePassword = AuthService.validatePassword
 export const generateSecurePassword = AuthService.generateSecurePassword
 export const deleteUserAccount = AuthService.deleteUserAccount

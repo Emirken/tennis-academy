@@ -10,6 +10,7 @@ import {
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/services/firebase'
 import type { User } from '@/types/user'
+import { notificationService } from '@/services/notificationService'
 
 interface AuthState {
     user: User | null
@@ -17,6 +18,11 @@ interface AuthState {
     loading: boolean
     error: string | null
     initialized: boolean
+}
+
+// Helper: telefon numarasından dummy email oluştur
+function phoneToEmail(phoneNumber: string): string {
+    return `${phoneNumber}@tennis.local`
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -34,13 +40,14 @@ export const useAuthStore = defineStore('auth', {
     },
 
     actions: {
-        async login(email: string, password: string) {
+        async login(phoneNumber: string, password: string) {
             this.loading = true
             this.error = null
 
             try {
-                console.log('🔐 Giriş yapılıyor:', email)
-                const userCredential = await signInWithEmailAndPassword(auth, email, password)
+                const dummyEmail = phoneToEmail(phoneNumber)
+                console.log('🔐 Giriş yapılıyor:', phoneNumber)
+                const userCredential = await signInWithEmailAndPassword(auth, dummyEmail, password)
                 console.log('✅ Firebase auth başarılı, UID:', userCredential.user.uid)
 
                 await this.fetchUserData(userCredential.user.uid)
@@ -57,7 +64,7 @@ export const useAuthStore = defineStore('auth', {
         },
 
         async register(userData: {
-            email: string
+            phone_number: string
             password: string
             firstName: string
             lastName: string
@@ -67,19 +74,21 @@ export const useAuthStore = defineStore('auth', {
             this.error = null
 
             try {
-                console.log('📝 Kullanıcı kaydediliyor:', userData.email)
+                const dummyEmail = phoneToEmail(userData.phone_number)
+                console.log('📝 Kullanıcı kaydediliyor:', userData.phone_number)
                 const userCredential = await createUserWithEmailAndPassword(
                     auth,
-                    userData.email,
+                    dummyEmail,
                     userData.password
                 )
 
                 const user: User = {
                     id: userCredential.user.uid,
-                    email: userData.email,
+                    phone_number: userData.phone_number,
                     firstName: userData.firstName,
                     lastName: userData.lastName,
                     role: userData.role,
+                    status: userData.role === 'admin' ? 'approved' : 'pending',
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }
@@ -87,12 +96,62 @@ export const useAuthStore = defineStore('auth', {
                 console.log('💾 Firestore\'a kullanıcı verisi yazılıyor...')
                 await setDoc(doc(db, 'users', user.id), user)
 
+                if (user.role === 'student' && user.status === 'pending') {
+                    await notificationService.createAdminNotification(
+                        'Yeni Öğrenci Kaydı',
+                        `${user.firstName} ${user.lastName} kayıt oldu, onayınızı bekliyor.`,
+                        'approval_pending',
+                        user.id
+                    )
+                }
+
                 this.user = user
                 this.isAuthenticated = true
                 console.log('✅ Kayıt başarılı:', user)
 
                 return true
             } catch (error: any) {
+                if (error.code === 'auth/email-already-in-use') {
+                    console.log('🔄 Telefon numarası zaten kullanımda hatası. Acaba Firestore dokümanı silinmiş mi kontrol ediliyor...')
+                    try {
+                        const dummyEmail = phoneToEmail(userData.phone_number)
+                        // Kendi önceden girdiği şifreyle girmeyi dener
+                        const signinCredential = await signInWithEmailAndPassword(auth, dummyEmail, userData.password)
+
+                        const userDoc = await getDoc(doc(db, 'users', signinCredential.user.uid))
+                        if (!userDoc.exists()) {
+                            console.log('📝 Firestore üzerinde kullanıcı bulunamadı (Önceden reddedilmiş). Yeniden Firestore dokümanı oluşturuluyor...')
+                            const user: User = {
+                                id: signinCredential.user.uid,
+                                phone_number: userData.phone_number,
+                                firstName: userData.firstName,
+                                lastName: userData.lastName,
+                                role: userData.role,
+                                status: userData.role === 'admin' ? 'approved' : 'pending',
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            }
+                            await setDoc(doc(db, 'users', user.id), user)
+
+                            if (user.role === 'student' && user.status === 'pending') {
+                                await notificationService.createAdminNotification(
+                                    'Yeni Öğrenci Kaydı',
+                                    `${user.firstName} ${user.lastName} kayıt oldu, onayınızı bekliyor.`,
+                                    'approval_pending',
+                                    user.id
+                                )
+                            }
+
+                            this.user = user
+                            this.isAuthenticated = true
+                            console.log('✅ Kurtarma başarılı:', user)
+                            return true
+                        }
+                    } catch (recoveryError) {
+                        console.error('❌ Kurtarma başarısız (Yanlış şifre girilmiş olabilir):', recoveryError)
+                    }
+                }
+
                 console.error('❌ Kayıt hatası:', error)
                 this.error = this.getErrorMessage(error)
                 return false
@@ -114,12 +173,13 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
-        async sendPasswordResetEmail(email: string) {
+        async sendPasswordResetEmail(phoneNumber: string) {
             this.loading = true
             this.error = null
 
             try {
-                await sendPasswordResetEmail(auth, email)
+                const dummyEmail = phoneToEmail(phoneNumber)
+                await sendPasswordResetEmail(auth, dummyEmail)
                 return true
             } catch (error: any) {
                 this.error = this.getErrorMessage(error)
@@ -138,10 +198,14 @@ export const useAuthStore = defineStore('auth', {
                     const userData = userDoc.data() as User
                     console.log('✅ Kullanıcı verisi bulundu:', {
                         id: userData.id,
-                        email: userData.email,
+                        phone_number: userData.phone_number,
                         firstName: userData.firstName,
                         role: userData.role
                     })
+
+                    if (userData.role === 'student' && userData.status === 'pending') {
+                        console.log('⚠️ Kullanıcı onay bekliyor, ancak sisteme girişine izin veriliyor (dashboard kilitli).', uid)
+                    }
 
                     this.user = {
                         ...userData,
@@ -154,9 +218,11 @@ export const useAuthStore = defineStore('auth', {
                     const currentUser = auth.currentUser
                     if (currentUser) {
                         console.log('🔧 Temel kullanıcı profili oluşturuluyor...')
+                        // Extract phone number from dummy email
+                        const phoneFromEmail = currentUser.email?.replace('@tennis.local', '') || ''
                         const basicUser: User = {
                             id: uid,
-                            email: currentUser.email || '',
+                            phone_number: phoneFromEmail,
                             firstName: 'Kullanıcı',
                             lastName: '',
                             role: 'student', // Default role
@@ -254,15 +320,15 @@ export const useAuthStore = defineStore('auth', {
 
             switch (code) {
                 case 'auth/user-not-found':
-                    return 'Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı'
+                    return 'Bu telefon numarasıyla kayıtlı kullanıcı bulunamadı'
                 case 'auth/wrong-password':
                     return 'Yanlış şifre girdiniz'
                 case 'auth/email-already-in-use':
-                    return 'Bu e-posta adresi zaten kullanımda'
+                    return 'Bu telefon numarası zaten kullanımda'
                 case 'auth/weak-password':
                     return 'Şifre çok zayıf. Daha güçlü bir şifre seçin'
                 case 'auth/invalid-email':
-                    return 'Geçersiz e-posta adresi'
+                    return 'Geçersiz telefon numarası'
                 case 'auth/user-disabled':
                     return 'Bu hesap devre dışı bırakılmış'
                 case 'auth/too-many-requests':
@@ -273,6 +339,8 @@ export const useAuthStore = defineStore('auth', {
                     return 'Bu işlem için tekrar giriş yapmanız gerekiyor'
                 case 'auth/invalid-credential':
                     return 'Geçersiz kimlik bilgileri'
+                case 'pending_approval':
+                    return 'Hesabınız onay bekliyor. Yöneticinin hesabınızı onaylaması gerekmektedir.'
                 default:
                     return error.message || 'Bilinmeyen bir hata oluştu'
             }

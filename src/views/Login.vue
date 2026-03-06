@@ -50,13 +50,14 @@
                     @submit.prevent="handleLogin"
                 >
                   <v-text-field
-                      v-model="loginData.email"
-                      label="E-posta"
-                      type="email"
+                      v-model="loginData.phone_number"
+                      label="Telefon Numarası"
+                      type="tel"
                       variant="outlined"
-                      :rules="emailRules"
-                      :error-messages="emailError"
-                      prepend-inner-icon="mdi-email"
+                      :rules="phoneRules"
+                      :error-messages="phoneError"
+                      prepend-inner-icon="mdi-phone"
+                      placeholder="05XX XXX XX XX"
                       class="mb-4 auth-input"
                       required
                   />
@@ -124,7 +125,7 @@
                     <div class="auth-link-content">
                       <div class="auth-link-info">
                         <h4 class="auth-link-title">Şifrenizi mi unuttunuz?</h4>
-                        <p class="auth-link-description">Şifre sıfırlama talimatları alın</p>
+                        <p class="auth-link-description">Şifre sıfırlama için yöneticiyle iletişime geçin</p>
                       </div>
                       <v-btn
                           :to="{ name: 'ForgotPassword' }"
@@ -133,7 +134,7 @@
                           size="small"
                           class="auth-link-btn"
                       >
-                        Sıfırla
+                        Bilgi Al
                       </v-btn>
                     </div>
                   </div>
@@ -177,20 +178,22 @@ const authStore = useAuthStore()
 
 // Form verileri
 const loginData = reactive({
-  email: '',
+  phone_number: '',
   password: ''
 })
 
 // Form doğrulama
 const valid = ref(false)
 const showPassword = ref(false)
-const emailError = ref('')
+const phoneError = ref('')
 const passwordError = ref('')
 
 // Doğrulama kuralları
-const emailRules = [
-  (v: string) => !!v || 'E-posta gereklidir',
-  (v: string) => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz'
+const phoneRules = [
+  (v: string) => !!v || 'Telefon numarası gereklidir',
+  (v: string) => /^[0-9]+$/.test(v) || 'Telefon numarası sadece rakamlardan oluşmalıdır',
+  (v: string) => v.length === 11 || 'Telefon numarası 11 haneli olmalıdır',
+  (v: string) => v.startsWith('0') || 'Telefon numarası 0 ile başlamalıdır'
 ]
 
 const passwordRules = [
@@ -230,7 +233,7 @@ const features = [
 const handleLogin = async () => {
   if (!valid.value) return
 
-  const success = await authStore.login(loginData.email, loginData.password)
+  const success = await authStore.login(loginData.phone_number, loginData.password)
 
   if (success) {
     // Kullanıcı rolüne göre yönlendir

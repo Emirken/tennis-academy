@@ -22,7 +22,39 @@
 
     <!-- Main Dashboard Content -->
     <div v-else>
-      <v-container fluid class="pa-0">
+      <!-- Pending Approval Overlay for Students -->
+      <v-overlay
+        :model-value="isPending"
+        class="align-start justify-center dashboard-blur-overlay pt-16"
+        persistent
+        contained
+      >
+        <v-card class="pa-8 text-center pending-card mt-16" max-width="500" elevation="24">
+          <v-icon icon="mdi-shield-clock-outline" size="80" color="warning" class="mb-4 pulse-animation" />
+          <h2 class="text-h4 font-weight-bold mb-3">Hesap Onayı Bekleniyor</h2>
+          <p class="text-body-1 text-medium-emphasis mb-6">
+            Kayıt işleminiz başarıyla alındı. Ancak sistem özelliklerini kullanabilmeniz için yöneticinin hesabınızı onaylaması gerekmektedir.
+          </p>
+          <p class="text-body-2 text-warning font-weight-medium mb-6">
+            Lütfen daha sonra tekrar kontrol ediniz.
+          </p>
+          <v-divider class="mb-6"></v-divider>
+          <v-btn
+            color="error"
+            variant="tonal"
+            prepend-icon="mdi-logout"
+            @click="handleLogout"
+            :loading="isLoggingOut"
+            size="large"
+            block
+          >
+            Çıkış Yap
+          </v-btn>
+        </v-card>
+      </v-overlay>
+
+      <!-- Dashboard Body Wrapper (blurred if pending) -->
+      <v-container fluid class="pa-0" :class="{ 'blur-content': isPending }">
         <!-- Enhanced Welcome Section -->
         <div class="welcome-section mt-8 mx-15 mb-8">
           <v-container>
@@ -136,27 +168,34 @@
               </div>
               <v-row>
                 <v-col cols="12" sm="6" md="4" v-for="(action, index) in quickActions" :key="index">
-                  <v-card
-                      class="action-card modern-action-card"
-                      elevation="0"
-                      hover
-                      :to="action.route ? action.route : undefined"
-                      @click="action.action ? action.action() : null"
-                  >
-                    <div class="action-card-overlay"></div>
-                    <v-card-text class="action-content">
-                      <div class="action-icon-wrapper" :class="action.gradient">
-                        <v-icon :icon="action.icon" size="40" color="white" />
-                      </div>
-                      <div class="action-details">
-                        <h3 class="action-title">{{ action.title }}</h3>
-                        <p class="action-description">{{ action.description }}</p>
-                      </div>
-                      <div class="action-arrow">
-                        <v-icon icon="mdi-arrow-right" size="20" />
-                      </div>
-                    </v-card-text>
-                  </v-card>
+                  <v-tooltip :disabled="!action.tooltip" :text="action.tooltip" location="top">
+                    <template v-slot:activator="{ props }">
+                      <v-card
+                          v-bind="action.tooltip ? props : {}"
+                          class="action-card modern-action-card"
+                          :style="action.disabled ? 'opacity: 0.6; cursor: not-allowed;' : ''"
+                          elevation="0"
+                          :hover="!action.disabled"
+                          :to="!action.disabled && action.route ? action.route : undefined"
+                          @click="!action.disabled && action.action ? action.action() : null"
+                          :ripple="!action.disabled"
+                      >
+                        <div class="action-card-overlay"></div>
+                        <v-card-text class="action-content">
+                          <div class="action-icon-wrapper" :class="action.disabled ? 'bg-grey-darken-2' : action.gradient">
+                            <v-icon :icon="action.icon" size="40" color="white" />
+                          </div>
+                          <div class="action-details">
+                            <h3 class="action-title">{{ action.title }}</h3>
+                            <p class="action-description">{{ action.description }}</p>
+                          </div>
+                          <div class="action-arrow">
+                            <v-icon :icon="action.disabled ? 'mdi-lock' : 'mdi-arrow-right'" size="20" />
+                          </div>
+                        </v-card-text>
+                      </v-card>
+                    </template>
+                  </v-tooltip>
                 </v-col>
               </v-row>
             </v-col>
@@ -439,6 +478,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore'
@@ -447,6 +487,20 @@ import { db } from '@/services/firebase'
 console.log('📦 Firebase imports loaded:', { db, collection, query, where })
 
 const authStore = useAuthStore()
+const router = useRouter()
+
+// Logout logic for pending overlay
+const isLoggingOut = ref(false)
+const handleLogout = async () => {
+  if (isLoggingOut.value) return
+  isLoggingOut.value = true
+  try {
+    await authStore.logout()
+    router.push({ name: 'Login' })
+  } finally {
+    isLoggingOut.value = false
+  }
+}
 
 // Auth loading state
 const authLoading = ref(true)
@@ -469,6 +523,12 @@ interface User {
 
 // Services
 const membershipTypesStore = useMembershipTypesStore()
+
+// Computed
+const isPending = computed(() => {
+  const userObj = authStore.user as any
+  return userObj?.role === 'student' && userObj?.status === 'pending'
+})
 
 // Dialog state
 const showProfileDialog = ref(false)
@@ -507,7 +567,7 @@ let unsubscribe: (() => void) | null = null
 
 // Current membership type
 const currentMembershipType = computed(() => {
-  const user = authStore.user as User
+  const user = authStore.user as unknown as User
   return user?.membershipType || 'basic'
 })
 
@@ -516,9 +576,21 @@ const getMembershipTitle = (type: string): string => {
   return membershipTypesStore.getDisplayInfo(type)?.name || type
 }
 
+// Helper type for action items
+interface QuickAction {
+  title: string
+  description: string
+  icon: string
+  gradient: string
+  route?: { name: string }
+  action?: () => void
+  disabled?: boolean
+  tooltip?: string
+}
+
 // Quick Actions Data - Aidat Takibi basic (Temel Üyelik) üyeler için gizlenir
-const quickActions = computed(() => {
-  const actions = [
+const quickActions = computed<QuickAction[]>(() => {
+  const actions: QuickAction[] = [
     {
       title: 'Kort Rezervasyonu',
       description: 'Bir sonraki oyununuz için kort rezerve edin',
@@ -541,9 +613,21 @@ const quickActions = computed(() => {
       route: { name: 'Courts' }
     }
   ]
-  return currentMembershipType.value === 'basic'
-    ? actions.filter((a) => a.title !== 'Aidat Takibi')
-    : actions
+  
+  if (currentMembershipType.value === 'basic') {
+    return actions.map(action => {
+      if (action.title === 'Aidat Takibi') {
+        return {
+          ...action,
+          disabled: true,
+          tooltip: 'Üyelik tanımlanmalı'
+        }
+      }
+      return action
+    })
+  }
+
+  return actions
 })
 
 // Attendance Functions
@@ -828,7 +912,7 @@ onMounted(async () => {
 
     // Check if user exists after auth is ready
     if (authStore.user?.id) {
-      console.log('✅ User authenticated:', authStore.user.email)
+      console.log('✅ User authenticated:', authStore.user.phone_number)
       fetchUserReservations()
       // Fetch attendance data
       await fetchStudentAttendance()

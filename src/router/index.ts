@@ -42,6 +42,12 @@ const routes: Array<RouteRecordRaw> = [
     name: 'ForgotPassword',
     component: () => import('@/views/ForgotPassword.vue')
   },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('@/views/Profile.vue'),
+    meta: { requiresAuth: true }
+  },
   // Öğrenci rotaları
   {
     path: '/student',
@@ -51,6 +57,11 @@ const routes: Array<RouteRecordRaw> = [
         path: 'dashboard',
         name: 'StudentDashboard',
         component: () => import('@/views/StudentDashboard.vue')
+      },
+      {
+        path: 'notifications',
+        name: 'StudentNotifications',
+        component: () => import('@/views/StudentNotifications.vue')
       },
       {
         path: 'reservations',
@@ -98,6 +109,11 @@ const routes: Array<RouteRecordRaw> = [
         path: 'memberships',
         name: 'MembershipTypeManagement',
         component: () => import('@/components/admin/MembershipTypeManagement.vue')
+      },
+      {
+        path: 'notifications',
+        name: 'Notifications',
+        component: () => import('@/views/Notifications.vue')
       }
     ]
   }
@@ -154,6 +170,15 @@ router.beforeEach(async (to, from, next) => {
     console.log('❌ Rol uyumsuzluğu, home\'a yönlendiriliyor')
     next('/')
     return
+  }
+
+  // Pending student kontrolü - sadece StudentDashboard ve public sayfalara izin ver (Login için vs.)
+  if (authStore.user?.role === 'student' && authStore.user?.status === 'pending') {
+    if (to.name !== 'StudentDashboard' && to.name !== 'Login' && to.name !== 'Register' && to.path !== '/') {
+      console.log('⚠️ Öğrenci onay bekliyor, dashboard dısına çıkamaz')
+      next('/student/dashboard')
+      return
+    }
   }
 
   // Kök path'e erişim - kullanıcının rolüne göre yönlendir

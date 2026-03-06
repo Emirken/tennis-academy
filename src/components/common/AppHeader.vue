@@ -72,6 +72,24 @@
           İletişim
         </v-btn>
 
+        <v-btn
+            v-if="authStore.isAuthenticated && (authStore.isAdmin || authStore.isStudent)"
+            variant="text"
+            color="white"
+            :to="{ name: authStore.isAdmin ? 'Notifications' : 'StudentNotifications' }"
+            class="nav-btn mx-1"
+        >
+          <v-badge
+              :content="pendingCount"
+              :color="pendingCount > 0 ? 'error' : 'transparent'"
+              :model-value="pendingCount > 0"
+              offset-x="8"
+          >
+            <v-icon start icon="mdi-bell-outline" />
+          </v-badge>
+          Bildirimler
+        </v-btn>
+
         <!-- Auth Section -->
         <template v-if="authStore.isAuthenticated">
           <v-menu
@@ -105,6 +123,16 @@
             </template>
 
             <v-list class="user-dropdown" elevation="8">
+              <v-list-item
+                  :to="{ name: 'Profile' }"
+                  class="dropdown-item"
+              >
+                <v-list-item-title>
+                  <v-icon icon="mdi-account" class="mr-2" />
+                  Profilim
+                </v-list-item-title>
+              </v-list-item>
+
               <v-list-item
                   v-if="authStore.isStudent"
                   :to="{ name: 'StudentDashboard' }"
@@ -269,6 +297,26 @@
         <v-list-item-title>İletişim</v-list-item-title>
       </v-list-item>
 
+      <v-list-item
+          v-if="authStore.isAuthenticated && (authStore.isAdmin || authStore.isStudent)"
+          :to="{ name: authStore.isAdmin ? 'Notifications' : 'StudentNotifications' }"
+          class="drawer-item"
+          @click="drawer = false"
+      >
+        <template v-slot:prepend>
+          <v-badge
+              :content="pendingCount"
+              :color="pendingCount > 0 ? 'error' : 'transparent'"
+              :model-value="pendingCount > 0"
+              offset-x="4"
+              offset-y="4"
+          >
+            <v-icon icon="mdi-bell-outline" />
+          </v-badge>
+        </template>
+        <v-list-item-title>Bildirimler</v-list-item-title>
+      </v-list-item>
+
       <v-divider v-if="authStore.isAuthenticated" class="my-4" />
 
       <!-- Authenticated User Menu -->
@@ -289,6 +337,17 @@
             {{ authStore.isAdmin ? 'Yönetici' : 'Öğrenci' }}
           </p>
         </div>
+
+        <v-list-item
+            :to="{ name: 'Profile' }"
+            class="drawer-item"
+            @click="drawer = false"
+        >
+          <template v-slot:prepend>
+            <v-icon icon="mdi-account" />
+          </template>
+          <v-list-item-title>Profilim</v-list-item-title>
+        </v-list-item>
 
         <v-list-item
             v-if="authStore.isStudent"
@@ -378,14 +437,64 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
+import { useRouter, useRoute } from 'vue-router'
+import { useAuthStore } from '@/store/modules/auth'
+import { notificationService, UserNotification } from '@/services/notificationService'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const drawer = ref(false)
+
+// Notifications Badge Logic
+const pendingCount = ref(0)
+let unsubscribeNotifications: (() => void) | null = null
+
+const setupNotificationsListener = () => {
+  if (unsubscribeNotifications) {
+    unsubscribeNotifications()
+    unsubscribeNotifications = null
+  }
+
+  if (authStore.user) {
+    unsubscribeNotifications = notificationService.subscribeToNotifications(
+      authStore.user.id,
+      authStore.user.role,
+      (notifications: UserNotification[]) => {
+        // Calculate unread count
+        const unreadCount = notifications.filter((notif) => {
+          if (!authStore.user) return false
+          if (Array.isArray(notif.isRead)) {
+            return !notif.isRead.includes(authStore.user.id)
+          }
+          return notif.isRead === false
+        }).length
+        pendingCount.value = unreadCount
+      }
+    )
+  }
+}
+
+watch(() => authStore.user, (user) => {
+  if (user) {
+    setupNotificationsListener()
+  } else {
+    pendingCount.value = 0
+    if (unsubscribeNotifications) {
+      unsubscribeNotifications()
+      unsubscribeNotifications = null
+    }
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (unsubscribeNotifications) {
+    unsubscribeNotifications()
+  }
+})
 
 const logout = async () => {
   await authStore.logout()
