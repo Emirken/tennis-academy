@@ -440,8 +440,6 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
 
 const router = useRouter()
@@ -502,7 +500,3 @@ const logout = async () => {
   drawer.value = false
 }
 </script>
-
-<style scoped>
-
-</style>
