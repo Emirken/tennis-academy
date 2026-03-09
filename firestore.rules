@@ -85,5 +85,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+
+    // Notifications collection - all authenticated users can read and write for the time being
+    match /notifications/{notificationId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }
