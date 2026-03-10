@@ -3,7 +3,7 @@
   <div class="payments-page">
     <v-container class="py-8">
       &lt;!&ndash; Page Header &ndash;&gt;
-      <div class="text-center mb-8">
+      <div class="text-center mb-6">
         <h1 class="page-title mb-4">Payment Management</h1>
         <p class="page-subtitle">
           Track your payments and membership dues
@@ -11,7 +11,7 @@
       </div>
 
       &lt;!&ndash; Payment Summary Cards &ndash;&gt;
-      <v-row class="mb-8">
+      <v-row class="mb-6">
         <v-col cols="12" sm="6" md="3">
           <v-card class="summary-card" elevation="4">
             <v-card-text class="text-center pa-6">
@@ -77,7 +77,7 @@
         &lt;!&ndash; Payment History &ndash;&gt;
         <v-col cols="12" md="8">
           <v-card elevation="4">
-            <v-card-title class="text-h5 pa-6 bg-primary text-white">
+            <v-card-title class="text-h5 pa-4 bg-primary text-white">
               <v-icon icon="mdi-history" class="mr-2" />
               Payment History
             </v-card-title>
@@ -136,12 +136,12 @@
         &lt;!&ndash; Payment Actions &ndash;&gt;
         <v-col cols="12" md="4">
           <v-card class="mb-6" elevation="4">
-            <v-card-title class="text-h5 pa-6 bg-success text-white">
+            <v-card-title class="text-h5 pa-4 bg-success text-white">
               <v-icon icon="mdi-credit-card-plus" class="mr-2" />
               Quick Payment
             </v-card-title>
 
-            <v-card-text class="pa-6">
+            <v-card-text class="pa-4">
               <v-form @submit.prevent="makePayment">
                 <v-select
                     v-model="paymentForm.type"
@@ -177,12 +177,12 @@
 
           &lt;!&ndash; Membership Info &ndash;&gt;
           <v-card elevation="4">
-            <v-card-title class="text-h5 pa-6 bg-warning text-white">
+            <v-card-title class="text-h5 pa-4 bg-warning text-white">
               <v-icon icon="mdi-account-star" class="mr-2" />
               Membership Info
             </v-card-title>
 
-            <v-card-text class="pa-6">
+            <v-card-text class="pa-4">
               <div class="membership-info">
                 <div class="info-row mb-4">
                   <span class="info-label">Plan:</span>

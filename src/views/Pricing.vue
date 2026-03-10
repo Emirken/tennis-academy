@@ -2,9 +2,9 @@
   <div class="pricing-page">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -27,12 +27,12 @@
 
       <v-container>
         <!-- Admin Controls -->
-        <div v-if="authStore.isAdmin" class="mb-8">
+        <div v-if="authStore.isAdmin" class="mb-6">
           <v-row>
             <v-col cols="12">
               <v-card class="modern-card admin-controls-card" elevation="0">
                 <div class="stat-card-overlay"></div>
-                <v-card-text class="pa-6">
+                <v-card-text class="pa-4">
                   <div class="d-flex justify-center">
                     <v-btn
                         v-if="!editMode"
@@ -72,7 +72,7 @@
         </div>
 
         <!-- Main Pricing Grid -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <!-- Özel Dersler -->
           <v-col cols="12" md="6" class="mb-6">
             <v-card class="modern-card h-100" elevation="0">
@@ -86,7 +86,7 @@
                   <p class="stat-label">Bireysel ve ikili dersler</p>
                 </div>
               </v-card-text>
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <v-list class="pricing-list">
                   <v-list-item class="pricing-item">
                     <v-list-item-title class="d-flex justify-space-between align-center">
@@ -143,7 +143,7 @@
                   </div>
                 </div>
               </v-card-text>
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <v-list class="pricing-list">
                   <v-list-item class="pricing-item">
                     <v-list-item-title class="d-flex justify-space-between align-center">
@@ -196,7 +196,7 @@
                   <p class="stat-label">3-4 kişilik grup dersleri</p>
                 </div>
               </v-card-text>
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <v-list class="pricing-list">
                   <v-list-item class="pricing-item">
                     <v-list-item-title class="d-flex justify-space-between align-center">
@@ -249,7 +249,7 @@
                   <p class="stat-label">Grup halinde dersler</p>
                 </div>
               </v-card-text>
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <v-list class="pricing-list">
                   <v-list-item class="pricing-item">
                     <v-list-item-title class="d-flex justify-space-between align-center">
@@ -302,7 +302,7 @@
                   <p class="stat-label">Yaş ve performans grupları</p>
                 </div>
               </v-card-text>
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <v-list class="pricing-list">
                   <v-list-item class="pricing-item">
                     <v-list-item-title class="d-flex justify-space-between align-center">
@@ -355,7 +355,7 @@
                   <p class="stat-label">Saatlik kort kiralamaları</p>
                 </div>
               </v-card-text>
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <v-list class="pricing-list">
                   <v-list-item class="pricing-item">
                     <v-list-item-title class="d-flex justify-space-between align-center">
@@ -410,7 +410,7 @@
                   <p class="stat-label">Fiyatlar ve koşullar hakkında</p>
                 </div>
               </v-card-text>
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <div class="info-text">
                   <p>
                     <v-icon icon="mdi-check-circle" color="success" class="mr-2" />
@@ -431,7 +431,7 @@
           <v-col cols="12" md="8">
             <v-card class="modern-card contact-card" elevation="0">
               <div class="stat-card-overlay"></div>
-              <v-card-text class="pa-6 text-center">
+              <v-card-text class="pa-4 text-center">
                 <h3 class="text-h5 mb-4">İletişim</h3>
                 <div class="d-flex justify-center align-center gap-4 flex-wrap">
                   <div class="d-flex align-center">

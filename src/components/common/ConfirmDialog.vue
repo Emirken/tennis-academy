@@ -9,7 +9,7 @@
     <v-card class="confirm-dialog-card">
       <!-- Header -->
       <v-card-title
-          class="pa-6 d-flex align-center"
+          class="pa-4 d-flex align-center"
           :class="headerClass"
       >
         <v-icon
@@ -28,7 +28,7 @@
       </v-card-title>
 
       <!-- Content -->
-      <v-card-text class="pa-6">
+      <v-card-text class="pa-4">
         <div class="message-content">
           <!-- Main Message -->
           <p v-if="message" class="text-body-1 mb-4">
@@ -90,7 +90,7 @@
       </v-card-text>
 
       <!-- Actions -->
-      <v-card-actions class="pa-6 pt-0">
+      <v-card-actions class="pa-4 pt-0">
         <v-spacer />
 
         <!-- Cancel Button -->

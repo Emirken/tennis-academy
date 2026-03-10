@@ -51,7 +51,7 @@
                   <v-icon icon="mdi-home" size="48" color="white" />
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="facility-title mb-3">Kapalı Kortlar</h3>
                 <p class="facility-description">
                   Yıl boyunca oyun için iklim kontrollü kortlar. Her mevsim konforlu tenis deneyimi yaşayın.
@@ -74,7 +74,7 @@
                   <v-icon icon="mdi-weather-sunny" size="48" color="white" />
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="facility-title mb-3">Açık Kortlar</h3>
                 <p class="facility-description">
                   Güneşin altında doğayla iç içe tenis keyfi. Mükemmel hava koşullarında unutulmaz maçlar.
@@ -97,7 +97,7 @@
                   <v-icon icon="mdi-dumbbell" size="48" color="white" />
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="facility-title mb-3">Antrenman Merkezi</h3>
                 <p class="facility-description">
                   Son teknoloji antrenman tesisleri. Profesyonel ekipmanlarla tekniğinizi geliştirin.
@@ -134,7 +134,7 @@
                   <v-icon icon="mdi-account-tie" size="40" color="white" />
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="program-title mb-3">Özel Ders</h3>
                 <p class="program-description">
                   Tüm seviyelere uygun profesyonel antrenörlük. Bireysel gelişiminiz için özelleştirilmiş eğitim.
@@ -162,7 +162,7 @@
                   <v-icon icon="mdi-account-child" size="40" color="white" />
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="program-title mb-3">Çocuk Programları</h3>
                 <p class="program-description">
                   Genç oyuncular için eğlenceli ve öğretici programlar. Sporla sağlıklı büyüme.
@@ -190,7 +190,7 @@
                   <v-icon icon="mdi-trophy" size="40" color="white" />
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="program-title mb-3">Yetişkin Ligleri</h3>
                 <p class="program-description">
                   Yetişkin oyuncular için rekabetçi ligler. Sosyal tenis ortamında becerilerinizi test edin.
@@ -234,7 +234,7 @@
                   </v-chip>
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="trainer-name mb-2">Sarah Johnson</h3>
                 <p class="trainer-title text-primary mb-3">Baş Antrenör</p>
                 <p class="trainer-description text-grey-darken-1">
@@ -269,7 +269,7 @@
                   </v-chip>
                 </div>
               </v-img>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="trainer-name mb-2">Michael Davis</h3>
                 <p class="trainer-title text-primary mb-3">Tenis Uzmanı</p>
                 <p class="trainer-description text-grey-darken-1">

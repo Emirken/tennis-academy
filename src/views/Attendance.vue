@@ -2,9 +2,9 @@
   <div class="attendance-page">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -28,7 +28,7 @@
 
       <v-container>
         <!-- Enhanced Stats Cards -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <v-col cols="12" sm="6" md="3">
             <v-card class="stat-card modern-card" elevation="0">
               <div class="stat-card-overlay"></div>
@@ -107,9 +107,9 @@
         </v-row>
 
         <!-- Enhanced Month/Year Selection -->
-        <v-card class="modern-card mb-8" elevation="0">
+        <v-card class="modern-card mb-6" elevation="0">
           <div class="action-card-overlay"></div>
-          <v-card-title class="pa-6">
+          <v-card-title class="pa-4">
             <div class="d-flex align-center">
               <div class="stat-icon-wrapper primary-gradient mr-4" style="width: 48px; height: 48px;">
                 <v-icon icon="mdi-calendar" size="24" color="white" />
@@ -120,7 +120,7 @@
               </div>
             </div>
           </v-card-title>
-          <v-card-text class="pa-6">
+          <v-card-text class="pa-4">
             <v-row>
               <v-col cols="12" md="3">
                 <v-select
@@ -187,7 +187,7 @@
         <!-- Enhanced Attendance Sheet -->
         <v-card class="modern-card attendance-sheet" elevation="0">
           <div class="action-card-overlay"></div>
-          <v-card-title class="pa-6 d-flex justify-space-between align-center">
+          <v-card-title class="pa-4 d-flex justify-space-between align-center">
             <div class="d-flex align-center">
               <div class="stat-icon-wrapper success-gradient mr-4" style="width: 48px; height: 48px;">
                 <v-icon icon="mdi-clipboard-check" size="24" color="white" />
@@ -364,7 +364,7 @@
     <!-- Enhanced Date Picker Dialog -->
     <v-dialog v-model="showDatePicker" max-width="400">
       <v-card class="modern-card" elevation="8">
-        <v-card-title class="pa-6 bg-primary text-white">
+        <v-card-title class="pa-4 bg-primary text-white">
           <div class="d-flex align-center">
             <v-icon icon="mdi-calendar" class="mr-3" />
             <div>
@@ -373,14 +373,14 @@
             </div>
           </div>
         </v-card-title>
-        <v-card-text class="pa-6">
+        <v-card-text class="pa-4">
           <v-date-picker
               v-model="selectedDate"
               color="primary"
               full-width
           />
         </v-card-text>
-        <v-card-actions class="pa-6">
+        <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn @click="closeDatePicker" variant="text">İptal</v-btn>
           <v-btn color="primary" @click="updateSelectedDate" variant="flat">Kaydet</v-btn>
@@ -391,7 +391,7 @@
     <!-- Enhanced Add Student Dialog -->
     <v-dialog v-model="showAddStudentDialog" max-width="500">
       <v-card class="modern-card" elevation="8">
-        <v-card-title class="pa-6 bg-success text-white">
+        <v-card-title class="pa-4 bg-success text-white">
           <div class="d-flex align-center">
             <v-icon icon="mdi-account-plus" class="mr-3" />
             <div>
@@ -400,7 +400,7 @@
             </div>
           </div>
         </v-card-title>
-        <v-card-text class="pa-6">
+        <v-card-text class="pa-4">
           <v-form v-model="formValid" ref="addStudentForm">
             <v-select
                 v-model="selectedStudentId"
@@ -445,7 +445,7 @@
             </v-alert>
           </v-form>
         </v-card-text>
-        <v-card-actions class="pa-6">
+        <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn @click="closeAddStudentDialog" variant="text">İptal</v-btn>
           <v-btn

@@ -31,9 +31,9 @@
           <v-col cols="12" sm="8" md="6" lg="5">
             <v-card class="auth-card register-card modern-card" elevation="0">
               <div class="stat-card-overlay"></div>
-              <v-card-text class="pa-8">
+              <v-card-text class="pa-6">
                 <!-- Form Header -->
-                <div class="auth-form-header mb-8">
+                <div class="auth-form-header mb-6">
                   <div class="auth-form-icon-wrapper success-gradient">
                     <v-icon icon="mdi-account-plus" size="28" color="white" />
                   </div>

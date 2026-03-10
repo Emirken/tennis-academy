@@ -2,9 +2,9 @@
   <div class="contact-page">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -27,7 +27,7 @@
 
       <v-container>
         <!-- Contact Information Cards -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <!-- Phone -->
           <v-col cols="12" sm="6" md="3">
             <v-card class="stat-card modern-card contact-info-card" elevation="0">
@@ -111,7 +111,7 @@
         </v-row>
 
         <!-- Map Section -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <v-col cols="12">
             <div class="section-header mb-6">
               <h2 class="section-title">Bizi Bulun</h2>

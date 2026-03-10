@@ -20,7 +20,7 @@
         <v-col cols="12">
           <v-card class="modern-card" elevation="0">
             <!-- Loading State -->
-            <div v-if="loading" class="pa-8 text-center">
+            <div v-if="loading" class="pa-5 text-center">
               <v-progress-circular indeterminate color="primary" size="64" />
               <p class="mt-4 text-medium-emphasis">Bildirimler yükleniyor...</p>
             </div>

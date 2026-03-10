@@ -2,9 +2,9 @@
   <div class="student-management">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -28,7 +28,7 @@
 
       <v-container>
         <!-- Enhanced Stats Cards -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <v-col cols="12" sm="6" md="3">
             <v-card class="stat-card modern-card" elevation="0">
               <div class="stat-card-overlay"></div>
@@ -107,9 +107,9 @@
         </v-row>
 
         <!-- Enhanced Filters Section -->
-        <v-card class="modern-card mb-8" elevation="0">
+        <v-card class="modern-card mb-6" elevation="0">
           <div class="action-card-overlay"></div>
-          <v-card-title class="pa-6">
+          <v-card-title class="pa-4">
             <div class="d-flex align-center">
               <div class="stat-icon-wrapper info-gradient mr-4" style="width: 48px; height: 48px;">
                 <v-icon icon="mdi-filter" size="24" color="white" />
@@ -120,7 +120,7 @@
               </div>
             </div>
           </v-card-title>
-          <v-card-text class="pa-6">
+          <v-card-text class="pa-4">
             <v-row>
               <v-col cols="12" md="4">
                 <v-text-field
@@ -308,7 +308,7 @@
       <v-card class="modern-card" elevation="8">
         <v-card-title class="pa-0">
           <div class="welcome-section" style="margin: 0; border-radius: 0;">
-            <div class="welcome-content py-6 px-6">
+            <div class="welcome-content py-4 px-4">
               <div class="d-flex align-center">
                 <v-avatar
                     :color="(selectedStudent?.status === 'active' || selectedStudent?.status === 'approved') ? 'success' : selectedStudent?.status === 'suspended' ? 'error' : selectedStudent?.status === 'pending' ? 'warning' : 'grey'"
@@ -342,7 +342,7 @@
         </v-card-title>
 
         <v-card-text class="pa-0">
-          <v-container class="py-6">
+          <v-container class="py-4">
             <v-row>
               <!-- Student Info Section -->
               <v-col cols="12" md="6">
@@ -764,7 +764,7 @@
           </v-container>
         </v-card-text>
 
-        <v-card-actions class="pa-6 bg-grey-50">
+        <v-card-actions class="pa-4 bg-grey-50">
           <div v-if="!isEditMode" class="d-flex w-100 gap-2">
             <v-btn color="primary" variant="flat" @click="toggleEditMode">
               <v-icon icon="mdi-pencil" class="mr-1" />
@@ -885,7 +885,7 @@
       <v-card class="modern-card" elevation="8">
         <v-card-title class="pa-0">
           <div class="welcome-section" style="margin: 0; border-radius: 0;">
-            <div class="welcome-content py-6 px-6">
+            <div class="welcome-content py-4 px-4">
               <div class="d-flex align-center justify-space-between">
                 <div class="d-flex align-center">
                   <div class="stat-icon-wrapper success-gradient mr-4" style="width: 56px; height: 56px;">
@@ -913,7 +913,7 @@
           </div>
         </v-card-title>
 
-        <v-card-text class="pa-6">
+        <v-card-text class="pa-4">
           <v-form ref="addStudentFormRef" v-model="addStudentFormValid">
             <v-row>
               <!-- Ad -->
@@ -992,7 +992,7 @@
 
         <v-divider></v-divider>
 
-        <v-card-actions class="pa-6">
+        <v-card-actions class="pa-4">
           <v-spacer />
           <v-btn
               variant="text"

@@ -181,12 +181,12 @@
       <!-- Create/Edit Dialog -->
       <v-dialog v-model="dialog" max-width="600" persistent>
         <v-card>
-          <v-card-title class="pa-6 bg-primary">
+          <v-card-title class="pa-4 bg-primary">
             <v-icon icon="mdi-card-account-details" class="mr-2" />
             {{ isEditing ? 'Üyelik Türü Düzenle' : 'Yeni Üyelik Türü' }}
           </v-card-title>
 
-          <v-card-text class="pa-6">
+          <v-card-text class="pa-4">
             <v-form ref="formRef" v-model="formValid">
               <v-row>
                 <v-col cols="12">
@@ -359,12 +359,12 @@
       <!-- Delete Confirmation Dialog -->
       <v-dialog v-model="deleteDialog" max-width="450">
         <v-card>
-          <v-card-title class="pa-6 bg-error">
+          <v-card-title class="pa-4 bg-error">
             <v-icon icon="mdi-delete-alert" class="mr-2" />
             Üyelik Türünü Sil
           </v-card-title>
 
-          <v-card-text class="pa-6">
+          <v-card-text class="pa-4">
             <p class="text-body-1">
               <strong>{{ selectedType?.name }}</strong> üyelik türünü silmek istediğinizden emin misiniz?
             </p>

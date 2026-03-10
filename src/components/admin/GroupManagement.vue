@@ -156,7 +156,7 @@
       <!-- Empty State -->
       <v-row v-if="groups.length === 0">
         <v-col cols="12">
-          <v-card class="text-center pa-8" elevation="0" variant="outlined">
+          <v-card class="text-center pa-5" elevation="0" variant="outlined">
             <v-icon size="64" color="grey-lighten-1" class="mb-4">
               mdi-account-group-outline
             </v-icon>
@@ -400,7 +400,7 @@
             </v-list>
           </v-card>
 
-          <v-card v-else variant="outlined" class="text-center pa-6">
+          <v-card v-else variant="outlined" class="text-center pa-4">
             <v-icon size="48" color="grey-lighten-1" class="mb-2">
               mdi-account-off-outline
             </v-icon>

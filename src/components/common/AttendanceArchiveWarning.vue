@@ -31,7 +31,7 @@
       <v-divider />
 
       <!-- Content -->
-      <v-card-text class="pa-6">
+      <v-card-text class="pa-4">
         <!-- Student/Group Info -->
         <v-alert
           :color="getReasonColor(archiveReason)"

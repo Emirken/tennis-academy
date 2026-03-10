@@ -16,9 +16,9 @@ const goToLogin = () => {
       <v-row justify="center" align="center" class="fill-height">
         <v-col cols="12" sm="8" md="6" lg="4">
           <v-card class="reset-card" elevation="8">
-            <v-card-text class="pa-8">
+            <v-card-text class="pa-6">
               <!-- Logo ve Başlık -->
-              <div class="text-center mb-8">
+              <div class="text-center mb-6">
                 <v-icon
                     icon="mdi-lock-reset"
                     size="48"

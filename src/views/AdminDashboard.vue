@@ -2,9 +2,9 @@
   <div class="admin-dashboard">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -29,7 +29,7 @@
 
       <v-container>
         <!-- Enhanced Stats Cards -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <v-col cols="12" sm="6" md="4">
             <v-card class="stat-card modern-card" elevation="0">
               <div class="stat-card-overlay"></div>
@@ -89,7 +89,7 @@
         </v-row>
 
         <!-- Yoklama Arşiv Bildirimleri -->
-        <v-row class="mb-8" v-if="pendingArchives.length > 0 && showArchiveNotifications">
+        <v-row class="mb-6" v-if="pendingArchives.length > 0 && showArchiveNotifications">
           <v-col cols="12">
             <v-alert
               type="warning"
@@ -166,7 +166,7 @@
         </v-row>
 
         <!-- Tüm Arşivler Bölümü -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <v-col cols="12">
             <v-card class="modern-card" elevation="0">
               <v-card-title class="d-flex align-center justify-space-between pa-4">
@@ -267,7 +267,7 @@
         </v-row>
 
         <!-- Enhanced Management Actions -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <v-col cols="12">
             <div class="section-header mb-6">
               <h2 class="section-title">Yönetim İşlemleri</h2>

@@ -10,7 +10,7 @@
 
     <!-- No User State -->
     <v-container v-else-if="!authStore.user" class="d-flex justify-center align-center" style="min-height: 400px">
-      <v-card class="pa-8 text-center" max-width="400">
+      <v-card class="pa-5 text-center" max-width="400">
         <v-icon icon="mdi-account-alert" size="64" color="warning" class="mb-4" />
         <h2 class="text-h5 mb-2">Oturum Bulunamadı</h2>
         <p class="text-body-1 mb-4">Lütfen giriş yapın</p>
@@ -29,7 +29,7 @@
         persistent
         contained
       >
-        <v-card class="pa-8 text-center pending-card mt-16" max-width="500" elevation="24">
+        <v-card class="pa-5 text-center pending-card mt-16" max-width="500" elevation="24">
           <v-icon icon="mdi-shield-clock-outline" size="80" color="warning" class="mb-4 pulse-animation" />
           <h2 class="text-h4 font-weight-bold mb-3">Hesap Onayı Bekleniyor</h2>
           <p class="text-body-1 text-medium-emphasis mb-6">
@@ -56,9 +56,9 @@
       <!-- Dashboard Body Wrapper (blurred if pending) -->
       <v-container fluid class="pa-0" :class="{ 'blur-content': isPending }">
         <!-- Enhanced Welcome Section -->
-        <div class="welcome-section mt-8 mx-15 mb-8">
+        <div class="welcome-section mt-6 mx-6 mb-6">
           <v-container>
-            <v-row align="center" class="py-6">
+            <v-row align="center" class="py-4">
               <v-col cols="12" md="8">
                 <div class="welcome-content">
                   <h1 class="welcome-title mb-3">
@@ -81,7 +81,7 @@
 
         <v-container>
           <!-- Enhanced Stats Cards -->
-          <v-row class="mb-8">
+          <v-row class="mb-6">
             <v-col cols="12" sm="6" md="3">
               <v-card class="stat-card modern-card" elevation="0">
                 <div class="stat-card-overlay"></div>
@@ -160,7 +160,7 @@
           </v-row>
 
           <!-- Enhanced Quick Actions -->
-          <v-row class="mb-8">
+          <v-row class="mb-6">
             <v-col cols="12">
               <div class="section-header mb-6">
                 <h2 class="section-title">Hızlı İşlemler</h2>
@@ -202,7 +202,7 @@
           </v-row>
 
           <!-- Attendance Section -->
-          <v-row class="mb-8">
+          <v-row class="mb-6">
             <v-col cols="12">
               <div class="section-header mb-6">
                 <h2 class="section-title">Yoklama Durumunuz</h2>

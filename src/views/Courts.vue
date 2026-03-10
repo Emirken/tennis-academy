@@ -2,9 +2,9 @@
   <div class="courts-page">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -30,7 +30,7 @@
         <v-row v-if="authStore.isAdmin" class="mb-6">
           <v-col cols="12">
             <v-card class="modern-card admin-controls-card" elevation="0">
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <div class="d-flex align-center justify-space-between">
                   <div>
                     <h3 class="text-h6 font-weight-bold mb-2">Yönetici Kontrolleri</h3>
@@ -73,11 +73,11 @@
         </v-row>
 
         <!-- Enhanced Court Overview Cards -->
-        <v-row class="mb-8">
+        <v-row class="mb-6">
           <v-col v-for="court in courts" :key="court.id" cols="12" md="4" class="mb-4">
             <v-card class="stat-card modern-card court-overview-card h-100" elevation="0">
               <div class="stat-card-overlay"></div>
-              <v-card-title class="court-title pa-6">
+              <v-card-title class="court-title pa-4">
                 <div class="d-flex align-center">
                   <div class="stat-icon-wrapper court-gradient mr-4">
                     <v-icon icon="mdi-tennis" size="24" color="white" />
@@ -89,7 +89,7 @@
                 </div>
               </v-card-title>
 
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <!-- Occupancy Rate -->
                 <div class="occupancy-section mb-4">
                   <div class="d-flex justify-space-between align-center mb-3">
@@ -140,7 +140,7 @@
         <v-row class="mb-6">
           <v-col cols="12">
             <v-card class="modern-card date-selection-card" elevation="0">
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <div class="d-flex align-center justify-space-between flex-wrap">
                   <div class="date-selector-content">
                     <h3 class="text-h6 font-weight-bold mb-2">Tarih Seçimi</h3>
@@ -175,7 +175,7 @@
         <v-row>
           <v-col cols="12">
             <v-card class="modern-card schedule-card" elevation="0">
-              <v-card-title class="pa-6 bg-primary text-white">
+              <v-card-title class="pa-4 bg-primary text-white">
                 <div class="d-flex align-center">
                   <v-icon icon="mdi-calendar-clock" class="mr-3" />
                   <div>
@@ -257,7 +257,7 @@
         <v-row class="mt-6">
           <v-col cols="12">
             <v-card class="modern-card legend-card" elevation="0">
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4">
                 <h3 class="text-h6 font-weight-bold mb-4">Durum Açıklaması</h3>
                 <v-row>
                   <v-col cols="12" sm="6" md="3">

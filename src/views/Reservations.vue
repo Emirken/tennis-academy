@@ -2,9 +2,9 @@
   <div class="reservations-page">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -31,7 +31,7 @@
           <v-col cols="12" md="6">
             <v-card class="modern-card reservation-form-card" elevation="0">
               <div class="stat-card-overlay"></div>
-              <div class="reservation-form-header pa-6">
+              <div class="reservation-form-header pa-4">
                 <div class="form-header-content">
                   <div class="form-icon-wrapper primary-gradient">
                     <v-icon icon="mdi-plus-circle" size="28" color="white" />
@@ -43,7 +43,7 @@
                 </div>
               </div>
 
-              <v-card-text class="pa-6 pt-0">
+              <v-card-text class="pa-4 pt-0">
                 <v-form v-model="valid" @submit.prevent="submitReservation">
                   <!-- Date Selection -->
                   <v-text-field
@@ -159,7 +159,7 @@
             <v-card class="modern-card reservations-list-card" elevation="0">
               <div class="stat-card-overlay"></div>
               <div
-                  class="reservations-header pa-6 cursor-pointer"
+                  class="reservations-header pa-4 cursor-pointer"
                   @click="toggleReservations"
               >
                 <div class="reservations-header-content">
@@ -291,7 +291,7 @@
         <!-- Success Dialog -->
         <v-dialog v-model="successDialog" max-width="400">
           <v-card class="modern-dialog">
-            <v-card-text class="text-center pa-8">
+            <v-card-text class="text-center pa-5">
               <div class="success-icon-wrapper mb-4">
                 <v-icon
                     icon="mdi-check-circle"
@@ -302,7 +302,7 @@
               <h3 class="success-title mb-2">Rezervasyon Onaylandı!</h3>
               <p class="success-description">Kortunuz başarıyla rezerve edildi.</p>
             </v-card-text>
-            <v-card-actions class="pa-6 pt-0">
+            <v-card-actions class="pa-4 pt-0">
               <v-spacer />
               <v-btn color="primary" variant="flat" @click="successDialog = false">Tamam</v-btn>
             </v-card-actions>

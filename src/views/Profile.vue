@@ -1,5 +1,5 @@
 <template>
-  <v-container class="profile-page py-6">
+  <v-container class="profile-page py-4">
     <v-row class="mb-4">
       <v-col cols="12">
         <div class="d-flex align-center">

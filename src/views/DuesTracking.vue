@@ -2,9 +2,9 @@
   <div class="dues-tracking">
     <v-container fluid class="pa-0">
       <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-8 mx-15 mb-8">
+      <div class="welcome-section mt-6 mx-6 mb-6">
         <v-container>
-          <v-row align="center" class="py-6">
+          <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
@@ -35,7 +35,7 @@
         <!-- Main Content -->
         <div v-else>
           <!-- Current Package Stats -->
-          <v-row class="mb-8">
+          <v-row class="mb-6">
             <v-col cols="12" sm="6" md="3">
               <v-card class="stat-card modern-card" elevation="0">
                 <div class="stat-card-overlay"></div>
@@ -119,7 +119,7 @@
           </v-row>
 
           <!-- Current Package Info -->
-          <v-row class="mb-8">
+          <v-row class="mb-6">
             <v-col cols="12">
               <div class="section-header mb-6">
                 <h2 class="section-title">Mevcut Paketiniz</h2>
@@ -127,7 +127,7 @@
               </div>
               <v-card class="modern-card package-info-card" elevation="0">
                 <div class="stat-card-overlay package-overlay"></div>
-                <v-card-text class="pa-6">
+                <v-card-text class="pa-4">
                   <v-row align="center">
                     <v-col cols="12" md="8">
                       <div class="package-content">
@@ -165,11 +165,11 @@
           </v-row>
 
           <!-- Monthly Usage Progress -->
-          <v-row class="mb-8">
+          <v-row class="mb-6">
             <v-col cols="12" md="6">
               <v-card class="modern-card usage-card" elevation="0">
                 <div class="stat-card-overlay"></div>
-                <v-card-text class="pa-6">
+                <v-card-text class="pa-4">
                   <div class="usage-header mb-4">
                     <h3 class="usage-title">Bu Ay Kullanım</h3>
                     <v-chip
@@ -211,7 +211,7 @@
             <v-col cols="12" md="6">
               <v-card class="modern-card payment-card" elevation="0">
                 <div class="stat-card-overlay"></div>
-                <v-card-text class="pa-6">
+                <v-card-text class="pa-4">
                   <div class="payment-header mb-4">
                     <h3 class="payment-title">Gelecek Ödeme</h3>
                     <v-btn
@@ -257,7 +257,7 @@
           </v-row>
 
           <!-- Current Month Reservations -->
-          <v-row class="mb-8">
+          <v-row class="mb-6">
             <v-col cols="12">
               <div class="section-header mb-6">
                 <h2 class="section-title">Bu Ayki Dersleriniz</h2>
@@ -265,7 +265,7 @@
               </div>
               <v-card class="modern-card reservations-card" elevation="0">
                 <div class="stat-card-overlay"></div>
-                <v-card-text class="pa-6">
+                <v-card-text class="pa-4">
                   <div v-if="currentMonthReservations.length === 0" class="empty-state">
                     <v-icon icon="mdi-calendar-blank" size="64" color="grey" class="empty-icon" />
                     <h3 class="empty-title">Bu ay henüz ders kaydınız yok</h3>
@@ -347,7 +347,7 @@
               </div>
               <v-card class="modern-card statistics-card" elevation="0">
                 <div class="stat-card-overlay"></div>
-                <v-card-text class="pa-6">
+                <v-card-text class="pa-4">
                   <v-row>
                     <v-col cols="12" sm="6" md="3">
                       <div class="statistic-item">
@@ -410,7 +410,7 @@
               <v-icon icon="mdi-credit-card" class="mr-2" />
               Ödeme Bilgileri
             </v-card-title>
-            <v-card-text class="pa-6">
+            <v-card-text class="pa-4">
               <p class="dialog-description mb-4">
                 Gelecek ay için otomatik ödeme bilgileriniz:
               </p>
@@ -429,7 +429,7 @@
                 </div>
               </div>
             </v-card-text>
-            <v-card-actions class="pa-6 pt-0">
+            <v-card-actions class="pa-4 pt-0">
               <v-spacer />
               <v-btn color="primary" variant="flat" @click="showPaymentInfo = false">Tamam</v-btn>
             </v-card-actions>
