@@ -1,9 +1,9 @@
 <template>
   <div class="courts-page">
     <v-container fluid class="pa-0">
-      <!-- Enhanced Welcome Section -->
-      <div class="welcome-section mt-6 mx-6 mb-6">
-        <v-container>
+      <v-container>
+        <!-- Enhanced Welcome Section -->
+        <div class="welcome-section mt-6 mb-6">
           <v-row align="center" class="py-4">
             <v-col cols="12" md="8">
               <div class="welcome-content">
@@ -22,10 +22,7 @@
               </div>
             </v-col>
           </v-row>
-        </v-container>
-      </div>
-
-      <v-container>
+        </div>
         <!-- Admin Controls -->
         <v-row v-if="authStore.isAdmin" class="mb-6">
           <v-col cols="12">

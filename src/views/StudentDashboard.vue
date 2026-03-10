@@ -55,9 +55,9 @@
 
       <!-- Dashboard Body Wrapper (blurred if pending) -->
       <v-container fluid class="pa-0" :class="{ 'blur-content': isPending }">
-        <!-- Enhanced Welcome Section -->
-        <div class="welcome-section mt-6 mx-6 mb-6">
-          <v-container>
+        <v-container>
+          <!-- Enhanced Welcome Section -->
+          <div class="welcome-section mt-6 mb-6">
             <v-row align="center" class="py-4">
               <v-col cols="12" md="8">
                 <div class="welcome-content">
@@ -76,10 +76,7 @@
                 </div>
               </v-col>
             </v-row>
-          </v-container>
-        </div>
-
-        <v-container>
+          </div>
           <!-- Enhanced Stats Cards -->
           <v-row class="mb-6">
             <v-col cols="12" sm="6" md="3">
