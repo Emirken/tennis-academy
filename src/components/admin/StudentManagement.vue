@@ -199,7 +199,7 @@
               <template #item.student="{ item }">
                 <div class="d-flex align-center py-2">
                   <v-avatar
-                      :color="item.status === 'active' ? 'success' : item.status === 'suspended' ? 'error' : 'grey'"
+                      :color="(item.status === 'active' || item.status === 'approved') ? 'success' : item.status === 'suspended' ? 'error' : item.status === 'pending' ? 'warning' : 'grey'"
                       class="mr-3"
                       size="40"
                   >
@@ -245,7 +245,7 @@
                     :color="getStatusColor(item.status)"
                     variant="flat"
                     size="small"
-                    class="font-weight-bold"
+                    :class="['font-weight-bold', item.status === 'pending' ? 'pending-chip' : '']"
                 >
                   <v-icon
                       start
@@ -311,7 +311,7 @@
             <div class="welcome-content py-6 px-6">
               <div class="d-flex align-center">
                 <v-avatar
-                    :color="selectedStudent?.status === 'active' ? 'success' : selectedStudent?.status === 'suspended' ? 'error' : 'grey'"
+                    :color="(selectedStudent?.status === 'active' || selectedStudent?.status === 'approved') ? 'success' : selectedStudent?.status === 'suspended' ? 'error' : selectedStudent?.status === 'pending' ? 'warning' : 'grey'"
                     class="mr-4"
                     size="56"
                 >
@@ -512,7 +512,7 @@
                             :color="getStatusColor(selectedStudent?.status)"
                             variant="flat"
                             size="small"
-                            class="font-weight-bold"
+                            :class="['font-weight-bold', selectedStudent?.status === 'pending' ? 'pending-chip' : '']"
                         >
                           <v-icon
                               start
@@ -831,7 +831,7 @@
               >
                 <template #prepend>
                   <v-avatar
-                      :color="member.status === 'active' ? 'success' : 'grey'"
+                      :color="(member.status === 'active' || member.status === 'approved') ? 'success' : member.status === 'pending' ? 'warning' : 'grey'"
                       size="32"
                   >
                     <span class="text-caption font-weight-bold">
@@ -853,6 +853,7 @@
                       :color="getStatusColor(member.status)"
                       size="small"
                       variant="flat"
+                      :class="member.status === 'pending' ? 'pending-chip' : ''"
                   >
                     {{ getStatusDisplayName(member.status) }}
                   </v-chip>
@@ -1189,6 +1190,7 @@ const membershipTypes = computed(() => membershipTypesStore.selectOptions)
 
 const statusOptions = [
   { title: 'Aktif', value: 'active' },
+  { title: 'Bekliyor', value: 'pending' },
   { title: 'Pasif', value: 'inactive' },
   { title: 'Askıda', value: 'suspended' }
 ]
@@ -1627,7 +1629,11 @@ const filteredStudents = computed(() => {
   }
 
   if (filters.status) {
-    filtered = filtered.filter(student => student.status === filters.status)
+    if (filters.status === 'active') {
+      filtered = filtered.filter(student => student.status === 'active' || student.status === 'approved')
+    } else {
+      filtered = filtered.filter(student => student.status === filters.status)
+    }
   }
 
   return filtered
@@ -1635,7 +1641,7 @@ const filteredStudents = computed(() => {
 
 const stats = computed(() => {
   const total = students.value.length
-  const active = students.value.filter(s => s.status === 'active').length
+  const active = students.value.filter(s => s.status === 'active' || s.status === 'approved').length
   const inactive = students.value.filter(s => s.status === 'inactive').length
 
   const now = new Date()
@@ -1685,7 +1691,9 @@ const getMembershipDisplayName = (type: string | undefined) => {
 
 const getStatusColor = (status: string | undefined) => {
   switch (status) {
-    case 'active': return 'success'
+    case 'active':
+    case 'approved': return 'success'
+    case 'pending': return 'warning'
     case 'inactive': return 'grey'
     case 'suspended': return 'error'
     default: return 'grey'
@@ -1694,7 +1702,9 @@ const getStatusColor = (status: string | undefined) => {
 
 const getStatusIcon = (status: string | undefined) => {
   switch (status) {
-    case 'active': return 'mdi-check-circle'
+    case 'active':
+    case 'approved': return 'mdi-check-circle'
+    case 'pending': return 'mdi-clock-outline'
     case 'inactive': return 'mdi-pause-circle'
     case 'suspended': return 'mdi-cancel'
     default: return 'mdi-help-circle'
@@ -1704,6 +1714,8 @@ const getStatusIcon = (status: string | undefined) => {
 const getStatusDisplayName = (status: string | undefined) => {
   switch (status) {
     case 'active': return 'Aktif'
+    case 'approved': return 'Aktif'
+    case 'pending': return 'Bekliyor'
     case 'inactive': return 'Pasif'
     case 'suspended': return 'Askıda'
     default: return status || '-'
@@ -2843,3 +2855,10 @@ onMounted(async () => {
   fetchGroups()
 })
 </script>
+
+<style scoped>
+.pending-chip :deep(.v-chip__content),
+.pending-chip :deep(.v-icon) {
+  color: white !important;
+}
+</style>

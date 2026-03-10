@@ -29,7 +29,7 @@
             </div>
 
             <!-- Empty State -->
-            <div v-else-if="notifications.length === 0" class="pa-12 text-center text-medium-emphasis">
+            <div v-else-if="displayedNotifications.length === 0" class="pa-12 text-center text-medium-emphasis">
               <v-icon icon="mdi-bell-outline" size="80" color="success" class="mb-4 opacity-50"></v-icon>
               <h3 class="text-h6">Hiç bildiriminiz yok.</h3>
               <p>Yeni bir işlem olduğunda burada görebilirsiniz.</p>
@@ -39,7 +39,7 @@
             <v-list v-else lines="three" class="bg-transparent pa-4">
               <v-slide-y-transition group>
                 <v-list-item
-                    v-for="notification in notifications"
+                    v-for="notification in displayedNotifications"
                     :key="notification.id"
                     class="notification-item mb-4"
                     :class="{ 'unread-item': !isReadByMe(notification) }"
@@ -106,7 +106,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { doc, updateDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
@@ -114,9 +114,38 @@ import { notificationService, UserNotification } from '@/services/notificationSe
 const authStore = useAuthStore()
 
 const notifications = ref<UserNotification[]>([])
+const pendingStudentsFromUsers = ref<Array<{ id: string; firstName: string; lastName: string; phone_number: string; createdAt?: any }>>([])
 const loading = ref(true)
 const processingId = ref<string | null>(null)
 let unsubscribe: (() => void) | null = null
+
+// Firestore bildirimleri + users'dan bekleyen öğrenciler (sadece admin için)
+const displayedNotifications = computed(() => {
+  if (authStore.user?.role !== 'admin') {
+    return notifications.value
+  }
+  const firestoreIds = new Set(
+    notifications.value
+      .filter((n) => n.type === 'approval_pending' && n.relatedData)
+      .map((n) => n.relatedData)
+  )
+  const synthetic = pendingStudentsFromUsers.value
+    .filter((s) => !firestoreIds.has(s.id))
+    .map((s) => ({
+      id: `pending-${s.id}`,
+      type: 'approval_pending' as const,
+      title: 'Yeni Öğrenci Kaydı',
+      message: `${s.firstName} ${s.lastName} kayıt oldu, onayınızı bekliyor.`,
+      relatedData: s.id,
+      createdAt: s.createdAt || new Date(),
+      isRead: [] as string[]
+    }))
+  return [...synthetic, ...notifications.value].sort((a, b) => {
+    const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt)
+    const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt)
+    return dateB.getTime() - dateA.getTime()
+  })
+})
 
 // Snackbar
 const snackbar = ref(false)
@@ -147,7 +176,7 @@ const isReadByMe = (notification: UserNotification) => {
 }
 
 const unreadCount = computed(() => {
-  return notifications.value.filter(n => !isReadByMe(n)).length
+  return displayedNotifications.value.filter((n) => !isReadByMe(n)).length
 })
 
 const getIcon = (type: string) => {
@@ -182,8 +211,8 @@ const fetchNotifications = () => {
 
 const markAsRead = async (notification: UserNotification) => {
   if (!authStore.user) return
-  if (!notification.id) return
-  
+  if (!notification.id || String(notification.id).startsWith('pending-')) return
+
   try {
     await notificationService.markAsRead(
       notification.id,
@@ -197,26 +226,26 @@ const markAsRead = async (notification: UserNotification) => {
 }
 
 const approveUserFromNotification = async (notification: UserNotification) => {
-  if (!authStore.user || processingId.value || !notification.id || !notification.relatedData) return
-  processingId.value = notification.id
-  
+  if (!authStore.user || processingId.value || !notification.relatedData) return
+  const userId = typeof notification.relatedData === 'string' ? notification.relatedData : notification.relatedData
+  processingId.value = notification.id || userId
+
   try {
-    // Approve user
-    const userId = notification.relatedData
     const userRef = doc(db, 'users', userId)
-    await updateDoc(userRef, {
-      status: 'approved'
-    })
-    
-    // Mark notification as read
-    await notificationService.markAsRead(
-      notification.id,
-      authStore.user.id,
-      authStore.user.role,
-      notification.isRead
-    )
-    
-    showSnackbar(`Kullanıcı başarıyla onaylandı.`)
+    await updateDoc(userRef, { status: 'active' })
+
+    if (notification.id && !String(notification.id).startsWith('pending-')) {
+      await notificationService.markAsRead(
+        notification.id,
+        authStore.user.id,
+        authStore.user.role,
+        notification.isRead
+      )
+    } else {
+      await loadPendingStudents()
+    }
+
+    showSnackbar('Kullanıcı başarıyla onaylandı.')
   } catch (error) {
     console.error('Error approving user:', error)
     showSnackbar('Kullanıcı onaylanırken bir hata oluştu.', 'error')
@@ -225,8 +254,35 @@ const approveUserFromNotification = async (notification: UserNotification) => {
   }
 }
 
+const loadPendingStudents = async () => {
+  if (authStore.user?.role !== 'admin') return
+  try {
+    const usersRef = collection(db, 'users')
+    const snapshot = await getDocs(usersRef)
+    const pending: typeof pendingStudentsFromUsers.value = []
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data()
+      if (data.role === 'student' && data.status === 'pending' && !data.deleted) {
+        pending.push({
+          id: docSnap.id,
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          phone_number: data.phone_number || '',
+          createdAt: data.createdAt
+        })
+      }
+    })
+    pendingStudentsFromUsers.value = pending
+  } catch (error) {
+    console.error('Bekleyen öğrenciler yüklenemedi:', error)
+  }
+}
+
 onMounted(() => {
   fetchNotifications()
+  if (authStore.user?.role === 'admin') {
+    loadPendingStudents()
+  }
 })
 
 onUnmounted(() => {

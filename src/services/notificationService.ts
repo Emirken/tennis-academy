@@ -39,7 +39,8 @@ export const notificationService = {
         // Burada in sorgusu kullanabiliriz: targetType in ['admin', 'all'] vs.
 
         let q;
-        if (userRole === 'admin') {
+        const normalizedRole = userRole?.toLowerCase?.() || userRole
+        if (normalizedRole === 'admin') {
             q = query(
                 notificationsRef,
                 where('targetType', 'in', ['admin', 'all']),
@@ -55,13 +56,21 @@ export const notificationService = {
             )
         }
 
-        return onSnapshot(q, (snapshot) => {
-            const notifications: UserNotification[] = []
-            snapshot.forEach((doc) => {
-                notifications.push({ id: doc.id, ...doc.data() } as UserNotification)
-            })
-            callback(notifications)
-        })
+        return onSnapshot(
+            q,
+            (snapshot) => {
+                const notifications: UserNotification[] = []
+                snapshot.forEach((doc) => {
+                    notifications.push({ id: doc.id, ...doc.data() } as UserNotification)
+                })
+                callback(notifications)
+            },
+            (error) => {
+                console.error('❌ Bildirim dinleme hatası:', error)
+                console.error('Kullanıcı rolü:', userRole, '| Index veya izin hatası olabilir.')
+                callback([])
+            }
+        )
     },
 
     async createAdminNotification(title: string, message: string, type: NotificationType, relatedData?: any) {

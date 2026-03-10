@@ -207,6 +207,14 @@ export const useAuthStore = defineStore('auth', {
                         console.log('⚠️ Kullanıcı onay bekliyor, ancak sisteme girişine izin veriliyor (dashboard kilitli).', uid)
                     }
 
+                    // Rol doğrulama: admin bildirimleri için role === 'admin' (küçük harf) gerekli
+                    if (userData.role && userData.role !== 'admin' && userData.role !== 'student') {
+                        console.warn('⚠️ Beklenmeyen rol değeri:', userData.role, '- Bildirim sorgusu etkilenebilir.')
+                    }
+                    if (userData.role === 'admin') {
+                        console.log('✅ Admin girişi - bildirim sorgusu targetType: admin/all kullanacak')
+                    }
+
                     this.user = {
                         ...userData,
                         id: uid // Ensure ID is always set

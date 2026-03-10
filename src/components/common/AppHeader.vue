@@ -439,6 +439,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
 
@@ -461,8 +463,7 @@ const setupNotificationsListener = () => {
     unsubscribeNotifications = notificationService.subscribeToNotifications(
       authStore.user.id,
       authStore.user.role,
-      (notifications: UserNotification[]) => {
-        // Calculate unread count
+      async (notifications: UserNotification[]) => {
         const unreadCount = notifications.filter((notif) => {
           if (!authStore.user) return false
           if (Array.isArray(notif.isRead)) {
@@ -470,7 +471,21 @@ const setupNotificationsListener = () => {
           }
           return notif.isRead === false
         }).length
-        pendingCount.value = unreadCount
+        let total = unreadCount
+        if (authStore.user.role === 'admin') {
+          try {
+            const snapshot = await getDocs(collection(db, 'users'))
+            let pending = 0
+            snapshot.forEach((doc) => {
+              const d = doc.data()
+              if (d.role === 'student' && d.status === 'pending' && !d.deleted) pending++
+            })
+            total += pending
+          } catch {
+            // ignore
+          }
+        }
+        pendingCount.value = total
       }
     )
   }
