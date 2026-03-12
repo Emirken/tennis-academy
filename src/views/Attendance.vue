@@ -911,7 +911,7 @@ const loadStudentsFromFirebase = async () => {
 
     studentsSnapshot.forEach((doc) => {
       const studentData = doc.data()
-      if (studentData.role === 'student') {
+      if (studentData.role === 'student' && studentData.deleted !== true) {
         const fullName = `${studentData.firstName} ${studentData.lastName}`
 
         firebaseStudents.push({

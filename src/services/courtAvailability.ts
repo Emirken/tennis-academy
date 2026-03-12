@@ -117,6 +117,9 @@ export const loadOccupiedSlots = async (excludeGroupId?: string, excludeStudentI
       const student = doc.data()
       const studentId = doc.id
 
+      // Ghost cleanup: skip deleted students
+      if (student.deleted === true) return
+
       // Skip the excluded student (when editing a student)
       if (excludeStudentId && studentId === excludeStudentId) return
 

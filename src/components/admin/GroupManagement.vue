@@ -640,10 +640,29 @@ const loadGroups = async () => {
   try {
     const groupsRef = collection(db, 'groups')
     const snapshot = await getDocs(groupsRef)
-    groups.value = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Group[]
+    
+    // Geçerli aktif öğrenci ID'leri
+    const validStudentIds = new Set(students.value.map(s => s.id))
+
+    groups.value = snapshot.docs.map(docSnap => {
+      const data = docSnap.data()
+      
+      if (data.members && Array.isArray(data.members)) {
+        const validMembers = data.members.filter((m: any) => validStudentIds.has(m.id))
+        
+        // Eğer grupta artık sistemde olmayan bir öğrenci varsa veritabanından temizle
+        if (validMembers.length !== data.members.length) {
+           updateDoc(docSnap.ref, { members: validMembers }).catch(console.error)
+           data.members = validMembers
+           console.log(`Silinmiş veya reddedilmiş hayalet üyeler gruptan temizlendi: ${docSnap.id}`)
+        }
+      }
+
+      return {
+        id: docSnap.id,
+        ...data
+      } as Group
+    })
   } catch (error) {
     console.error('Gruplar yüklenirken hata:', error)
     showSnackbar('Gruplar yüklenirken hata oluştu', 'error')
@@ -655,10 +674,13 @@ const loadStudents = async () => {
     const studentsRef = collection(db, 'users')
     const q = query(studentsRef, where('role', '==', 'student'))
     const snapshot = await getDocs(q)
-    students.value = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Student[]
+    // Silinmiş kullanıcıları (soft-delete kalıntıları) ayıkla
+    students.value = snapshot.docs
+      .filter(docSnap => docSnap.data().deleted !== true)
+      .map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      })) as Student[]
   } catch (error) {
     console.error('Öğrenciler yüklenirken hata:', error)
   }
@@ -712,6 +734,18 @@ const removeScheduleSlot = (index: number) => {
 const saveGroup = async () => {
   const { valid } = await groupForm.value.validate()
   if (!valid) return
+
+  // Program Çakışma Kontrolü
+  const validSchedule = groupFormData.value.schedule.filter((p: any) => p.day && p.time && p.court)
+  if (validSchedule.length > 0) {
+    const { getScheduleConflicts } = await import('@/services/courtAvailability')
+    const conflicts = getScheduleConflicts(occupiedSlots.value, validSchedule)
+    if (conflicts.length > 0) {
+      const conflictMsg = conflicts.map(c => `${c.slot.day} ${c.slot.time}`).join(', ')
+      showSnackbar(`Seçilen programda çakışma var: ${conflictMsg}`, 'error')
+      return
+    }
+  }
 
   try {
     const groupData = {
@@ -1217,8 +1251,8 @@ const handleExportGroupAttendance = async () => {
 
 onMounted(async () => {
   await membershipTypesStore.initialize()
-  await loadGroups()
   await loadStudents()
+  await loadGroups()
 })
 </script>
 

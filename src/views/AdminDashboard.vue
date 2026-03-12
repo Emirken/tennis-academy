@@ -333,8 +333,17 @@ const showArchiveNotifications = ref(true)
 const showAllArchivesSection = ref(false)
 const archiveLoading = ref(false)
 
+interface ManagementAction {
+  title: string
+  description: string
+  icon: string
+  gradient: string
+  route?: { name: string }
+  action?: () => void
+}
+
 // Management Actions Data
-const managementActions = [
+const managementActions: ManagementAction[] = [
   {
     title: 'Takvim',
     description: 'Ders programlarını ve rezervasyonları görüntüle',
@@ -394,7 +403,7 @@ const fetchTotalStudents = async () => {
 
     usersSnapshot.forEach((doc) => {
       const userData = doc.data()
-      if (userData.role === 'student') {
+      if (userData.role === 'student' && userData.deleted !== true) {
         studentCount++
       }
     })

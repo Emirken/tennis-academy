@@ -2456,6 +2456,19 @@ const saveStudentChanges = async (): Promise<void> => {
 
   const oldStudent = selectedStudent.value
   const validWeeklyPlan = editForm.value.weeklyPlan.filter(p => p.day && p.time && p.court)
+  
+  // Program Çakışma Kontrolü
+  if (validWeeklyPlan.length > 0) {
+    const { getScheduleConflicts } = await import('@/services/courtAvailability')
+    const conflicts = getScheduleConflicts(occupiedSlots.value, validWeeklyPlan)
+    if (conflicts.length > 0) {
+      const conflictMsg = conflicts.map(c => `${c.slot.day} ${c.slot.time}`).join(', ')
+      successMessage.value = `Seçilen programda çakışma var: ${conflictMsg}`
+      successSnackbar.value = true
+      return
+    }
+  }
+
   const isGroup = isGroupMembership(editForm.value.membershipType)
   const groupAssignment:any = isGroup ? editForm.value.groupAssignment : null
   const hadGroup = oldStudent.groupAssignment
@@ -2701,15 +2714,11 @@ const performStudentDelete = async (student: Student): Promise<void> => {
   try {
     console.log('🗑️ Öğrenci siliniyor (soft delete):', student.id)
 
-    // Firestore'da öğrenciyi "deleted" olarak işaretle
+    // Firestore'da öğrenciyi tamamen sil (hard delete)
     const userDocRef = doc(db, 'users', student.id)
-    await updateDoc(userDocRef, {
-      deleted: true,
-      deletedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
+    await deleteDoc(userDocRef)
 
-    console.log('✅ Öğrenci silindi (soft delete)')
+    console.log('✅ Öğrenci silindi (hard delete)')
 
     // Öğrenciyi gruplardan çıkar
     const groupsRef = collection(db, 'groups')

@@ -65,17 +65,28 @@
 
                   <template v-slot:append>
                     <div class="d-flex flex-column gap-2 align-end h-100 mt-2">
-                       <v-btn
-                          v-if="notification.type === 'approval_pending'"
-                          color="success"
-                          variant="elevated"
-                          prepend-icon="mdi-check"
-                          @click="approveUserFromNotification(notification)"
-                          :loading="processingId === notification.id"
-                          :disabled="processingId !== null"
-                      >
-                        Kullanıcıyı Onayla
-                      </v-btn>
+                      <template v-if="notification.type === 'approval_pending'">
+                        <v-btn
+                            color="success"
+                            variant="elevated"
+                            prepend-icon="mdi-check"
+                            @click="approveUserFromNotification(notification)"
+                            :loading="processingId === notification.id"
+                            :disabled="processingId !== null"
+                        >
+                          Kayıt Onayla
+                        </v-btn>
+                        <v-btn
+                            color="error"
+                            variant="tonal"
+                            prepend-icon="mdi-close"
+                            @click="rejectUserFromNotification(notification)"
+                            :loading="processingId === notification.id"
+                            :disabled="processingId !== null"
+                        >
+                          Reddet
+                        </v-btn>
+                      </template>
                       <v-btn
                           v-else-if="!isReadByMe(notification)"
                           color="primary"
@@ -248,6 +259,37 @@ const approveUserFromNotification = async (notification: UserNotification) => {
   } catch (error) {
     console.error('Error approving user:', error)
     showSnackbar('Kullanıcı onaylanırken bir hata oluştu.', 'error')
+  } finally {
+    processingId.value = null
+  }
+}
+
+const rejectUserFromNotification = async (notification: UserNotification) => {
+  if (!authStore.user || processingId.value || !notification.relatedData) return
+  
+  if (!confirm('Bu kullanıcıyı reddetmek ve sistemden kalıcı olarak silmek istediğinize emin misiniz?')) {
+    return
+  }
+
+  const userId = typeof notification.relatedData === 'string' ? notification.relatedData : notification.relatedData
+  processingId.value = notification.id || userId
+
+  try {
+    // 1. Kullanıcıyı sil (hard delete)
+    const userRef = doc(db, 'users', userId)
+    const { deleteDoc } = await import('firebase/firestore')
+    await deleteDoc(userRef)
+
+    // 2. Bildirimi de sil (eğer gerçek bir Firestore bildirimi ise)
+    if (notification.id && !String(notification.id).startsWith('pending-')) {
+      const notificationRef = doc(db, 'notifications', notification.id)
+      await deleteDoc(notificationRef)
+    }
+
+    showSnackbar('Kullanıcı reddedildi ve silindi.')
+  } catch (error) {
+    console.error('Error rejecting user:', error)
+    showSnackbar('Kullanıcı reddedilirken bir hata oluştu.', 'error')
   } finally {
     processingId.value = null
   }
