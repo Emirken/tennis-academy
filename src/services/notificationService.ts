@@ -80,7 +80,7 @@ export const notificationService = {
             title,
             message,
             type,
-            isRead: [], // admin bildirimlerini okuyanların listesi
+            isRead: false,
             createdAt: serverTimestamp(),
             relatedData
         }
@@ -106,12 +106,7 @@ export const notificationService = {
         const notifRef = doc(db, COLLECTION_NAME, notificationId)
 
         if (userRole === 'admin') {
-            // Eğer array ise ve içinde yoksa ekle
-            let readArray = Array.isArray(currentIsRead) ? [...currentIsRead] : []
-            if (!readArray.includes(userId)) {
-                readArray.push(userId)
-                await updateDoc(notifRef, { isRead: readArray })
-            }
+            await updateDoc(notifRef, { isRead: true })
         } else {
             // Öğrenci
             await updateDoc(notifRef, { isRead: true })

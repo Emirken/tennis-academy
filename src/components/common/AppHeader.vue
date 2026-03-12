@@ -437,9 +437,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, onSnapshot } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
@@ -450,44 +450,48 @@ const authStore = useAuthStore()
 const drawer = ref(false)
 
 // Notifications Badge Logic
-const pendingCount = ref(0)
+const unreadCount = ref(0)
+const pendingStudentsCount = ref(0)
+const pendingCount = computed(() => unreadCount.value + pendingStudentsCount.value)
+
 let unsubscribeNotifications: (() => void) | null = null
+let unsubscribeUsers: (() => void) | null = null
 
 const setupNotificationsListener = () => {
   if (unsubscribeNotifications) {
     unsubscribeNotifications()
     unsubscribeNotifications = null
   }
+  if (unsubscribeUsers) {
+    unsubscribeUsers()
+    unsubscribeUsers = null
+  }
 
   if (authStore.user) {
     unsubscribeNotifications = notificationService.subscribeToNotifications(
       authStore.user.id,
       authStore.user.role,
-      async (notifications: UserNotification[]) => {
-        const unreadCount = notifications.filter((notif) => {
+      (notifications: UserNotification[]) => {
+        unreadCount.value = notifications.filter((notif) => {
           if (!authStore.user) return false
           if (Array.isArray(notif.isRead)) {
             return !notif.isRead.includes(authStore.user.id)
           }
           return notif.isRead === false
         }).length
-        let total = unreadCount
-        if (authStore.user.role === 'admin') {
-          try {
-            const snapshot = await getDocs(collection(db, 'users'))
-            let pending = 0
-            snapshot.forEach((doc) => {
-              const d = doc.data()
-              if (d.role === 'student' && d.status === 'pending' && !d.deleted) pending++
-            })
-            total += pending
-          } catch {
-            // ignore
-          }
-        }
-        pendingCount.value = total
       }
     )
+
+    if (authStore.user.role === 'admin') {
+      unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        let pending = 0
+        snapshot.forEach((doc) => {
+          const d = doc.data()
+          if (d.role === 'student' && d.status === 'pending' && !d.deleted) pending++
+        })
+        pendingStudentsCount.value = pending
+      })
+    }
   }
 }
 
@@ -495,10 +499,15 @@ watch(() => authStore.user, (user) => {
   if (user) {
     setupNotificationsListener()
   } else {
-    pendingCount.value = 0
+    unreadCount.value = 0
+    pendingStudentsCount.value = 0
     if (unsubscribeNotifications) {
       unsubscribeNotifications()
       unsubscribeNotifications = null
+    }
+    if (unsubscribeUsers) {
+      unsubscribeUsers()
+      unsubscribeUsers = null
     }
   }
 }, { immediate: true })
@@ -506,6 +515,9 @@ watch(() => authStore.user, (user) => {
 onUnmounted(() => {
   if (unsubscribeNotifications) {
     unsubscribeNotifications()
+  }
+  if (unsubscribeUsers) {
+    unsubscribeUsers()
   }
 })
 

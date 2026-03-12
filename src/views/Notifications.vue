@@ -106,7 +106,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
@@ -118,6 +118,7 @@ const pendingStudentsFromUsers = ref<Array<{ id: string; firstName: string; last
 const loading = ref(true)
 const processingId = ref<string | null>(null)
 let unsubscribe: (() => void) | null = null
+let unsubscribeUsers: (() => void) | null = null
 
 // Firestore bildirimleri + users'dan bekleyen öğrenciler (sadece admin için)
 const displayedNotifications = computed(() => {
@@ -138,7 +139,7 @@ const displayedNotifications = computed(() => {
       message: `${s.firstName} ${s.lastName} kayıt oldu, onayınızı bekliyor.`,
       relatedData: s.id,
       createdAt: s.createdAt || new Date(),
-      isRead: [] as string[]
+      isRead: false
     }))
   return [...synthetic, ...notifications.value].sort((a, b) => {
     const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt)
@@ -241,8 +242,6 @@ const approveUserFromNotification = async (notification: UserNotification) => {
         authStore.user.role,
         notification.isRead
       )
-    } else {
-      await loadPendingStudents()
     }
 
     showSnackbar('Kullanıcı başarıyla onaylandı.')
@@ -254,25 +253,27 @@ const approveUserFromNotification = async (notification: UserNotification) => {
   }
 }
 
-const loadPendingStudents = async () => {
+const loadPendingStudents = () => {
   if (authStore.user?.role !== 'admin') return
   try {
     const usersRef = collection(db, 'users')
-    const snapshot = await getDocs(usersRef)
-    const pending: typeof pendingStudentsFromUsers.value = []
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data()
-      if (data.role === 'student' && data.status === 'pending' && !data.deleted) {
-        pending.push({
-          id: docSnap.id,
-          firstName: data.firstName || '',
-          lastName: data.lastName || '',
-          phone_number: data.phone_number || '',
-          createdAt: data.createdAt
-        })
-      }
+    if (unsubscribeUsers) unsubscribeUsers()
+    unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
+      const pending: typeof pendingStudentsFromUsers.value = []
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data()
+        if (data.role === 'student' && data.status === 'pending' && !data.deleted) {
+          pending.push({
+            id: docSnap.id,
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            phone_number: data.phone_number || '',
+            createdAt: data.createdAt
+          })
+        }
+      })
+      pendingStudentsFromUsers.value = pending
     })
-    pendingStudentsFromUsers.value = pending
   } catch (error) {
     console.error('Bekleyen öğrenciler yüklenemedi:', error)
   }
@@ -288,6 +289,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (unsubscribe) {
     unsubscribe()
+  }
+  if (unsubscribeUsers) {
+    unsubscribeUsers()
   }
 })
 </script>
