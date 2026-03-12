@@ -21,3 +21,8 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Testing
+/playwright-report/
+/test-results/
+/coverage/
