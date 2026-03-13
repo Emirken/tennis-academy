@@ -277,8 +277,27 @@ const rejectUserFromNotification = async (notification: UserNotification) => {
   try {
     // 1. Kullanıcıyı sil (hard delete)
     const userRef = doc(db, 'users', userId)
-    const { deleteDoc } = await import('firebase/firestore')
+    const { deleteDoc, getDocs, collection, updateDoc } = await import('firebase/firestore')
     await deleteDoc(userRef)
+
+    // 1.5. Öğrenciyi gruplardan çıkar
+    try {
+      const groupsRef = collection(db, 'groups')
+      const groupsSnapshot = await getDocs(groupsRef)
+      const updatePromises: any[] = []
+      groupsSnapshot.forEach((groupDoc) => {
+        const groupData = groupDoc.data()
+        if (groupData.members && Array.isArray(groupData.members)) {
+          const updatedMembers = groupData.members.filter((m: any) => m.id !== userId)
+          if (updatedMembers.length !== groupData.members.length) {
+            updatePromises.push(updateDoc(groupDoc.ref, { members: updatedMembers }))
+          }
+        }
+      })
+      await Promise.all(updatePromises)
+    } catch (e) {
+      console.error('Gruplardan çıkarma hatası', e)
+    }
 
     // 2. Bildirimi de sil (eğer gerçek bir Firestore bildirimi ise)
     if (notification.id && !String(notification.id).startsWith('pending-')) {

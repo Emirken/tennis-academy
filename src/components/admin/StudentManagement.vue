@@ -2220,13 +2220,31 @@ const fetchGroups = async () => {
     const groupsRef = collection(db, 'groups')
     const querySnapshot = await getDocs(groupsRef)
 
+    const validStudentIds = new Set(students.value.map(s => s.id))
     const fetchedGroups: any[] = []
-    querySnapshot.forEach((doc) => {
+    const updatePromises: any[] = []
+
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data()
+      
+      if (data.members && Array.isArray(data.members)) {
+        const validMembers = data.members.filter((m: any) => validStudentIds.has(m.id))
+        
+        // Eğer grupta artık sistemde olmayan bir öğrenci varsa veritabanından temizle
+        if (validMembers.length !== data.members.length) {
+           updatePromises.push(updateDoc(docSnap.ref, { members: validMembers }).catch(console.error))
+           data.members = validMembers
+           console.log(`Silinmiş veya reddedilmiş hayalet üyeler gruptan temizlendi: ${docSnap.id}`)
+        }
+      }
+
       fetchedGroups.push({
-        id: doc.id,
-        ...doc.data()
+        id: docSnap.id,
+        ...data
       })
     })
+
+    await Promise.all(updatePromises)
 
     groups.value = fetchedGroups
     console.log(`✅ ${fetchedGroups.length} grup başarıyla yüklendi`)
@@ -2737,12 +2755,13 @@ const performStudentDelete = async (student: Student): Promise<void> => {
 
     await Promise.all(updatePromises)
 
+    // Local state'i GÜNCELLEMELİYİZ Kİ fetchGroups DOĞRU ÇALIŞSIN
+    students.value = students.value.filter(s => s.id !== student.id)
+    showStudentDetailsDialog.value = false
+
     // Grupları yeniden yükle
     await fetchGroups()
 
-    // Local state'i güncelle
-    students.value = students.value.filter(s => s.id !== student.id)
-    showStudentDetailsDialog.value = false
 
     successMessage.value = 'Öğrenci başarıyla silindi!'
     successSnackbar.value = true
@@ -2857,8 +2876,8 @@ const handleExportStudentAttendance = async () => {
 // Lifecycle
 onMounted(async () => {
   await membershipTypesStore.initialize()
-  fetchStudents()
-  fetchGroups()
+  await fetchStudents()
+  await fetchGroups()
 })
 </script>
 
