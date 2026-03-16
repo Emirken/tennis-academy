@@ -15,11 +15,7 @@
           class="brand-link d-flex align-center mr-8"
       >
         <div class="brand-logo">
-          <v-icon
-              icon="mdi-tennis"
-              size="36"
-              color="white"
-          />
+          <img src="/Uta-logo.svg" alt="Uta Logo" height="36" />
         </div>
         <div class="brand-text ml-3 hidden-sm-and-down">
           <h2 class="brand-title">Urla Tenis Akademi</h2>
@@ -236,7 +232,7 @@
     <!-- Drawer Header -->
     <div class="drawer-header">
       <div class="drawer-brand">
-        <v-icon icon="mdi-tennis" size="32" color="white" />
+        <img src="/Uta-logo.svg" alt="Uta Logo" height="32" />
         <h3 class="drawer-title">Tenis Akademi</h3>
       </div>
       <v-btn
