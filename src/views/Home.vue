@@ -150,15 +150,23 @@
             </p>
           </v-col>
           <v-col cols="12" md="4" class="text-md-end">
-            <v-btn
+            <div class="contact-actions">
+              <a href="tel:+905518508486" class="contact-phone text-white text-h6 mb-3 d-block">
+                Tel: 0551 850 84 86
+              </a>
+              <v-btn
+                href="https://wa.me/905518508486"
+                target="_blank"
+                rel="noopener noreferrer"
                 size="large"
-                color="white"
+                color="#25D366"
                 variant="flat"
                 class="contact-btn"
-                :to="{ name: 'Login' }"
-            >
-              Hemen Kayıt Ol
-            </v-btn>
+                rounded="circle"
+              >
+                <v-icon color="white">mdi-whatsapp</v-icon>
+              </v-btn>
+            </div>
           </v-col>
         </v-row>
       </v-container>
@@ -215,6 +223,21 @@ const trainers = [
 
 .home-view .contact-section {
   background: #d17d45 !important;
+}
+
+.contact-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.contact-phone {
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.contact-phone:hover {
+  opacity: 0.9;
 }
 
 /* Hero Section - Profesyonel Arka Plan */

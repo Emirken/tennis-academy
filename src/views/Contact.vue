@@ -5,20 +5,15 @@
         <!-- Enhanced Welcome Section -->
         <div class="welcome-section mt-6 mb-6">
           <v-row align="center" class="py-4">
-            <v-col cols="12" md="8">
+            <v-col cols="12">
               <div class="welcome-content">
                 <h1 class="welcome-title mb-3">
                   İletişim
                 </h1>
                 <p class="welcome-subtitle">
-                  Size yardımcı olmak için buradayız! Herhangi bir sorunuz veya talebiniz için bizimle iletişime geçin.
+                  Her türlü soru, talep ve rezervasyon işlemleri için bizimle iletişime geçebilirsiniz.
+                  Ekibimiz size yardımcı olmaktan memnuniyet duyacaktır
                 </p>
-              </div>
-            </v-col>
-            <v-col cols="12" md="4" class="text-md-right">
-              <div class="date-time-widget">
-                <div class="current-date">İletişim Bilgileri</div>
-                <div class="current-time">7/24 Hizmet</div>
               </div>
             </v-col>
           </v-row>
@@ -35,11 +30,7 @@
                 </div>
                 <div class="stat-details">
                   <h3 class="contact-label">Telefon</h3>
-                  <p class="contact-value">+90 (555) 596 38 21</p>
-                  <div class="stat-trend">
-                    <v-icon size="16" color="primary">mdi-phone-ring</v-icon>
-                    <span class="trend-text">7/24 Ulaşabilirsiniz</span>
-                  </div>
+                  <p class="contact-value">+90 (551) 850 84 86</p>
                 </div>
               </v-card-text>
             </v-card>
@@ -55,11 +46,7 @@
                 </div>
                 <div class="stat-details">
                   <h3 class="contact-label">E-posta</h3>
-                  <p class="contact-value">info@urlatennis.com</p>
-                  <div class="stat-trend">
-                    <v-icon size="16" color="success">mdi-email-fast</v-icon>
-                    <span class="trend-text">Hızlı Yanıt</span>
-                  </div>
+                  <p class="contact-value">urlatenisakademisi@gmail.com</p>
                 </div>
               </v-card-text>
             </v-card>
@@ -76,10 +63,6 @@
                 <div class="stat-details">
                   <h3 class="contact-label">Adres</h3>
                   <p class="contact-value">İskele, Mithatpaşa Cd. no:10, 35441 Urla/İzmir</p>
-                  <div class="stat-trend">
-                    <v-icon size="16" color="info">mdi-directions</v-icon>
-                    <span class="trend-text">Kolay Ulaşım</span>
-                  </div>
                 </div>
               </v-card-text>
             </v-card>
@@ -95,12 +78,7 @@
                 </div>
                 <div class="stat-details">
                   <h3 class="contact-label">Çalışma Saatleri</h3>
-                  <p class="contact-value">Pazartesi - Cuma: 06:00 - 22:00</p>
-                  <p class="contact-extra">Cumartesi - Pazar: 07:00 - 21:00</p>
-                  <div class="stat-trend">
-                    <v-icon size="16" color="warning">mdi-calendar-clock</v-icon>
-                    <span class="trend-text">Geniş Saat Aralığı</span>
-                  </div>
+                  <p class="contact-value">Pazartesi - Pazar: 08:00 - 22:00</p>
                 </div>
               </v-card-text>
             </v-card>
