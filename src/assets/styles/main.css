@@ -9,11 +9,11 @@
 
 /* Enhanced Welcome Section */
 .view-color{
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
 }
 
 .welcome-section {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     backdrop-filter: blur(20px);
     border-radius: 16px;
     position: relative;
@@ -152,7 +152,7 @@
 
 /* Gradient Backgrounds */
 .court-gradient {
-    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+    background: linear-gradient(135deg, #d17d45 0%, #b8642f 100%);
 }
 
 .primary-gradient {
@@ -160,7 +160,7 @@
 }
 
 .success-gradient {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
 }
 
 .warning-gradient {
@@ -185,11 +185,11 @@
 }
 
 .date-selection-card {
-    border-left: 4px solid #4CAF50;
+    border-left: 4px solid #d17d45;
 }
 
 .schedule-card .v-card-title {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
 }
 
 .legend-card {
@@ -323,7 +323,7 @@
 .status-available {
     background: rgba(76, 175, 80, 0.1);
     border: 2px solid rgba(76, 175, 80, 0.3);
-    color: #2E7D32;
+    color: #b8642f;
 }
 
 .status-occupied {
@@ -475,7 +475,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     border-radius: 12px 12px 0 0;
     color: white;
 }
@@ -560,7 +560,7 @@
 }
 
 .timeline-dot.success {
-    background: #10b981;
+    background: #b8642f;
 }
 
 .timeline-dot.warning {
@@ -682,7 +682,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 24px;
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     color: white;
 }
 
@@ -743,7 +743,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     z-index: 1;
 }
 
@@ -840,7 +840,7 @@
 }
 
 .dropdown-item:hover {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     color: white;
 }
 
@@ -864,7 +864,7 @@
 
 .register-btn {
     background: white !important;
-    color: #11998e !important;
+    color: #b8642f !important;
 }
 
 /* Mobile Drawer */
@@ -873,7 +873,7 @@
 }
 
 .drawer-header {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     padding: 24px;
     display: flex;
     align-items: center;
@@ -904,7 +904,7 @@
 }
 
 .drawer-item:hover {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     color: white;
     transform: translateX(8px);
 }
@@ -917,7 +917,7 @@
 .user-info {
     text-align: center;
     padding: 20px;
-    background: linear-gradient(135deg, rgba(17,153,142,0.1) 0%, rgba(56,239,125,0.1) 100%);
+    background: linear-gradient(135deg, rgba(184,100,47,0.1) 0%, rgba(209,125,69,0.1) 100%);
     border-radius: 16px;
     margin: 16px;
 }
@@ -1103,7 +1103,7 @@
 .price-display {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #2E7D32;
+    color: #b8642f;
     background: rgba(46, 125, 50, 0.1);
     padding: 8px 16px;
     border-radius: 12px;
@@ -1112,7 +1112,7 @@
 }
 
 .price-display.featured {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     color: white;
     font-size: 1.3rem;
 }
@@ -1133,7 +1133,7 @@
     width: 0;
     height: 0;
     border-left: 50px solid transparent;
-    border-top: 50px solid #11998e;
+    border-top: 50px solid #b8642f;
     z-index: 3;
 }
 
@@ -1148,7 +1148,7 @@
 }
 
 .success-overlay {
-    background: linear-gradient(135deg, rgba(17,153,142, 0.05) 0%, rgba(56,239,125, 0.05) 100%);
+    background: linear-gradient(135deg, rgba(184,100,47, 0.05) 0%, rgba(209,125,69, 0.05) 100%);
 }
 
 .info-card {
@@ -1156,7 +1156,7 @@
 }
 
 .contact-card {
-    border-left: 4px solid #11998e;
+    border-left: 4px solid #b8642f;
 }
 
 .info-text {
@@ -1258,7 +1258,7 @@
 
 /* Map Section */
 .map-card {
-    border-left: 4px solid #11998e;
+    border-left: 4px solid #b8642f;
 }
 
 .map-container {
@@ -1272,7 +1272,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, rgba(17,153,142,0.8) 0%, rgba(56,239,125,0.8) 100%);
+    background: linear-gradient(135deg, rgba(184,100,47,0.8) 0%, rgba(209,125,69,0.8) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1311,7 +1311,7 @@
 
 .map-direction-btn {
     background: white !important;
-    color: #11998e !important;
+    color: #b8642f !important;
     border-radius: 12px;
     font-weight: 600;
     text-transform: none;
@@ -1486,7 +1486,7 @@
 
 /* Usage Card */
 .usage-card {
-    border-left: 4px solid #11998e;
+    border-left: 4px solid #b8642f;
 }
 
 .usage-header {
@@ -1584,7 +1584,7 @@
 
 /* Reservations Card */
 .reservations-card {
-    border-left: 4px solid #38ef7d;
+    border-left: 4px solid #d17d45;
 }
 
 .reservations-list {
@@ -1625,7 +1625,7 @@
 }
 
 .timeline-dot.success {
-    background: #10b981;
+    background: #b8642f;
 }
 
 .timeline-dot.warning {
@@ -2017,17 +2017,17 @@
 
 /* Reservations List Card */
 .reservations-list-card {
-    border-left: 4px solid #11998e;
+    border-left: 4px solid #b8642f;
 }
 
 .reservations-header {
-    background: linear-gradient(135deg, rgba(17,153,142, 0.05) 0%, rgba(56,239,125, 0.05) 100%);
+    background: linear-gradient(135deg, rgba(184,100,47, 0.05) 0%, rgba(209,125,69, 0.05) 100%);
     border-bottom: 1px solid rgba(0,0,0,0.06);
     transition: all 0.3s ease;
 }
 
 .reservations-header:hover {
-    background: linear-gradient(135deg, rgba(17,153,142, 0.08) 0%, rgba(56,239,125, 0.08) 100%);
+    background: linear-gradient(135deg, rgba(184,100,47, 0.08) 0%, rgba(209,125,69, 0.08) 100%);
 }
 
 .reservations-header-content {
@@ -2084,7 +2084,7 @@
 }
 
 .reservations-header:hover .toggle-icon {
-    color: #11998e;
+    color: #b8642f;
 }
 
 /* Reservations List Container */
@@ -2128,7 +2128,7 @@
 }
 
 .timeline-dot.success {
-    background: #10b981;
+    background: #b8642f;
 }
 
 .timeline-dot.warning {
@@ -2365,7 +2365,7 @@
 
 /* Auth Welcome Section */
 .auth-welcome-section {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     position: relative;
     overflow: hidden;
 }
@@ -2722,12 +2722,12 @@
 
 /* Register Card */
 .register-card {
-    border-left: 4px solid #11998e;
+    border-left: 4px solid #b8642f;
 }
 
 /* Register Submit Button */
 .register-submit-btn {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%) !important;
     box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
 }
 
@@ -2837,7 +2837,7 @@
 }
 
 .step-success {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
 }
 
 .step-info {
@@ -2970,7 +2970,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     z-index: 1;
 }
 
@@ -3224,7 +3224,7 @@
 }
 
 .status-indicator.success {
-    background: #10b981;
+    background: #b8642f;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
@@ -3546,7 +3546,7 @@
 
 /* Balance Color Classes */
 .text-success {
-    color: #2E7D32 !important;
+    color: #b8642f !important;
 }
 
 .text-error {
@@ -3913,7 +3913,7 @@
 
 /* Percentage Color Classes */
 .percentage-excellent {
-    background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
     color: white;
     border-color: #059669;
 }

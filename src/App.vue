@@ -26,7 +26,7 @@ import AppFooter from '@/components/common/AppFooter.vue'
 }
 
 .tennis-gradient {
-  background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);
+  background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
 }
 
 .court-pattern {

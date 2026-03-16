@@ -208,9 +208,9 @@ const textClass = computed(() => {
 // Methods
 const getDotColor = (color: string): string => {
   const colorMap: { [key: string]: string } = {
-    'primary': '#2E7D32',
-    'secondary': '#4CAF50',
-    'success': '#4CAF50',
+    'primary': '#b8642f',
+    'secondary': '#d17d45',
+    'success': '#d17d45',
     'warning': '#FF9800',
     'error': '#F44336',
     'info': '#2196F3',
@@ -374,13 +374,13 @@ const getPulseColor = (color: string): string => {
   width: 100%;
   height: 60%;
   position: relative;
-  border: 2px solid #2E7D32;
+  border: 2px solid #b8642f;
   border-radius: 4px;
 }
 
 .line {
   position: absolute;
-  background-color: #2E7D32;
+  background-color: #b8642f;
   animation: courtPulse 1.5s ease-in-out infinite;
 }
 

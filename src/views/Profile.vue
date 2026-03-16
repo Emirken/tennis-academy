@@ -353,7 +353,7 @@ const handlePasswordChange = async () => {
 }
 
 .section-title {
-  color: #2E7D32;
+  color: #b8642f;
   letter-spacing: -0.5px;
 }
 </style>

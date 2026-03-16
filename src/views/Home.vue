@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="home-view">
     <!-- Hero Bölümü -->
     <section class="hero-section">
       <v-container fluid class="pa-0">
@@ -326,5 +326,13 @@
 </script>
 
 <style scoped>
+/* Yeşil rengi #d17d45 ile değiştir */
+.home-view {
+  --v-theme-primary: 209 125 69;
+  --v-theme-success: 209 125 69;
+}
 
+.home-view .contact-section {
+  background: #d17d45 !important;
+}
 </style>

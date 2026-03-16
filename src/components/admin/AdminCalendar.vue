@@ -873,7 +873,7 @@ const getCourtName = (courtId: string): string => {
 // Court-based color palette for consistent visual distinction (K1: green, K2: blue, K3: orange)
 const getCourtColor = (courtId: string): string => {
   const courtColors: Record<string, string> = {
-    'K1': '#2E7D32',
+    'K1': '#b8642f',
     'K2': '#1976D2',
     'K3': '#E65100'
   }
@@ -1369,7 +1369,7 @@ watch([currentView, selectedDate], async () => {
 .calendar-title {
   font-size: 28px;
   font-weight: 700;
-  color: #2E7D32;
+  color: #b8642f;
 }
 
 .calendar-subtitle {
@@ -1399,13 +1399,13 @@ watch([currentView, selectedDate], async () => {
 }
 
 .court-header {
-  background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);
+  background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);
   color: white;
   font-weight: 600;
 }
 
 .court-badge {
-  color: #2E7D32 !important;
+  color: #b8642f !important;
   font-weight: 700;
 }
 
@@ -1668,7 +1668,7 @@ watch([currentView, selectedDate], async () => {
 }
 
 .month-day-header {
-  background: #2E7D32;
+  background: #b8642f;
   color: white;
   padding: 12px;
   text-align: center;
