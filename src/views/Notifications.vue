@@ -87,6 +87,28 @@
                           Reddet
                         </v-btn>
                       </template>
+                      <template v-else-if="notification.type === 'reservation_pending'">
+                        <v-btn
+                            color="success"
+                            variant="elevated"
+                            prepend-icon="mdi-calendar-check"
+                            @click="approveReservation(notification)"
+                            :loading="processingId === notification.id"
+                            :disabled="processingId !== null"
+                        >
+                          Onayla
+                        </v-btn>
+                        <v-btn
+                            color="error"
+                            variant="tonal"
+                            prepend-icon="mdi-calendar-remove"
+                            @click="rejectReservation(notification)"
+                            :loading="processingId === notification.id"
+                            :disabled="processingId !== null"
+                        >
+                          Reddet
+                        </v-btn>
+                      </template>
                       <v-btn
                           v-else-if="!isReadByMe(notification)"
                           color="primary"
@@ -117,10 +139,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { collection, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
+import type { NotificationType } from '@/services/notificationService'
 
 const authStore = useAuthStore()
 
@@ -194,6 +217,9 @@ const unreadCount = computed(() => {
 const getIcon = (type: string) => {
   switch(type) {
     case 'approval_pending': return 'mdi-account-clock'
+    case 'reservation_pending': return 'mdi-calendar-clock'
+    case 'reservation_approved': return 'mdi-calendar-check'
+    case 'reservation_rejected': return 'mdi-calendar-remove'
     case 'system': return 'mdi-bell-cog'
     default: return 'mdi-bell'
   }
@@ -202,6 +228,9 @@ const getIcon = (type: string) => {
 const getIconColor = (type: string) => {
   switch(type) {
     case 'approval_pending': return 'warning'
+    case 'reservation_pending': return 'orange'
+    case 'reservation_approved': return 'success'
+    case 'reservation_rejected': return 'error'
     case 'system': return 'info'
     default: return 'primary'
   }
@@ -247,12 +276,7 @@ const approveUserFromNotification = async (notification: UserNotification) => {
     await updateDoc(userRef, { status: 'active' })
 
     if (notification.id && !String(notification.id).startsWith('pending-')) {
-      await notificationService.markAsRead(
-        notification.id,
-        authStore.user.id,
-        authStore.user.role,
-        notification.isRead
-      )
+      await deleteDoc(doc(db, 'notifications', notification.id))
     }
 
     showSnackbar('Kullanıcı başarıyla onaylandı.')
@@ -309,6 +333,70 @@ const rejectUserFromNotification = async (notification: UserNotification) => {
   } catch (error) {
     console.error('Error rejecting user:', error)
     showSnackbar('Kullanıcı reddedilirken bir hata oluştu.', 'error')
+  } finally {
+    processingId.value = null
+  }
+}
+
+const approveReservation = async (notification: UserNotification) => {
+  if (!authStore.user || processingId.value || !notification.relatedData) return
+  const { reservationId, studentId, studentName } = notification.relatedData
+  processingId.value = notification.id || reservationId
+
+  try {
+    // Rezervasyonu 'confirmed' olarak güncelle
+    const reservationRef = doc(db, 'reservations', reservationId)
+    await updateDoc(reservationRef, { status: 'confirmed' })
+
+    // Öğrenciye onay bildirimi gönder
+    await notificationService.createStudentNotification(
+      studentId,
+      'Rezervasyonunuz Onaylandı',
+      'Rezervasyon talebiniz admin tarafından onaylandı.',
+      'reservation_approved',
+      { reservationId }
+    )
+
+    if (notification.id && !String(notification.id).startsWith('pending-')) {
+      await deleteDoc(doc(db, 'notifications', notification.id))
+    }
+
+    showSnackbar('Rezervasyon başarıyla onaylandı.')
+  } catch (error) {
+    console.error('Rezervasyon onaylama hatası:', error)
+    showSnackbar('Rezervasyon onaylanırken hata oluştu.', 'error')
+  } finally {
+    processingId.value = null
+  }
+}
+
+const rejectReservation = async (notification: UserNotification) => {
+  if (!authStore.user || processingId.value || !notification.relatedData) return
+  const { reservationId, studentId, studentName } = notification.relatedData
+  processingId.value = notification.id || reservationId
+
+  try {
+    // Rezervasyonu 'cancelled' olarak güncelle
+    const reservationRef = doc(db, 'reservations', reservationId)
+    await updateDoc(reservationRef, { status: 'cancelled' })
+
+    // Öğrenciye red bildirimi gönder
+    await notificationService.createStudentNotification(
+      studentId,
+      'Rezervasyonunuz Reddedildi',
+      'Rezervasyon talebiniz admin tarafından reddedildi. Farklı bir saat veya kort seçerek tekrar deneyebilirsiniz.',
+      'reservation_rejected',
+      { reservationId }
+    )
+
+    if (notification.id && !String(notification.id).startsWith('pending-')) {
+      await deleteDoc(doc(db, 'notifications', notification.id))
+    }
+
+    showSnackbar('Rezervasyon reddedildi.')
+  } catch (error) {
+    console.error('Rezervasyon reddetme hatası:', error)
+    showSnackbar('Rezervasyon reddedilirken hata oluştu.', 'error')
   } finally {
     processingId.value = null
   }

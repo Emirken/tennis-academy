@@ -69,8 +69,8 @@
           </v-col>
         </v-row>
 
-        <!-- Enhanced Court Overview Cards -->
-        <v-row class="mb-6">
+        <!-- Enhanced Court Overview Cards (sadece admin) -->
+        <v-row v-if="authStore.isAdmin" class="mb-6">
           <v-col v-for="court in courts" :key="court.id" cols="12" md="4" class="mb-4">
             <v-card class="stat-card modern-card court-overview-card h-100" elevation="0">
               <div class="stat-card-overlay"></div>
@@ -297,6 +297,7 @@ import { useAuthStore } from '@/store/modules/auth'
 import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
+import { DEFAULT_MEMBERSHIP_TYPES } from '@/types/membershipType'
 
 const authStore = useAuthStore()
 const membershipTypesStore = useMembershipTypesStore()
@@ -518,7 +519,16 @@ const getSlotTooltip = (slotData: any) => {
 }
 
 const getMembershipDisplayName = (type: string) => {
-  return membershipTypesStore.getDisplayInfo(type)?.name || type
+  if (!type) return ''
+  // Store'dan bul, yoksa DEFAULT_MEMBERSHIP_TYPES'tan fallback yap, son çare key'i formatla
+  const fromStore = membershipTypesStore.getDisplayInfo(type)
+  if (fromStore?.name && fromStore.name !== type) return fromStore.name
+
+  const fromDefaults = DEFAULT_MEMBERSHIP_TYPES.find(t => t.key === type)
+  if (fromDefaults) return fromDefaults.name
+
+  // key'i okunabilir formata çevir: adult_group → Adult Group
+  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 const getGroupDisplayName = (groupAssignment: string) => {
@@ -819,7 +829,8 @@ watch(selectedDate, (newDate) => {
 })
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  await membershipTypesStore.initialize()
   fetchCourtSchedule(selectedDate.value)
   setupRealTimeListener()
 })

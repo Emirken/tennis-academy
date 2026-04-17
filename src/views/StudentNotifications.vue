@@ -117,6 +117,9 @@ const getIcon = (type: string) => {
     case 'lesson_cancelled': return 'mdi-calendar-remove'
     case 'lesson_added': return 'mdi-calendar-plus'
     case 'payment_due': return 'mdi-cash-alert'
+    case 'reservation_approved': return 'mdi-calendar-check'
+    case 'reservation_rejected': return 'mdi-calendar-remove'
+    case 'reservation_pending': return 'mdi-calendar-clock'
     default: return 'mdi-bell'
   }
 }
@@ -127,6 +130,9 @@ const getIconColor = (type: string) => {
     case 'lesson_cancelled': return 'error'
     case 'lesson_added': return 'success'
     case 'payment_due': return 'warning'
+    case 'reservation_approved': return 'success'
+    case 'reservation_rejected': return 'error'
+    case 'reservation_pending': return 'orange'
     default: return 'primary'
   }
 }

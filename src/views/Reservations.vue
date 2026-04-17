@@ -83,55 +83,31 @@
                     </template>
                   </v-select>
 
-                  <!-- Time and Duration -->
-                  <v-row class="mb-4">
-                    <v-col cols="6">
-                      <v-select
-                          v-model="reservationData.startTime"
-                          label="Başlangıç Saati"
-                          :items="availableTimeSlots"
-                          variant="outlined"
-                          :rules="timeRules"
-                          :disabled="!reservationData.date || !reservationData.courtId"
-                          required
-                      >
-                        <template #item="{ props, item }">
-                          <v-list-item v-bind="props" :disabled="!item.raw.available">
-                            <template #append>
-                              <v-chip
-                                  :color="item.raw.available ? 'success' : 'error'"
-                                  size="small"
-                                  variant="flat"
-                              >
-                                {{ item.raw.available ? 'Müsait' : 'Dolu' }}
-                              </v-chip>
-                            </template>
-                          </v-list-item>
-                        </template>
-                      </v-select>
-                    </v-col>
-                    <v-col cols="6">
-                      <v-select
-                          v-model="reservationData.duration"
-                          label="Süre (saat)"
-                          :items="durationOptions"
-                          variant="outlined"
-                          :rules="durationRules"
-                          required
-                      />
-                    </v-col>
-                  </v-row>
-
-                  <!-- Type Selection -->
+                  <!-- Time Selection -->
                   <v-select
-                      v-model="reservationData.type"
-                      label="Rezervasyon Türü"
-                      :items="reservationTypes"
+                      v-model="reservationData.startTime"
+                      label="Rezervasyon Saati"
+                      :items="availableTimeSlots"
                       variant="outlined"
-                      :rules="typeRules"
+                      :rules="timeRules"
+                      :disabled="!reservationData.date || !reservationData.courtId"
                       required
                       class="mb-6"
-                  />
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item v-bind="props" :disabled="!item.raw.available">
+                        <template #append>
+                          <v-chip
+                              :color="item.raw.available ? 'success' : 'error'"
+                              size="small"
+                              variant="flat"
+                          >
+                            {{ item.raw.available ? 'Müsait' : 'Dolu' }}
+                          </v-chip>
+                        </template>
+                      </v-list-item>
+                    </template>
+                  </v-select>
 
                   <!-- Submit Button -->
                   <v-btn
@@ -291,13 +267,13 @@
             <v-card-text class="text-center pa-5">
               <div class="success-icon-wrapper mb-4">
                 <v-icon
-                    icon="mdi-check-circle"
+                    icon="mdi-clock-check-outline"
                     size="64"
-                    color="success"
+                    color="warning"
                 />
               </div>
-              <h3 class="success-title mb-2">Rezervasyon Onaylandı!</h3>
-              <p class="success-description">Kortunuz başarıyla rezerve edildi.</p>
+              <h3 class="success-title mb-2">Rezervasyon Talebi Alındı!</h3>
+              <p class="success-description">Rezervasyonunuz admin onayına gönderildi. Onaylandığında bilgilendirileceksiniz.</p>
             </v-card-text>
             <v-card-actions class="pa-4 pt-0">
               <v-spacer />
@@ -338,6 +314,7 @@ import {
   orderBy
 } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { notificationService } from '@/services/notificationService'
 import type { Reservation } from '@/types/reservation'
 
 const authStore = useAuthStore()
@@ -346,9 +323,7 @@ const authStore = useAuthStore()
 const reservationData = reactive({
   date: '',
   courtId: '',
-  startTime: '',
-  duration: 1,
-  type: 'court-rental'
+  startTime: ''
 })
 
 // Form validation
@@ -381,17 +356,6 @@ const timeSlots = [
   '18:00', '19:00', '20:00', '21:00'
 ]
 
-const durationOptions = [
-  { title: '1 Saat', value: 1 },
-  { title: '1.5 Saat', value: 1.5 },
-  { title: '2 Saat', value: 2 }
-]
-
-const reservationTypes = [
-  { title: 'Kort Kiralama', value: 'court-rental' },
-  { title: 'Özel Ders', value: 'private-lesson' },
-  { title: 'Grup Kursu', value: 'group-clinic' }
-]
 
 // Computed properties
 const availableTimeSlots = computed(() => {
@@ -423,36 +387,49 @@ const timeRules = [
   (v: string) => !!v || 'Saat seçimi gereklidir'
 ]
 
-const durationRules = [
-  (v: number) => !!v || 'Süre gereklidir'
-]
-
-const typeRules = [
-  (v: string) => !!v || 'Rezervasyon türü gereklidir'
-]
 
 // Methods
 const toggleReservations = () => {
   showReservations.value = !showReservations.value
 }
 
+// Firestore'daki K1/K2/K3 ID'lerini form'daki court-1/2/3 formatına eşler
+const firestoreToFormCourtId = (firestoreId: string): string => {
+  const mapping: Record<string, string> = {
+    'K1': 'court-1',
+    'K2': 'court-2',
+    'K3': 'court-3'
+  }
+  return mapping[firestoreId] || firestoreId
+}
+
+// Slot verisinden durum stringini çıkarır (string veya nesne olabilir)
+const getSlotStatusValue = (slotData: any): string => {
+  if (!slotData) return 'available'
+  if (typeof slotData === 'string') return slotData
+  if (typeof slotData === 'object') return slotData.status || 'available'
+  return 'available'
+}
+
 const loadCourtSchedule = async (date: string) => {
   try {
     const scheduleDoc = await getDoc(doc(db, 'courtSchedule', date))
 
+    setDefaultSchedule()
+
     if (scheduleDoc.exists()) {
       const data = scheduleDoc.data()
       if (data.schedule) {
-        Object.keys(courtSchedule).forEach(courtId => {
+        // Firestore'da K1/K2/K3 formatı kullanılıyor, court-1/2/3'e eşle
+        Object.keys(data.schedule).forEach(firestoreCourtId => {
+          const formCourtId = firestoreToFormCourtId(firestoreCourtId)
+          if (!courtSchedule[formCourtId]) return
           timeSlots.forEach(timeSlot => {
-            courtSchedule[courtId][timeSlot] = data.schedule[courtId]?.[timeSlot] || 'available'
+            const slotData = data.schedule[firestoreCourtId]?.[timeSlot]
+            courtSchedule[formCourtId][timeSlot] = getSlotStatusValue(slotData)
           })
         })
-      } else {
-        setDefaultSchedule()
       }
-    } else {
-      setDefaultSchedule()
     }
   } catch (error) {
     console.error('Kort programını yükleme hatası:', error)
@@ -554,18 +531,67 @@ const getCourtnameById = (courtId: string): string => {
 const submitReservation = async () => {
   if (!valid.value) return
 
-  const isStillAvailable = courtSchedule[reservationData.courtId]?.[reservationData.startTime] === 'available'
-
-  if (!isStillAvailable) {
-    errorMessage.value = 'Seçilen saat artık müsait değil. Lütfen başka bir saat seçin.'
-    errorSnackbar.value = true
-    return
-  }
+  // Rezervasyon süresi sabit 1 saat
+  const endTime = calculateEndTime(reservationData.startTime, 1)
+  const slotsNeeded = getTimeSlotsInRange(reservationData.startTime, endTime)
 
   loading.value = true
 
   try {
-    const endTime = calculateEndTime(reservationData.startTime, reservationData.duration)
+    // 1. Yerel courtSchedule'da grup dersi veya dolu slot kontrolü (K1/K2/K3 → court-1/2/3 eşlemesi yapılmış)
+    const occupiedBySchedule = slotsNeeded.filter(slot => {
+      const status = courtSchedule[reservationData.courtId]?.[slot]
+      return status !== 'available'
+    })
+
+    if (occupiedBySchedule.length > 0) {
+      errorMessage.value = `Seçilen saatlerde dolu veya grup dersi olan slotlar mevcut (${occupiedBySchedule.join(', ')}). Lütfen başka bir saat seçin.`
+      errorSnackbar.value = true
+      loading.value = false
+      return
+    }
+
+    // 2. Firebase'den aynı kort için çakışan onaylı/bekleyen rezervasyon var mı kontrol et
+    // Tarih aralığı ile sorgula (Timestamp eşleşme sorununu önler)
+    const selectedDateStart = new Date(reservationData.date)
+    selectedDateStart.setHours(0, 0, 0, 0)
+    const selectedDateEnd = new Date(reservationData.date)
+    selectedDateEnd.setHours(23, 59, 59, 999)
+
+    // Rezervasyonlarda court-1/2/3 formatı kullanılıyor
+    const conflictQuery = query(
+      collection(db, 'reservations'),
+      where('courtId', '==', reservationData.courtId),
+      where('date', '>=', selectedDateStart),
+      where('date', '<=', selectedDateEnd),
+      where('status', 'in', ['pending', 'confirmed'])
+    )
+    const conflictSnapshot = await getDocs(conflictQuery)
+
+    let hasConflict = false
+    conflictSnapshot.forEach((docSnap) => {
+      const existing = docSnap.data()
+      const existingStart = existing.startTime
+      const existingEnd = existing.endTime
+      const newStart = reservationData.startTime
+      const newEnd = endTime
+
+      if (
+        (newStart >= existingStart && newStart < existingEnd) ||
+        (newEnd > existingStart && newEnd <= existingEnd) ||
+        (newStart <= existingStart && newEnd >= existingEnd)
+      ) {
+        hasConflict = true
+      }
+    })
+
+    if (hasConflict) {
+      errorMessage.value = 'Bu kort ve saat aralığı için zaten bir rezervasyon mevcut. Lütfen başka bir saat seçin.'
+      errorSnackbar.value = true
+      loading.value = false
+      return
+    }
+
     const reservationDoc = {
       studentId: authStore.user?.id,
       courtId: reservationData.courtId,
@@ -573,10 +599,10 @@ const submitReservation = async () => {
       date: new Date(reservationData.date),
       startTime: reservationData.startTime,
       endTime: endTime,
-      duration: reservationData.duration,
-      type: reservationData.type,
-      status: 'confirmed',
-      totalCost: reservationData.duration * 1000, // 1000 TL per hour
+      duration: 1,
+      type: 'court-rental',
+      status: 'pending',
+      totalCost: 1000,
       createdAt: serverTimestamp()
     }
 
@@ -584,32 +610,45 @@ const submitReservation = async () => {
     const reservationRef = doc(collection(db, 'reservations'))
     await setDoc(reservationRef, reservationDoc)
 
-    // Update court schedule
-    const scheduleRef = doc(db, 'courtSchedule', reservationData.date)
-    const scheduleDoc = await getDoc(scheduleRef)
+    // Admin'e rezervasyon onay bildirimi gönder
+    const studentName = `${authStore.user?.firstName || ''} ${authStore.user?.lastName || ''}`.trim()
+    const courtName = getCourtnameById(reservationData.courtId)
+    await notificationService.createAdminNotification(
+      'Yeni Rezervasyon Talebi',
+      `${studentName}, ${reservationData.date} tarihinde ${courtName} için ${reservationData.startTime} saatinde rezervasyon talebinde bulundu.`,
+      'reservation_pending',
+      { reservationId: reservationRef.id, studentId: authStore.user?.id, studentName }
+    )
 
-    let scheduleData = { schedule: {} }
-    if (scheduleDoc.exists()) {
-      scheduleData = scheduleDoc.data() as any
+    // Update court schedule - tüm kapsanan slotları 'occupied' olarak işaretle
+    const scheduleRef = doc(db, 'courtSchedule', reservationData.date)
+    const scheduleDocSnap = await getDoc(scheduleRef)
+
+    let scheduleData: any = { schedule: {} }
+    if (scheduleDocSnap.exists()) {
+      scheduleData = scheduleDocSnap.data() as any
     }
 
     if (!scheduleData.schedule[reservationData.courtId]) {
       scheduleData.schedule[reservationData.courtId] = {}
     }
 
-    scheduleData.schedule[reservationData.courtId][reservationData.startTime] = 'occupied'
+    // Tüm kapsanan saat dilimlerini 'occupied' olarak işaretle
+    slotsNeeded.forEach(slot => {
+      scheduleData.schedule[reservationData.courtId][slot] = 'occupied'
+    })
     await setDoc(scheduleRef, scheduleData)
 
-    // Update local state
-    courtSchedule[reservationData.courtId][reservationData.startTime] = 'occupied'
+    // Update local state - tüm kapsanan slotları güncelle
+    slotsNeeded.forEach(slot => {
+      courtSchedule[reservationData.courtId][slot] = 'occupied'
+    })
 
     // Reset form
     Object.assign(reservationData, {
       date: '',
       courtId: '',
-      startTime: '',
-      duration: 1,
-      type: 'court-rental'
+      startTime: ''
     })
 
     // Show success dialog
@@ -633,6 +672,21 @@ const calculateEndTime = (startTime: string, duration: number): string => {
   const endMinutes = minutes + (duration % 1) * 60
 
   return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`
+}
+
+// Başlangıç ve bitiş saati arasındaki tüm saat dilimlerini döndürür
+const getTimeSlotsInRange = (startTime: string, endTime: string): string[] => {
+  const slots: string[] = []
+  const [startH] = startTime.split(':').map(Number)
+  const [endH] = endTime.split(':').map(Number)
+
+  for (const slot of timeSlots) {
+    const [slotH] = slot.split(':').map(Number)
+    if (slotH >= startH && slotH < endH) {
+      slots.push(slot)
+    }
+  }
+  return slots
 }
 
 // Helper functions

@@ -12,7 +12,7 @@ import {
     Timestamp
 } from 'firebase/firestore'
 
-export type NotificationType = 'system' | 'approval_pending' | 'payment_due' | 'lesson_cancelled' | 'lesson_added'
+export type NotificationType = 'system' | 'approval_pending' | 'payment_due' | 'lesson_cancelled' | 'lesson_added' | 'reservation_pending' | 'reservation_approved' | 'reservation_rejected'
 
 export interface UserNotification {
     id?: string
@@ -104,12 +104,6 @@ export const notificationService = {
 
     async markAsRead(notificationId: string, userId: string, userRole: string, currentIsRead: boolean | string[]) {
         const notifRef = doc(db, COLLECTION_NAME, notificationId)
-
-        if (userRole === 'admin') {
-            await updateDoc(notifRef, { isRead: true })
-        } else {
-            // Öğrenci
-            await updateDoc(notifRef, { isRead: true })
-        }
+        await updateDoc(notifRef, { isRead: true })
     }
 }

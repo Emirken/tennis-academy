@@ -316,8 +316,12 @@
                 <template v-slot:prepend>
                   <v-icon>mdi-account</v-icon>
                 </template>
-                <v-list-item-title>Öğrenci</v-list-item-title>
-                <v-list-item-subtitle>{{ selectedEvent.studentName }}</v-list-item-subtitle>
+                <v-list-item-title>
+                  {{ selectedEvent.title }}
+                  <span v-if="selectedEvent.extendedProps.contactPhone" class="text-grey-darken-1 font-weight-regular">
+                    ({{ selectedEvent.extendedProps.contactPhone }})
+                  </span>
+                </v-list-item-title>
               </v-list-item>
               <v-list-item>
                 <template v-slot:prepend>
@@ -334,13 +338,6 @@
                 </template>
                 <v-list-item-title>Kort</v-list-item-title>
                 <v-list-item-subtitle>{{ selectedEvent.courtName }}</v-list-item-subtitle>
-              </v-list-item>
-              <v-list-item>
-                <template v-slot:prepend>
-                  <v-icon>mdi-tag</v-icon>
-                </template>
-                <v-list-item-title>Ders Tipi</v-list-item-title>
-                <v-list-item-subtitle>{{ getTypeLabel(selectedEvent.type) }}</v-list-item-subtitle>
               </v-list-item>
               <v-list-item>
                 <template v-slot:prepend>
@@ -865,9 +862,22 @@ const formatDayDate = (date: Date): string => {
   return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
 }
 
+const normalizeCourtId = (courtId: string): string => {
+  const mapping: Record<string, string> = {
+    'court-1': 'K1',
+    'court-2': 'K2',
+    'court-3': 'K3',
+    'court_1': 'K1',
+    'court_2': 'K2',
+    'court_3': 'K3',
+  }
+  return mapping[courtId] || courtId
+}
+
 const getCourtName = (courtId: string): string => {
-  const court = courts.value.find(c => c.id === courtId)
-  return court?.name || courtId
+  const normalized = normalizeCourtId(courtId)
+  const court = courts.value.find(c => c.id === normalized)
+  return court?.name || normalized
 }
 
 // Court-based color palette for consistent visual distinction (K1: green, K2: blue, K3: orange)
@@ -978,7 +988,7 @@ const fetchReservations = async () => {
       // For group lessons, deduplicate by groupId + date + time + court
       if (isGroupLesson && groupId) {
         const dateKey = startDateTime.toDateString()
-        const groupEventKey = `${groupId}-${dateKey}-${data.startTime}-${data.courtId}`
+        const groupEventKey = `${groupId}-${dateKey}-${data.startTime}-${normalizeCourtId(data.courtId)}`
         
         if (groupEventKeys.has(groupEventKey)) {
           // Skip duplicate group event
@@ -987,6 +997,7 @@ const fetchReservations = async () => {
         groupEventKeys.add(groupEventKey)
       }
 
+      const normalizedCourtId = normalizeCourtId(data.courtId)
       const courtName = getCourtName(data.courtId)
 
       // Create title like in Courts.vue: "Özel Grup 3 Kişi - Grup Adı"
@@ -1013,17 +1024,20 @@ const fetchReservations = async () => {
         }
         title = displayName
       } else {
-        // For private lessons, show student name
+        // For private lessons, show student name + phone
         if (data.studentFirstName && data.studentLastName) {
           displayName = `${data.studentFirstName} ${data.studentLastName}`
         } else if (data.studentFullName) {
           displayName = data.studentFullName
         } else if (data.studentName) {
           displayName = data.studentName
+        } else if (data.contactPhone) {
+          displayName = data.contactPhone
         } else {
-          displayName = 'Özel Ders'
+          displayName = 'Bilinmiyor'
         }
-        title = displayName
+        const phone = data.contactPhone || ''
+        title = phone ? `${displayName} (${phone})` : displayName
       }
 
       const event: CalendarEvent = {
@@ -1031,7 +1045,7 @@ const fetchReservations = async () => {
         title,
         start: startDateTime,
         end: endDateTime,
-        courtId: data.courtId,
+        courtId: normalizedCourtId,
         courtName,
         studentName: data.studentName || data.studentFullName || '',
         groupName: actualGroupName || data.groupName,

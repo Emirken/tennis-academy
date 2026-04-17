@@ -77,11 +77,12 @@
         >
           <v-badge
               :content="pendingCount"
-              :color="pendingCount > 0 ? 'error' : 'transparent'"
+              color="error"
               :model-value="pendingCount > 0"
-              offset-x="8"
+              offset-x="-2"
+              offset-y="-2"
           >
-            <v-icon start icon="mdi-bell-outline" />
+            <v-icon class="mr-1" icon="mdi-bell-outline" />
           </v-badge>
           Bildirimler
         </v-btn>
@@ -302,15 +303,18 @@
         <template v-slot:prepend>
           <v-badge
               :content="pendingCount"
-              :color="pendingCount > 0 ? 'error' : 'transparent'"
+              color="error"
               :model-value="pendingCount > 0"
-              offset-x="4"
-              offset-y="4"
+              offset-x="-2"
+              offset-y="-2"
           >
             <v-icon icon="mdi-bell-outline" />
           </v-badge>
         </template>
-        <v-list-item-title>Bildirimler</v-list-item-title>
+        <v-list-item-title>
+          Bildirimler
+          <v-chip v-if="pendingCount > 0" color="error" size="x-small" class="ml-2">{{ pendingCount }}</v-chip>
+        </v-list-item-title>
       </v-list-item>
 
       <v-divider v-if="authStore.isAuthenticated" class="my-4" />
@@ -446,9 +450,19 @@ const authStore = useAuthStore()
 const drawer = ref(false)
 
 // Notifications Badge Logic
-const unreadCount = ref(0)
+const notifCount = ref(0)
 const pendingStudentsCount = ref(0)
-const pendingCount = computed(() => unreadCount.value + pendingStudentsCount.value)
+
+// Firestore'daki admin bildirimlerinde approval_pending olanlar zaten var;
+// users koleksiyonundan gelenler ise Firestore'da karşılığı olmayan pending öğrenciler.
+// Çift saymamak için: Firestore'daki approval_pending bildirimlerinin relatedData (userId) setini tut,
+// users'dan gelenleri sadece o sete girmeyenleri say.
+const approvalPendingUserIds = ref<Set<string>>(new Set())
+
+const pendingCount = computed(() => {
+  const extraPending = pendingStudentsCount.value - approvalPendingUserIds.value.size
+  return notifCount.value + Math.max(0, extraPending)
+})
 
 let unsubscribeNotifications: (() => void) | null = null
 let unsubscribeUsers: (() => void) | null = null
@@ -468,13 +482,13 @@ const setupNotificationsListener = () => {
       authStore.user.id,
       authStore.user.role,
       (notifications: UserNotification[]) => {
-        unreadCount.value = notifications.filter((notif) => {
-          if (!authStore.user) return false
-          if (Array.isArray(notif.isRead)) {
-            return !notif.isRead.includes(authStore.user.id)
-          }
-          return notif.isRead === false
-        }).length
+        notifCount.value = notifications.length
+        approvalPendingUserIds.value = new Set(
+          notifications
+            .filter(n => n.type === 'approval_pending' && n.relatedData)
+            .map(n => typeof n.relatedData === 'string' ? n.relatedData : n.relatedData?.userId)
+            .filter(Boolean)
+        )
       }
     )
 
@@ -495,8 +509,9 @@ watch(() => authStore.user, (user) => {
   if (user) {
     setupNotificationsListener()
   } else {
-    unreadCount.value = 0
+    notifCount.value = 0
     pendingStudentsCount.value = 0
+    approvalPendingUserIds.value = new Set()
     if (unsubscribeNotifications) {
       unsubscribeNotifications()
       unsubscribeNotifications = null

@@ -25,6 +25,21 @@
             </v-col>
           </v-row>
         </div>
+        <!-- GEÇICI: Öğrenci Temizleme -->
+        <v-row class="mb-4">
+          <v-col cols="12">
+            <v-card class="modern-card" elevation="0" color="red-lighten-5">
+              <v-card-text class="d-flex align-center justify-space-between">
+                <div>
+                  <div class="text-subtitle-1 font-weight-bold text-error">Tüm Öğrencileri Sil</div>
+                  <div class="text-caption text-grey">users(student) + rezervasyonlar + attendance kayıtları + grup üyelikleri</div>
+                  <div v-if="cleanupLog" class="text-caption mt-1" style="white-space:pre-line">{{ cleanupLog }}</div>
+                </div>
+                <v-btn color="error" :loading="cleanupLoading" @click="deleteAllStudents">Tümünü Sil</v-btn>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
         <!-- Enhanced Stats Cards -->
         <v-row class="mb-6">
           <v-col cols="12" sm="6" md="4">
@@ -308,7 +323,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, getDoc, deleteDoc, query, where, updateDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import {
   getPendingArchives,
@@ -325,6 +340,72 @@ const authStore = useAuthStore()
 // Reaktif veriler
 const totalStudents = ref(0)
 const todayReservations = ref(0)
+
+// Temizleme
+const cleanupLoading = ref(false)
+const cleanupLog = ref('')
+
+const deleteAllStudents = async () => {
+  if (!confirm('TÜM öğrenciler ve bağlı verileri silinecek. Emin misiniz?')) return
+  cleanupLoading.value = true
+  cleanupLog.value = 'Başlıyor...'
+  try {
+    // 1. Student kullanıcılarını al
+    const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')))
+    const studentIds = usersSnap.docs.map(d => d.id)
+    cleanupLog.value = `${studentIds.length} öğrenci bulundu. Siliniyor...`
+
+    // 2. users sil
+    for (const id of studentIds) {
+      await deleteDoc(doc(db, 'users', id))
+    }
+    cleanupLog.value += `\n✅ ${studentIds.length} kullanıcı silindi.`
+
+    // 3. Rezervasyonları sil (studentId eşleşenleri)
+    const resSnap = await getDocs(collection(db, 'reservations'))
+    let resCount = 0
+    for (const d of resSnap.docs) {
+      const data = d.data()
+      if (studentIds.includes(data.studentId) || data.reservationType === 'group-lesson' || !data.studentId) {
+        await deleteDoc(doc(db, 'reservations', d.id))
+        resCount++
+      }
+    }
+    cleanupLog.value += `\n✅ ${resCount} rezervasyon silindi.`
+
+    // 4. Attendance kayıtlarını sil
+    const attSnap = await getDocs(collection(db, 'attendance'))
+    let attCount = 0
+    for (const d of attSnap.docs) {
+      const data = d.data()
+      if (!data.studentId || studentIds.includes(data.studentId)) {
+        await deleteDoc(doc(db, 'attendance', d.id))
+        attCount++
+      }
+    }
+    cleanupLog.value += `\n✅ ${attCount} yoklama kaydı silindi.`
+
+    // 5. Gruplardaki members listesini temizle
+    const groupsSnap = await getDocs(collection(db, 'groups'))
+    let groupCount = 0
+    for (const d of groupsSnap.docs) {
+      const data = d.data()
+      const members: string[] = data.members || []
+      const filtered = members.filter((m: string) => !studentIds.includes(m))
+      if (filtered.length !== members.length) {
+        await updateDoc(doc(db, 'groups', d.id), { members: filtered, studentCount: filtered.length })
+        groupCount++
+      }
+    }
+    cleanupLog.value += `\n✅ ${groupCount} grup güncellendi.`
+    cleanupLog.value += '\n\n🎉 Tüm işlemler tamamlandı!'
+    totalStudents.value = 0
+  } catch (e: any) {
+    cleanupLog.value += `\n❌ Hata: ${e.message}`
+  } finally {
+    cleanupLoading.value = false
+  }
+}
 
 // Arşiv bildirimleri
 const pendingArchives = ref<PendingArchiveNotification[]>([])
