@@ -8,6 +8,7 @@ import {
     onSnapshot,
     doc,
     updateDoc,
+    deleteDoc,
     serverTimestamp,
     Timestamp
 } from 'firebase/firestore'
@@ -105,5 +106,10 @@ export const notificationService = {
     async markAsRead(notificationId: string, userId: string, userRole: string, currentIsRead: boolean | string[]) {
         const notifRef = doc(db, COLLECTION_NAME, notificationId)
         await updateDoc(notifRef, { isRead: true })
+    },
+
+    async deleteNotification(notificationId: string) {
+        const notifRef = doc(db, COLLECTION_NAME, notificationId)
+        await deleteDoc(notifRef)
     }
 }

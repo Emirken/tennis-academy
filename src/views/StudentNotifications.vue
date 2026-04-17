@@ -154,16 +154,11 @@ const fetchNotifications = async () => {
 const markAsRead = async (notification: UserNotification) => {
   if (!authStore.user) return
   if (!notification.id) return
-  
+
   try {
-    await notificationService.markAsRead(
-      notification.id,
-      authStore.user.id,
-      authStore.user.role,
-      notification.isRead
-    )
+    await notificationService.deleteNotification(notification.id)
   } catch (error) {
-    console.error('Error marking as read:', error)
+    console.error('Error deleting notification:', error)
   }
 }
 

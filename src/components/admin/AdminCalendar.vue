@@ -953,12 +953,35 @@ const fetchReservations = async () => {
       }
     }
 
+    // Collect all studentIds to batch-fetch user names
+    const studentIds = new Set<string>()
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data()
+      if (data.studentId) studentIds.add(data.studentId)
+    })
+
+    const studentNames: Record<string, string> = {}
+    const studentPhones: Record<string, string> = {}
+    for (const studentId of studentIds) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', studentId))
+        if (userDoc.exists()) {
+          const u = userDoc.data()
+          studentNames[studentId] = `${u.firstName || ''} ${u.lastName || ''}`.trim()
+          studentPhones[studentId] = u.phone_number || u.phone || ''
+        }
+      } catch (e) { /* ignore */ }
+    }
+
     const events: CalendarEvent[] = []
     // Track group events to avoid duplicates (key: groupId-date-startTime-courtId)
     const groupEventKeys = new Set<string>()
 
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data()
+
+      // İptal edilen rezervasyonları gösterme
+      if (data.status === 'cancelled') continue
 
       // Parse start and end times
       const [startHour, startMinute] = (data.startTime || '09:00').split(':').map(Number)
@@ -1025,18 +1048,19 @@ const fetchReservations = async () => {
         title = displayName
       } else {
         // For private lessons, show student name + phone
-        if (data.studentFirstName && data.studentLastName) {
+        if (data.studentId && studentNames[data.studentId]) {
+          displayName = studentNames[data.studentId]
+        } else if (data.studentFirstName && data.studentLastName) {
           displayName = `${data.studentFirstName} ${data.studentLastName}`
         } else if (data.studentFullName) {
           displayName = data.studentFullName
         } else if (data.studentName) {
           displayName = data.studentName
-        } else if (data.contactPhone) {
-          displayName = data.contactPhone
         } else {
           displayName = 'Bilinmiyor'
         }
-        const phone = data.contactPhone || ''
+        const phone = (data.studentId && studentPhones[data.studentId])
+          || data.contactPhone || ''
         title = phone ? `${displayName} (${phone})` : displayName
       }
 

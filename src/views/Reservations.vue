@@ -201,18 +201,6 @@
                                 <v-icon icon="mdi-clock" size="16" />
                                 <span>{{ reservation.startTime }}</span>
                               </div>
-                              <div class="detail-item">
-                                <v-icon icon="mdi-timer" size="16" />
-                                <span>{{ reservation.duration }} saat</span>
-                              </div>
-                              <div class="detail-item">
-                                <v-icon icon="mdi-tag" size="16" />
-                                <span>{{ getTypeText(reservation.type) }}</span>
-                              </div>
-                            </div>
-                            <div class="reservation-cost">
-                              <v-icon icon="mdi-currency-try" size="16" color="success" />
-                              <span class="cost-amount">{{ reservation.totalCost }}</span>
                             </div>
                           </div>
 
@@ -351,9 +339,9 @@ const availableCourts = ref([
 ])
 
 const timeSlots = [
-  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
+  '08:00', '09:00', '10:00', '11:00',
   '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
-  '18:00', '19:00', '20:00', '21:00'
+  '18:00', '19:00', '20:00', '21:00', '22:00'
 ]
 
 
@@ -413,20 +401,55 @@ const getSlotStatusValue = (slotData: any): string => {
 
 const loadCourtSchedule = async (date: string) => {
   try {
-    const scheduleDoc = await getDoc(doc(db, 'courtSchedule', date))
-
     setDefaultSchedule()
 
+    // Sadece aktif (pending/confirmed) rezervasyonlara göre dolu/müsait hesapla
+    const activeQ = query(
+      collection(db, 'reservations'),
+      where('status', 'in', ['pending', 'confirmed'])
+    )
+    const snapshot = await getDocs(activeQ)
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data()
+
+      // Tarihi normalize et
+      let docDateStr: string
+      if (typeof data.date === 'string') {
+        docDateStr = data.date
+      } else if (data.date?.toDate) {
+        docDateStr = data.date.toDate().toISOString().split('T')[0]
+      } else {
+        docDateStr = new Date(data.date).toISOString().split('T')[0]
+      }
+
+      if (docDateStr !== date) return
+
+      const courtId = data.courtId // court-1/2/3 formatında
+      if (!courtSchedule[courtId]) return
+
+      // Rezervasyonun kapladığı tüm slotları dolu işaretle
+      const slots = getTimeSlotsInRange(data.startTime, data.endTime)
+      slots.forEach(slot => {
+        courtSchedule[courtId][slot] = 'occupied'
+      })
+    })
+
+    // Grup dersleri için courtSchedule koleksiyonuna da bak (sadece grup dersleri)
+    const scheduleDoc = await getDoc(doc(db, 'courtSchedule', date))
     if (scheduleDoc.exists()) {
       const data = scheduleDoc.data()
       if (data.schedule) {
-        // Firestore'da K1/K2/K3 formatı kullanılıyor, court-1/2/3'e eşle
         Object.keys(data.schedule).forEach(firestoreCourtId => {
           const formCourtId = firestoreToFormCourtId(firestoreCourtId)
           if (!courtSchedule[formCourtId]) return
           timeSlots.forEach(timeSlot => {
             const slotData = data.schedule[firestoreCourtId]?.[timeSlot]
-            courtSchedule[formCourtId][timeSlot] = getSlotStatusValue(slotData)
+            const status = getSlotStatusValue(slotData)
+            // Sadece grup dersi slotlarını yükle (occupied olanları rezervasyon sorgusundan aldık)
+            if (status === 'group_lesson') {
+              courtSchedule[formCourtId][timeSlot] = 'group_lesson'
+            }
           })
         })
       }
@@ -552,27 +575,34 @@ const submitReservation = async () => {
     }
 
     // 2. Firebase'den aynı kort için çakışan onaylı/bekleyen rezervasyon var mı kontrol et
-    // Tarih aralığı ile sorgula (Timestamp eşleşme sorununu önler)
-    const selectedDateStart = new Date(reservationData.date)
-    selectedDateStart.setHours(0, 0, 0, 0)
-    const selectedDateEnd = new Date(reservationData.date)
-    selectedDateEnd.setHours(23, 59, 59, 999)
-
-    // Rezervasyonlarda court-1/2/3 formatı kullanılıyor
+    // Sadece courtId ile sorgula, date ve status filtreleri client-side (index gerekmez)
     const conflictQuery = query(
       collection(db, 'reservations'),
-      where('courtId', '==', reservationData.courtId),
-      where('date', '>=', selectedDateStart),
-      where('date', '<=', selectedDateEnd),
-      where('status', 'in', ['pending', 'confirmed'])
+      where('courtId', '==', reservationData.courtId)
     )
     const conflictSnapshot = await getDocs(conflictQuery)
 
+    const selectedDateStr = reservationData.date
+
     let hasConflict = false
     conflictSnapshot.forEach((docSnap) => {
-      const existing = docSnap.data()
-      const existingStart = existing.startTime
-      const existingEnd = existing.endTime
+      const docData = docSnap.data()
+      if (!['pending', 'confirmed'].includes(docData.status)) return
+
+      // date alanı Timestamp veya Date olabilir, string karşılaştırması için normalize et
+      let docDateStr: string
+      if (typeof docData.date === 'string') {
+        docDateStr = docData.date
+      } else if (docData.date?.toDate) {
+        docDateStr = docData.date.toDate().toISOString().split('T')[0]
+      } else {
+        docDateStr = new Date(docData.date).toISOString().split('T')[0]
+      }
+
+      if (docDateStr !== selectedDateStr) return
+
+      const existingStart = docData.startTime
+      const existingEnd = docData.endTime
       const newStart = reservationData.startTime
       const newEnd = endTime
 
@@ -612,37 +642,16 @@ const submitReservation = async () => {
 
     // Admin'e rezervasyon onay bildirimi gönder
     const studentName = `${authStore.user?.firstName || ''} ${authStore.user?.lastName || ''}`.trim()
+    const studentPhone = authStore.user?.phone_number || authStore.user?.phone || ''
+    const studentNameWithPhone = studentPhone ? `${studentName} (${studentPhone})` : studentName
     const courtName = getCourtnameById(reservationData.courtId)
+    const formattedDate = new Date(reservationData.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
     await notificationService.createAdminNotification(
       'Yeni Rezervasyon Talebi',
-      `${studentName}, ${reservationData.date} tarihinde ${courtName} için ${reservationData.startTime} saatinde rezervasyon talebinde bulundu.`,
+      `${studentNameWithPhone}, ${formattedDate} tarihinde ${courtName} için ${reservationData.startTime} saatinde rezervasyon talebinde bulundu.`,
       'reservation_pending',
       { reservationId: reservationRef.id, studentId: authStore.user?.id, studentName }
     )
-
-    // Update court schedule - tüm kapsanan slotları 'occupied' olarak işaretle
-    const scheduleRef = doc(db, 'courtSchedule', reservationData.date)
-    const scheduleDocSnap = await getDoc(scheduleRef)
-
-    let scheduleData: any = { schedule: {} }
-    if (scheduleDocSnap.exists()) {
-      scheduleData = scheduleDocSnap.data() as any
-    }
-
-    if (!scheduleData.schedule[reservationData.courtId]) {
-      scheduleData.schedule[reservationData.courtId] = {}
-    }
-
-    // Tüm kapsanan saat dilimlerini 'occupied' olarak işaretle
-    slotsNeeded.forEach(slot => {
-      scheduleData.schedule[reservationData.courtId][slot] = 'occupied'
-    })
-    await setDoc(scheduleRef, scheduleData)
-
-    // Update local state - tüm kapsanan slotları güncelle
-    slotsNeeded.forEach(slot => {
-      courtSchedule[reservationData.courtId][slot] = 'occupied'
-    })
 
     // Reset form
     Object.assign(reservationData, {
