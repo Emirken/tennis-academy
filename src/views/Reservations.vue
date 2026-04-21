@@ -561,6 +561,38 @@ const submitReservation = async () => {
   loading.value = true
 
   try {
+    // 0. Aynı öğrencinin aynı gün için zaten aktif (pending/confirmed) rezervasyonu var mı kontrol et
+    if (authStore.user?.id) {
+      const sameDayQuery = query(
+        collection(db, 'reservations'),
+        where('studentId', '==', authStore.user.id)
+      )
+      const sameDaySnapshot = await getDocs(sameDayQuery)
+
+      const hasSameDayReservation = sameDaySnapshot.docs.some((docSnap) => {
+        const docData = docSnap.data()
+        if (!['pending', 'confirmed'].includes(docData.status)) return false
+
+        let docDateStr: string
+        if (typeof docData.date === 'string') {
+          docDateStr = docData.date
+        } else if (docData.date?.toDate) {
+          docDateStr = docData.date.toDate().toISOString().split('T')[0]
+        } else {
+          docDateStr = new Date(docData.date).toISOString().split('T')[0]
+        }
+
+        return docDateStr === reservationData.date
+      })
+
+      if (hasSameDayReservation) {
+        errorMessage.value = 'Aynı gün içinde yalnızca bir rezervasyon yapabilirsiniz. Lütfen farklı bir tarih seçin.'
+        errorSnackbar.value = true
+        loading.value = false
+        return
+      }
+    }
+
     // 1. Yerel courtSchedule'da grup dersi veya dolu slot kontrolü (K1/K2/K3 → court-1/2/3 eşlemesi yapılmış)
     const occupiedBySchedule = slotsNeeded.filter(slot => {
       const status = courtSchedule[reservationData.courtId]?.[slot]
