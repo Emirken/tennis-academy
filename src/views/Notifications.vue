@@ -118,6 +118,16 @@
                       >
                         Okundu İşaretle
                       </v-btn>
+                      <v-btn
+                          v-else
+                          color="grey"
+                          variant="text"
+                          size="small"
+                          prepend-icon="mdi-eye-off-outline"
+                          @click="markAsUnread(notification)"
+                      >
+                        Okunmadı Olarak İşaretle
+                      </v-btn>
                     </div>
                   </template>
                 </v-list-item>
@@ -263,6 +273,17 @@ const markAsRead = async (notification: UserNotification) => {
     )
   } catch (error) {
     console.error('Error marking as read:', error)
+  }
+}
+
+const markAsUnread = async (notification: UserNotification) => {
+  if (!authStore.user) return
+  if (!notification.id || String(notification.id).startsWith('pending-')) return
+
+  try {
+    await notificationService.markAsUnread(notification.id)
+  } catch (error) {
+    console.error('Error marking as unread:', error)
   }
 }
 

@@ -71,6 +71,16 @@
                       >
                         Okundu İşaretle
                       </v-btn>
+                      <v-btn
+                          v-else
+                          color="grey"
+                          variant="text"
+                          size="small"
+                          prepend-icon="mdi-eye-off-outline"
+                          @click="markAsUnread(notification)"
+                      >
+                        Okunmadı Olarak İşaretle
+                      </v-btn>
                     </div>
                   </template>
                 </v-list-item>
@@ -156,9 +166,25 @@ const markAsRead = async (notification: UserNotification) => {
   if (!notification.id) return
 
   try {
-    await notificationService.deleteNotification(notification.id)
+    await notificationService.markAsRead(
+      notification.id,
+      authStore.user.id,
+      authStore.user.role,
+      notification.isRead
+    )
   } catch (error) {
-    console.error('Error deleting notification:', error)
+    console.error('Error marking notification as read:', error)
+  }
+}
+
+const markAsUnread = async (notification: UserNotification) => {
+  if (!authStore.user) return
+  if (!notification.id) return
+
+  try {
+    await notificationService.markAsUnread(notification.id)
+  } catch (error) {
+    console.error('Error marking notification as unread:', error)
   }
 }
 

@@ -108,6 +108,11 @@ export const notificationService = {
         await updateDoc(notifRef, { isRead: true })
     },
 
+    async markAsUnread(notificationId: string) {
+        const notifRef = doc(db, COLLECTION_NAME, notificationId)
+        await updateDoc(notifRef, { isRead: false })
+    },
+
     async deleteNotification(notificationId: string) {
         const notifRef = doc(db, COLLECTION_NAME, notificationId)
         await deleteDoc(notifRef)
