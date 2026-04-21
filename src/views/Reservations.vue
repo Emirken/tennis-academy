@@ -430,17 +430,23 @@ const loadCourtSchedule = async (date: string) => {
 
       if (docDateStr !== date) return
 
-      const courtId = data.courtId // court-1/2/3 formatında
+      // courtId K1/K2/K3 veya court-1/2/3 formatında olabilir — form formatına normalize et
+      const courtId = firestoreToFormCourtId(data.courtId)
       if (!courtSchedule[courtId]) return
+
+      // Grup dersleri özel olarak işaretle; normal rezervasyonlar 'occupied'
+      const isGroupLesson = data.reservationType === 'group-lesson' ||
+        data.groupId || data.groupAssignment || data.groupSchedule === true
+      const slotStatus = isGroupLesson ? 'group_lesson' : 'occupied'
 
       // Rezervasyonun kapladığı tüm slotları dolu işaretle
       const slots = getTimeSlotsInRange(data.startTime, data.endTime)
       slots.forEach(slot => {
-        courtSchedule[courtId][slot] = 'occupied'
+        courtSchedule[courtId][slot] = slotStatus
       })
     })
 
-    // Grup dersleri için courtSchedule koleksiyonuna da bak (sadece grup dersleri)
+    // Grup dersleri için courtSchedule koleksiyonuna da bak (rezervasyonlarda olmayanlar için yedek)
     const scheduleDoc = await getDoc(doc(db, 'courtSchedule', date))
     if (scheduleDoc.exists()) {
       const data = scheduleDoc.data()
@@ -450,9 +456,12 @@ const loadCourtSchedule = async (date: string) => {
           if (!courtSchedule[formCourtId]) return
           timeSlots.forEach(timeSlot => {
             const slotData = data.schedule[firestoreCourtId]?.[timeSlot]
+            if (!slotData) return
             const status = getSlotStatusValue(slotData)
-            // Sadece grup dersi slotlarını yükle (occupied olanları rezervasyon sorgusundan aldık)
-            if (status === 'group_lesson') {
+            const isGroup = status === 'group_lesson' ||
+              (typeof slotData === 'object' && slotData.reservationType === 'group-lesson')
+            // Hali hazırda müsait görünen slotları grup dersi ile işaretle
+            if (isGroup && courtSchedule[formCourtId][timeSlot] === 'available') {
               courtSchedule[formCourtId][timeSlot] = 'group_lesson'
             }
           })
@@ -612,44 +621,57 @@ const submitReservation = async () => {
     }
 
     // 2. Firebase'den aynı kort için çakışan onaylı/bekleyen rezervasyon var mı kontrol et
-    // Sadece courtId ile sorgula, date ve status filtreleri client-side (index gerekmez)
-    const conflictQuery = query(
-      collection(db, 'reservations'),
-      where('courtId', '==', reservationData.courtId)
+    // Grup rezervasyonları K1/K2/K3, kort rezervasyonları court-1/2/3 formatında
+    // olduğundan her iki formatta da sorgula.
+    const courtIdKFormat: Record<string, string> = {
+      'court-1': 'K1',
+      'court-2': 'K2',
+      'court-3': 'K3'
+    }
+    const courtIdVariants = [
+      reservationData.courtId,
+      courtIdKFormat[reservationData.courtId]
+    ].filter(Boolean) as string[]
+
+    const conflictSnapshots = await Promise.all(
+      courtIdVariants.map(cid =>
+        getDocs(query(collection(db, 'reservations'), where('courtId', '==', cid)))
+      )
     )
-    const conflictSnapshot = await getDocs(conflictQuery)
 
     const selectedDateStr = reservationData.date
 
     let hasConflict = false
-    conflictSnapshot.forEach((docSnap) => {
-      const docData = docSnap.data()
-      if (!['pending', 'confirmed'].includes(docData.status)) return
+    conflictSnapshots.forEach((conflictSnapshot) => {
+      conflictSnapshot.forEach((docSnap) => {
+        const docData = docSnap.data()
+        if (!['pending', 'confirmed'].includes(docData.status)) return
 
-      // date alanı Timestamp veya Date olabilir, string karşılaştırması için normalize et
-      let docDateStr: string
-      if (typeof docData.date === 'string') {
-        docDateStr = docData.date
-      } else if (docData.date?.toDate) {
-        docDateStr = docData.date.toDate().toISOString().split('T')[0]
-      } else {
-        docDateStr = new Date(docData.date).toISOString().split('T')[0]
-      }
+        // date alanı Timestamp veya Date olabilir, string karşılaştırması için normalize et
+        let docDateStr: string
+        if (typeof docData.date === 'string') {
+          docDateStr = docData.date
+        } else if (docData.date?.toDate) {
+          docDateStr = docData.date.toDate().toISOString().split('T')[0]
+        } else {
+          docDateStr = new Date(docData.date).toISOString().split('T')[0]
+        }
 
-      if (docDateStr !== selectedDateStr) return
+        if (docDateStr !== selectedDateStr) return
 
-      const existingStart = docData.startTime
-      const existingEnd = docData.endTime
-      const newStart = reservationData.startTime
-      const newEnd = endTime
+        const existingStart = docData.startTime
+        const existingEnd = docData.endTime
+        const newStart = reservationData.startTime
+        const newEnd = endTime
 
-      if (
-        (newStart >= existingStart && newStart < existingEnd) ||
-        (newEnd > existingStart && newEnd <= existingEnd) ||
-        (newStart <= existingStart && newEnd >= existingEnd)
-      ) {
-        hasConflict = true
-      }
+        if (
+          (newStart >= existingStart && newStart < existingEnd) ||
+          (newEnd > existingStart && newEnd <= existingEnd) ||
+          (newStart <= existingStart && newEnd >= existingEnd)
+        ) {
+          hasConflict = true
+        }
+      })
     })
 
     if (hasConflict) {
