@@ -219,7 +219,7 @@
                               {{ getStatusText(reservation.status) }}
                             </v-chip>
 
-                            <v-menu v-if="canCancel(reservation.date)" offset-y>
+                            <v-menu v-if="canCancel(reservation)" offset-y>
                               <template #activator="{ props }">
                                 <v-btn
                                     v-bind="props"
@@ -230,7 +230,7 @@
                                 />
                               </template>
                               <v-list>
-                                <v-list-item @click="cancelReservation(reservation.id)">
+                                <v-list-item @click="cancelReservation(reservation)">
                                   <v-list-item-title>
                                     <v-icon icon="mdi-cancel" class="mr-2" />
                                     İptal Et
@@ -294,6 +294,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   collection,
   query,
   where,
@@ -776,18 +777,56 @@ const formatReservationDate = (date: Date): string => {
   })
 }
 
-const canCancel = (date: Date): boolean => {
-  const now = new Date()
-  const reservationDate = new Date(date)
-  const timeDiff = reservationDate.getTime() - now.getTime()
-  const hoursDiff = timeDiff / (1000 * 3600)
-
-  return hoursDiff > 24
+// Rezervasyonun başlangıç zamanını (tarih + saat) Date objesine çevirir.
+const getReservationStartDateTime = (reservation: Reservation): Date => {
+  const base = new Date(reservation.date)
+  const [h, m] = (reservation.startTime || '00:00').split(':').map(Number)
+  base.setHours(h || 0, m || 0, 0, 0)
+  return base
 }
 
-const cancelReservation = async (reservationId: string) => {
-  // Cancel reservation logic would go here
-  console.log('Cancel reservation:', reservationId)
+const canCancel = (reservation: Reservation): boolean => {
+  if (!['pending', 'confirmed'].includes(reservation.status)) return false
+
+  const now = new Date()
+  const start = getReservationStartDateTime(reservation)
+  const hoursDiff = (start.getTime() - now.getTime()) / (1000 * 3600)
+
+  return hoursDiff >= 6
+}
+
+const cancelReservation = async (reservation: Reservation) => {
+  if (!canCancel(reservation)) {
+    errorMessage.value = 'Bu rezervasyon artık iptal edilemez. Rezervasyona en az 6 saat kala iptal edebilirsiniz.'
+    errorSnackbar.value = true
+    return
+  }
+
+  if (!confirm('Rezervasyonu iptal etmek istediğinize emin misiniz?')) return
+
+  try {
+    await updateDoc(doc(db, 'reservations', reservation.id), {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+      cancelledBy: 'student'
+    })
+
+    // Admin'e iptal bildirimi gönder
+    const studentName = `${authStore.user?.firstName || ''} ${authStore.user?.lastName || ''}`.trim()
+    const formattedDate = new Date(reservation.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+    await notificationService.createAdminNotification(
+      'Rezervasyon İptal Edildi',
+      `${studentName}, ${formattedDate} tarihinde ${reservation.courtName} için ${reservation.startTime} saatindeki rezervasyonunu iptal etti.`,
+      'reservation_rejected',
+      { reservationId: reservation.id, studentId: authStore.user?.id, studentName }
+    )
+
+    await loadUserReservations()
+  } catch (error) {
+    console.error('Rezervasyon iptal hatası:', error)
+    errorMessage.value = 'Rezervasyon iptal edilirken hata oluştu.'
+    errorSnackbar.value = true
+  }
 }
 
 // Initialize
