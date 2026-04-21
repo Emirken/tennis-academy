@@ -262,6 +262,10 @@
               </div>
               <h3 class="success-title mb-2">Rezervasyon Talebi Alındı!</h3>
               <p class="success-description">Rezervasyonunuz admin onayına gönderildi. Onaylandığında bilgilendirileceksiniz.</p>
+              <p class="success-description mt-3">
+                Rezervasyonunuz onaylandıktan sonra, rezervasyonunuzu en geç 6 saat kala iptal edebilirsiniz.
+                6 saatten az kalan rezervasyonların ücretleri iade edilmeyecektir.
+              </p>
             </v-card-text>
             <v-card-actions class="pa-4 pt-0">
               <v-spacer />
