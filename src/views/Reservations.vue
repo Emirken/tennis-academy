@@ -141,7 +141,7 @@
                   </div>
                   <div class="reservations-title-section">
                     <h3 class="reservations-title">Rezervasyonlarım</h3>
-                    <p class="reservations-subtitle">{{ myReservations.length }} adet rezervasyon</p>
+                    <p class="reservations-subtitle">{{ personalReservations.length }} adet rezervasyon</p>
                   </div>
                   <v-icon
                       :icon="showReservations ? 'mdi-chevron-up' : 'mdi-chevron-down'"
@@ -159,7 +159,7 @@
                   </div>
 
                   <!-- Empty State -->
-                  <div v-else-if="myReservations.length === 0" class="empty-state">
+                  <div v-else-if="personalReservations.length === 0" class="empty-state">
                     <v-icon icon="mdi-calendar-blank" size="64" color="grey" class="empty-icon" />
                     <h3 class="empty-title">Henüz rezervasyonunuz yok</h3>
                     <p class="empty-description">
@@ -170,10 +170,10 @@
                   <!-- Reservations List -->
                   <div v-else class="reservations-list-container">
                     <div
-                        v-for="(reservation, index) in myReservations"
+                        v-for="(reservation, index) in personalReservations"
                         :key="reservation.id"
                         class="reservation-list-item"
-                        :class="{ 'last-item': index === myReservations.length - 1 }"
+                        :class="{ 'last-item': index === personalReservations.length - 1 }"
                     >
                       <div class="reservation-list-timeline">
                         <div
@@ -181,7 +181,7 @@
                             :class="getReservationColor(reservation.status)"
                         ></div>
                         <div
-                            v-if="index !== myReservations.length - 1"
+                            v-if="index !== personalReservations.length - 1"
                             class="timeline-line"
                         ></div>
                       </div>
@@ -328,6 +328,12 @@ const errorSnackbar = ref(false)
 const errorMessage = ref('')
 const showReservations = ref(true)
 const myReservations = ref<Reservation[]>([])
+
+// Grup dersleri StudentDashboard'daki "Derslerim" kartında gösterilir;
+// bu sayfadaki "Rezervasyonlarım" listesi yalnızca kişisel rezervasyonları içerir.
+const personalReservations = computed(() =>
+  myReservations.value.filter(r => !r.isGroupLesson)
+)
 
 // Court schedule state
 const courtSchedule = reactive<Record<string, Record<string, string>>>({
@@ -528,6 +534,9 @@ const loadUserReservations = async () => {
         reservationDate = new Date(data.date)
       }
 
+      const isGroupLesson = data.reservationType === 'group-lesson' ||
+        !!data.groupId || !!data.groupAssignment || data.groupSchedule === true
+
       reservations.push({
         id: doc.id,
         courtId: data.courtId,
@@ -540,7 +549,9 @@ const loadUserReservations = async () => {
         type: data.type,
         status: data.status,
         totalCost: data.totalCost,
-        createdAt: data.createdAt?.toDate() || new Date()
+        createdAt: data.createdAt?.toDate() || new Date(),
+        isGroupLesson,
+        groupId: data.groupId
       })
     })
 

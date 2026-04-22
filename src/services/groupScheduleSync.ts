@@ -404,15 +404,19 @@ export async function syncGroupSchedule(
     await createFutureGroupReservations(groupId, normalizedSchedule, members, membershipType, fromToday)
   }
 
-  // 4. Update all members' groupSchedule.weeklyPlan (StudentManagement format for UI)
+  // 4. Update all members' membershipType, groupAssignment and groupSchedule.weeklyPlan
+  // Üyelerin üyelik tipi ve grup ataması her zaman grup ile senkron olmalı;
+  // aksi halde "Temel Üyelik" gibi eski değerler takılı kalabilir.
   const weeklyPlan = groupToStudentFormat(normalizedSchedule)
   const updatePromises = members.map((member) => {
     const studentRef = doc(db, 'users', member.id)
     return updateDoc(studentRef, {
+      membershipType,
+      groupAssignment: groupId,
       groupSchedule: { weeklyPlan },
       updatedAt: serverTimestamp()
     })
   })
   await Promise.all(updatePromises)
-  console.log(`✅ ${members.length} öğrenci profili güncellendi`)
+  console.log(`✅ ${members.length} öğrenci profili güncellendi (membershipType=${membershipType}, groupAssignment=${groupId})`)
 }

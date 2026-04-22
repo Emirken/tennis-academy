@@ -1038,8 +1038,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { collection, deleteDoc, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, getDoc, setDoc } from 'firebase/firestore'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { collection, deleteDoc, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, getDoc, setDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import AttendanceArchiveWarning from '@/components/common/AttendanceArchiveWarning.vue'
 import {
@@ -2148,71 +2148,86 @@ const checkScheduleConflict = async (
     return { hasConflict: true, details: null }
   }
 }
-// Fetch students from Firebase
-const fetchStudents = async () => {
+// Canlı öğrenci listesi dinleyicisi — users/{id}.membershipType gibi alanlar
+// dışarıdan (ör. GroupManagement) değiştiğinde tablo anında güncellenir.
+let studentsUnsubscribe: Unsubscribe | null = null
+
+const fetchStudents = async (): Promise<void> => {
+  // Listener zaten aktifse tekrar kurma (fetchStudents eski kodda yenileme için
+  // çağrılıyordu; onSnapshot olunca bu gereksiz ama geri uyumlu bir no-op)
+  if (studentsUnsubscribe) {
+    return
+  }
+
   loading.value = true
 
-  try {
-    console.log('🔍 Firebase\'den öğrenciler getiriliyor...')
-
+  return new Promise<void>((resolve) => {
+    let resolved = false
     const usersRef = collection(db, 'users')
     const q = query(usersRef, where('role', '==', 'student'))
 
-    const querySnapshot = await getDocs(q)
-    const fetchedStudents: Student[] = []
+    console.log('🔍 Firebase\'den öğrenciler için canlı dinleyici kuruluyor...')
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data()
+    studentsUnsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const fetchedStudents: Student[] = []
 
-      // Silinmiş öğrencileri atla
-      if (data.deleted === true) {
-        console.log('⏭️ Silinmiş öğrenci atlandı:', data.phone_number)
-        return
+        querySnapshot.forEach((doc) => {
+          const data = doc.data()
+
+          if (data.deleted === true) {
+            return
+          }
+
+          const student: Student = {
+            id: doc.id,
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            phone_number: data.phone_number || '',
+            phone: data.phone || '',
+            address: data.address || '',
+            emergencyContact: data.emergencyContact || '',
+            membershipType: data.membershipType || 'basic',
+            groupAssignment: data.groupAssignment || '',
+            groupSchedule: data.groupSchedule || undefined,
+            weeklyPlan: data.weeklyPlan || undefined,
+            status: data.status || 'active',
+            joinDate: data.createdAt?.toDate() || new Date(),
+            balance: data.balance || 0,
+            notes: data.notes || '',
+            role: data.role,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+            lastLoginAt: data.lastLoginAt?.toDate()
+          }
+
+          fetchedStudents.push(student)
+        })
+
+        fetchedStudents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        students.value = fetchedStudents
+        console.log(`✅ ${fetchedStudents.length} öğrenci güncellendi (snapshot)`)
+
+        loading.value = false
+
+        if (!resolved) {
+          resolved = true
+          resolve()
+        }
+      },
+      (error: any) => {
+        console.error('❌ Öğrencileri dinleme hatası:', error)
+        successMessage.value = 'Öğrenciler yüklenirken hata oluştu: ' + error.message
+        successSnackbar.value = true
+        loading.value = false
+        if (!resolved) {
+          resolved = true
+          resolve()
+        }
       }
-
-      console.log('📄 Öğrenci verisi:', data)
-
-      const student: Student = {
-        id: doc.id,
-        firstName: data.firstName || '',
-        lastName: data.lastName || '',
-        phone_number: data.phone_number || '',
-        phone: data.phone || '',
-        address: data.address || '',
-        emergencyContact: data.emergencyContact || '',
-        membershipType: data.membershipType || 'basic',
-        groupAssignment: data.groupAssignment || '',
-        groupSchedule: data.groupSchedule || undefined,
-        weeklyPlan: data.weeklyPlan || undefined,
-        status: data.status || 'active',
-        joinDate: data.createdAt?.toDate() || new Date(),
-        balance: data.balance || 0,
-        notes: data.notes || '',
-        role: data.role,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-        lastLoginAt: data.lastLoginAt?.toDate()
-      }
-
-      fetchedStudents.push(student)
-    })
-
-    fetchedStudents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    students.value = fetchedStudents
-    console.log(`✅ ${fetchedStudents.length} öğrenci başarıyla yüklendi`)
-
-    if (fetchedStudents.length === 0) {
-      successMessage.value = 'Henüz kayıtlı öğrenci bulunmuyor'
-      successSnackbar.value = true
-    }
-
-  } catch (error: any) {
-    console.error('❌ Öğrencileri yükleme hatası:', error)
-    successMessage.value = 'Öğrenciler yüklenirken hata oluştu: ' + error.message
-    successSnackbar.value = true
-  } finally {
-    loading.value = false
-  }
+    )
+  })
 }
 
 // Fetch groups from Firebase
@@ -2880,6 +2895,13 @@ onMounted(async () => {
   await membershipTypesStore.initialize()
   await fetchStudents()
   await fetchGroups()
+})
+
+onUnmounted(() => {
+  if (studentsUnsubscribe) {
+    studentsUnsubscribe()
+    studentsUnsubscribe = null
+  }
 })
 </script>
 

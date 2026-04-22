@@ -7,10 +7,20 @@ import {
     sendPasswordResetEmail,
     User as FirebaseUser
 } from 'firebase/auth'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { auth, db } from '@/services/firebase'
 import type { User } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
+
+// Pinia state'inde function tutulamaz; listener'ı modül seviyesinde saklıyoruz
+let userDocUnsubscribe: Unsubscribe | null = null
+
+function stopUserDocListener() {
+    if (userDocUnsubscribe) {
+        userDocUnsubscribe()
+        userDocUnsubscribe = null
+    }
+}
 
 interface AuthState {
     user: User | null
@@ -163,6 +173,7 @@ export const useAuthStore = defineStore('auth', {
         async logout() {
             try {
                 console.log('🚪 Çıkış yapılıyor...')
+                stopUserDocListener()
                 await signOut(auth)
                 this.user = null
                 this.isAuthenticated = false
@@ -190,70 +201,84 @@ export const useAuthStore = defineStore('auth', {
         },
 
         async fetchUserData(uid: string) {
-            try {
-                console.log('🔍 Firestore\'dan kullanıcı verisi getiriliyor, UID:', uid)
-                const userDoc = await getDoc(doc(db, 'users', uid))
+            // Önceki listener varsa kapat (kullanıcı değiştiyse)
+            stopUserDocListener()
 
-                if (userDoc.exists()) {
-                    const userData = userDoc.data() as User
-                    console.log('✅ Kullanıcı verisi bulundu:', {
-                        id: userData.id,
-                        phone_number: userData.phone_number,
-                        firstName: userData.firstName,
-                        role: userData.role
-                    })
+            console.log('🔍 Firestore\'da kullanıcı verisi için canlı dinleyici kuruluyor, UID:', uid)
 
-                    if (userData.role === 'student' && userData.status === 'pending') {
-                        console.log('⚠️ Kullanıcı onay bekliyor, ancak sisteme girişine izin veriliyor (dashboard kilitli).', uid)
-                    }
+            return new Promise<void>((resolve) => {
+                let resolved = false
 
-                    // Rol doğrulama: admin bildirimleri için role === 'admin' (küçük harf) gerekli
-                    if (userData.role && userData.role !== 'admin' && userData.role !== 'student') {
-                        console.warn('⚠️ Beklenmeyen rol değeri:', userData.role, '- Bildirim sorgusu etkilenebilir.')
-                    }
-                    if (userData.role === 'admin') {
-                        console.log('✅ Admin girişi - bildirim sorgusu targetType: admin/all kullanacak')
-                    }
+                userDocUnsubscribe = onSnapshot(
+                    doc(db, 'users', uid),
+                    async (userDoc) => {
+                        try {
+                            if (userDoc.exists()) {
+                                const userData = userDoc.data() as User
+                                console.log('🔄 Kullanıcı verisi güncellendi (snapshot):', {
+                                    id: userData.id,
+                                    phone_number: userData.phone_number,
+                                    firstName: userData.firstName,
+                                    role: userData.role,
+                                    membershipType: (userData as any).membershipType,
+                                    groupAssignment: (userData as any).groupAssignment
+                                })
 
-                    this.user = {
-                        ...userData,
-                        id: uid // Ensure ID is always set
-                    }
-                    this.isAuthenticated = true
-                } else {
-                    console.error('❌ Firestore\'da kullanıcı verisi bulunamadı, UID:', uid)
-                    // Try to create a basic user profile if none exists
-                    const currentUser = auth.currentUser
-                    if (currentUser) {
-                        console.log('🔧 Temel kullanıcı profili oluşturuluyor...')
-                        // Extract phone number from dummy email
-                        const phoneFromEmail = currentUser.email?.replace('@tennis.local', '') || ''
-                        const basicUser: User = {
-                            id: uid,
-                            phone_number: phoneFromEmail,
-                            firstName: 'Kullanıcı',
-                            lastName: '',
-                            role: 'student', // Default role
-                            createdAt: new Date(),
-                            updatedAt: new Date()
+                                if (userData.role === 'student' && userData.status === 'pending') {
+                                    console.log('⚠️ Kullanıcı onay bekliyor, ancak sisteme girişine izin veriliyor (dashboard kilitli).', uid)
+                                }
+
+                                this.user = {
+                                    ...userData,
+                                    id: uid
+                                }
+                                this.isAuthenticated = true
+                            } else {
+                                console.error('❌ Firestore\'da kullanıcı verisi bulunamadı, UID:', uid)
+                                const currentUser = auth.currentUser
+                                if (currentUser && !resolved) {
+                                    console.log('🔧 Temel kullanıcı profili oluşturuluyor...')
+                                    const phoneFromEmail = currentUser.email?.replace('@tennis.local', '') || ''
+                                    const basicUser: User = {
+                                        id: uid,
+                                        phone_number: phoneFromEmail,
+                                        firstName: 'Kullanıcı',
+                                        lastName: '',
+                                        role: 'student',
+                                        createdAt: new Date(),
+                                        updatedAt: new Date()
+                                    }
+
+                                    await setDoc(doc(db, 'users', uid), basicUser)
+                                    // setDoc sonrası snapshot tekrar tetiklenip this.user'ı güncelleyecek
+                                    console.log('✅ Temel kullanıcı profili oluşturuldu')
+                                } else if (!currentUser) {
+                                    this.user = null
+                                    this.isAuthenticated = false
+                                }
+                            }
+                        } catch (error: any) {
+                            console.error('❌ Kullanıcı snapshot işleme hatası:', error)
+                            this.error = this.getErrorMessage(error)
+                        } finally {
+                            if (!resolved) {
+                                resolved = true
+                                resolve()
+                            }
                         }
-
-                        // Create the user document
-                        await setDoc(doc(db, 'users', uid), basicUser)
-                        this.user = basicUser
-                        this.isAuthenticated = true
-                        console.log('✅ Temel kullanıcı profili oluşturuldu')
-                    } else {
+                    },
+                    (error) => {
+                        console.error('❌ Kullanıcı verisi dinleyici hatası:', error)
+                        this.error = this.getErrorMessage(error)
                         this.user = null
                         this.isAuthenticated = false
+                        if (!resolved) {
+                            resolved = true
+                            resolve()
+                        }
                     }
-                }
-            } catch (error: any) {
-                console.error('❌ Kullanıcı verisi getirme hatası:', error)
-                this.error = this.getErrorMessage(error)
-                this.user = null
-                this.isAuthenticated = false
-            }
+                )
+            })
         },
 
         initializeAuth() {
@@ -277,6 +302,7 @@ export const useAuthStore = defineStore('auth', {
                         }
                     } else {
                         console.log('👤 Kullanıcı oturumu kapalı')
+                        stopUserDocListener()
                         this.user = null
                         this.isAuthenticated = false
                     }

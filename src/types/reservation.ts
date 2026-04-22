@@ -13,4 +13,6 @@ export interface Reservation {
     status: 'confirmed' | 'pending' | 'cancelled'
     totalCost: number
     createdAt: Date
+    isGroupLesson?: boolean
+    groupId?: string
 }

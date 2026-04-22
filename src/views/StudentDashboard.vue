@@ -480,6 +480,7 @@ import { useAuthStore } from '@/store/modules/auth'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { createFutureGroupReservations } from '@/services/groupScheduleSync'
 
 console.log('📦 Firebase imports loaded:', { db, collection, query, where })
 
@@ -740,6 +741,69 @@ const minutesToHours = (minutes: number): number => {
   return Math.round((minutes / 60) * 10) / 10
 }
 
+// Self-heal: öğrenci bir gruba atanmış (groupAssignment var) ama bu grup için
+// hiç gelecek rezervasyonu yoksa eksik rezervasyonları sessizce oluştur.
+// Bu, eski grup eklemelerinden kalan senkronizasyon kaçaklarını otomatik onarır.
+const ensureGroupReservations = async () => {
+  const user = authStore.user as any
+  if (!user?.id || !user.groupAssignment) return
+
+  try {
+    const groupId = user.groupAssignment
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Bu öğrencinin bu grup için gelecek rezervasyonu var mı?
+    // Composite index'e bağımlı kalmamak için tarih filtresini JS tarafında yapıyoruz
+    // (groupId + studentId üzerinde tek eşitlik sorgusu default indekslerle çalışır).
+    const existingQuery = query(
+      collection(db, 'reservations'),
+      where('groupId', '==', groupId),
+      where('studentId', '==', user.id)
+    )
+    const existingSnap = await getDocs(existingQuery)
+    const hasFuture = existingSnap.docs.some(d => {
+      const data = d.data() as any
+      if (!data?.date) return false
+      const resDate = data.date.toDate ? data.date.toDate() : new Date(data.date)
+      return resDate.getTime() >= today.getTime() && data.status !== 'cancelled'
+    })
+    if (hasFuture) return
+
+    // Grup dokümanını oku — schedule ve membershipType için
+    const groupSnap = await getDoc(doc(db, 'groups', groupId))
+    if (!groupSnap.exists()) {
+      console.warn('⚠️ Atanmış grup bulunamadı:', groupId)
+      return
+    }
+
+    const groupData = groupSnap.data() as any
+    const schedule = groupData.schedule || []
+    const membershipType = groupData.membershipType
+
+    if (schedule.length === 0 || !membershipType) {
+      console.log('ℹ️ Grup schedule veya membershipType eksik, self-heal atlandı')
+      return
+    }
+
+    console.log(`🗓️ Eksik grup rezervasyonları sessizce oluşturuluyor (grup: ${groupData.name || groupId})...`)
+    await createFutureGroupReservations(
+      groupId,
+      schedule,
+      [{
+        id: user.id,
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Öğrenci',
+        email: user.email || ''
+      }],
+      membershipType,
+      true
+    )
+    console.log('✅ Eksik grup rezervasyonları oluşturuldu')
+  } catch (err) {
+    console.error('❌ Self-heal grup rezervasyonu hatası:', err)
+  }
+}
+
 // Fetch user reservations
 const fetchUserReservations = () => {
   if (!authStore.user?.id) {
@@ -910,6 +974,8 @@ onMounted(async () => {
     // Check if user exists after auth is ready
     if (authStore.user?.id) {
       console.log('✅ User authenticated:', authStore.user.phone_number)
+      // Eksik grup rezervasyonlarını sessizce onar (grup üyesi öğrenciler için)
+      await ensureGroupReservations()
       fetchUserReservations()
       // Fetch attendance data
       await fetchStudentAttendance()

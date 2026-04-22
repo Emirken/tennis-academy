@@ -1002,18 +1002,28 @@ const addMemberToGroup = async () => {
     // -----------------------------------------------------------------------
     // YENİ ÜYE İÇİN GELECEK REZERVASYONLARI OLUŞTUR
     // -----------------------------------------------------------------------
+    let reservationsCreated = true
     if (selectedGroup.value.id && selectedGroup.value.schedule.length > 0) {
        console.log(`➕ Yeni üye (${newMember.name}) için rezervasyonlar oluşturuluyor...`)
-       await createFutureGroupReservations(
-         selectedGroup.value.id,
-         selectedGroup.value.schedule,
-         [newMember],
-         selectedGroup.value.membershipType,
-         true
-       )
+       try {
+         await createFutureGroupReservations(
+           selectedGroup.value.id,
+           selectedGroup.value.schedule,
+           [{ ...newMember, email: (student as any).email || '' }],
+           selectedGroup.value.membershipType,
+           true
+         )
+       } catch (resErr) {
+         reservationsCreated = false
+         console.error('❌ Yeni üye için rezervasyonlar oluşturulamadı:', resErr)
+       }
     }
-    
-    showSnackbar('Üye gruba eklendi, haftalık program atandı ve rezervasyonlar oluşturuldu', 'success')
+
+    if (reservationsCreated) {
+      showSnackbar('Üye gruba eklendi, haftalık program atandı ve rezervasyonlar oluşturuldu', 'success')
+    } else {
+      showSnackbar('Üye eklendi ama rezervasyonlar oluşturulamadı — öğrenci dashboard açıldığında otomatik denenecek', 'warning')
+    }
     await loadGroups()
     await loadStudents()
   } catch (error) {
@@ -1249,10 +1259,106 @@ const handleExportGroupAttendance = async () => {
   }
 }
 
+// Grup üyelerinin users/{id} dokümanındaki membershipType ve groupAssignment
+// değerleri grupla eşleşmiyorsa düzelt. Ek olarak, üyenin bu grup için
+// gelecek rezervasyonları hiç yoksa oluştur (eski eklemelerde senkron kaçmış
+// olabilir; çift oluşturmayı önlemek için önce mevcutluk kontrolü yapılır).
+const reconcileMembersWithGroups = async () => {
+  const studentById = new Map(students.value.map(s => [s.id, s]))
+  const profileFixes: Promise<void>[] = []
+  const reservationFixes: Array<{ group: any; member: any; student: any }> = []
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  for (const group of groups.value) {
+    if (!group.id || !group.membershipType || !group.members) continue
+
+    for (const member of group.members) {
+      const student = studentById.get(member.id) as any
+      if (!student) continue
+
+      const profileMismatch =
+        student.membershipType !== group.membershipType ||
+        student.groupAssignment !== group.id
+
+      if (profileMismatch) {
+        console.log(`🔧 Üye profil senkronizasyonu düzeltiliyor: ${student.firstName} ${student.lastName} → ${group.membershipType} (${group.id})`)
+        const studentRef = doc(db, 'users', member.id)
+        profileFixes.push(
+          updateDoc(studentRef, {
+            membershipType: group.membershipType,
+            groupAssignment: group.id,
+            updatedAt: serverTimestamp()
+          }).catch((err) => console.error(`❌ ${member.id} profil senkronizasyonu başarısız:`, err))
+        )
+      }
+
+      // Rezervasyon kontrolü: grup schedule'ı varsa ve üyenin bu grup için
+      // bugünden sonra rezervasyonu yoksa — ekleme adayı
+      if (group.schedule && group.schedule.length > 0) {
+        reservationFixes.push({ group, member, student })
+      }
+    }
+  }
+
+  if (profileFixes.length > 0) {
+    await Promise.all(profileFixes)
+    console.log(`✅ ${profileFixes.length} üye grup bilgisi ile senkronize edildi`)
+  }
+
+  // Üyelerin mevcut gelecek rezervasyonlarını kontrol et, yoksa oluştur
+  let createdReservationMembers = 0
+  for (const { group, member, student } of reservationFixes) {
+    try {
+      const q = query(
+        collection(db, 'reservations'),
+        where('groupId', '==', group.id),
+        where('studentId', '==', member.id)
+      )
+      const snap = await getDocs(q)
+      // Tarih filtresi JS tarafında — composite index gerektirmez
+      const hasFuture = snap.docs.some(d => {
+        const data = d.data() as any
+        if (!data?.date) return false
+        const resDate = data.date.toDate ? data.date.toDate() : new Date(data.date)
+        return resDate.getTime() >= today.getTime() && data.status !== 'cancelled'
+      })
+      if (hasFuture) continue
+
+      console.log(`🗓️ Gelecek rezervasyonlar oluşturuluyor: ${student.firstName} ${student.lastName} (grup: ${group.name})`)
+      const memberForSync = {
+        id: member.id,
+        name: member.name || `${student.firstName} ${student.lastName}`.trim(),
+        email: (student as any).email || ''
+      }
+      await createFutureGroupReservations(
+        group.id,
+        group.schedule,
+        [memberForSync],
+        group.membershipType,
+        true
+      )
+      createdReservationMembers++
+    } catch (err) {
+      console.error(`❌ ${member.id} rezervasyon senkronizasyonu başarısız:`, err)
+    }
+  }
+
+  if (createdReservationMembers > 0) {
+    console.log(`✅ ${createdReservationMembers} üye için eksik gelecek rezervasyonlar oluşturuldu`)
+  }
+
+  if (profileFixes.length > 0) {
+    await loadStudents()
+  }
+}
+
 onMounted(async () => {
   await membershipTypesStore.initialize()
   await loadStudents()
   await loadGroups()
+  await reconcileMembersWithGroups()
 })
 </script>
 
