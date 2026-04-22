@@ -938,15 +938,59 @@
                 />
               </v-col>
 
-              <!-- E-posta -->
-              <v-col cols="12">
+              <!-- Telefon Numarası -->
+              <v-col cols="12" md="6">
                 <v-text-field
                     v-model="addStudentForm.phone_number"
+                    label="Telefon Numarası"
+                    type="tel"
+                    variant="outlined"
+                    :rules="phoneRules"
+                    prepend-inner-icon="mdi-phone"
+                    placeholder="05XX XXX XX XX"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+
+              <!-- E-posta -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="addStudentForm.email"
                     label="E-posta"
                     type="email"
                     variant="outlined"
                     :rules="emailRules"
                     prepend-inner-icon="mdi-email"
+                    placeholder="ornek@mail.com"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+
+              <!-- Doğum Tarihi -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="addStudentForm.birthDate"
+                    label="Doğum Tarihi"
+                    type="date"
+                    variant="outlined"
+                    :rules="birthDateRules"
+                    prepend-inner-icon="mdi-cake-variant"
+                    density="comfortable"
+                    required
+                />
+              </v-col>
+
+              <!-- Seviye -->
+              <v-col cols="12" md="6">
+                <v-select
+                    v-model="addStudentForm.level"
+                    label="Seviye"
+                    :items="levelOptions"
+                    variant="outlined"
+                    :rules="levelRules"
+                    prepend-inner-icon="mdi-tennis-ball"
                     density="comfortable"
                     required
                 />
@@ -1142,9 +1186,18 @@ const addStudentForm = ref({
   firstName: '',
   lastName: '',
   phone_number: '',
+  email: '',
+  birthDate: '',
+  level: '' as '' | 'temel' | 'orta' | 'ileri',
   password: '',
   confirmPassword: ''
 })
+
+const levelOptions = [
+  { title: 'Temel', value: 'temel' },
+  { title: 'Orta', value: 'orta' },
+  { title: 'İleri', value: 'ileri' }
+]
 
 // Form validation
 const addStudentFormValid = ref(false)
@@ -1276,6 +1329,30 @@ const nameRules = [
 const emailRules = [
   (v: string) => !!v || 'E-posta gereklidir',
   (v: string) => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz'
+]
+
+const phoneRules = [
+  (v: string) => !!v || 'Telefon numarası gereklidir',
+  (v: string) => /^[0-9]+$/.test(v) || 'Telefon numarası sadece rakamlardan oluşmalıdır',
+  (v: string) => v.length === 11 || 'Telefon numarası 11 haneli olmalıdır',
+  (v: string) => v.startsWith('0') || 'Telefon numarası 0 ile başlamalıdır'
+]
+
+const birthDateRules = [
+  (v: string) => !!v || 'Doğum tarihi gereklidir',
+  (v: string) => {
+    if (!v) return true
+    const d = new Date(v)
+    if (isNaN(d.getTime())) return 'Geçerli bir tarih giriniz'
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (d > today) return 'Doğum tarihi gelecekte olamaz'
+    return true
+  }
+]
+
+const levelRules = [
+  (v: string) => !!v || 'Seviye seçiniz'
 ]
 
 const passwordRules = [
@@ -2276,6 +2353,9 @@ const openAddStudentDialog = () => {
     firstName: '',
     lastName: '',
     phone_number: '',
+    email: '',
+    birthDate: '',
+    level: '',
     password: '',
     confirmPassword: ''
   }
@@ -2289,6 +2369,9 @@ const closeAddStudentDialog = () => {
     firstName: '',
     lastName: '',
     phone_number: '',
+    email: '',
+    birthDate: '',
+    level: '',
     password: '',
     confirmPassword: ''
   }
@@ -2320,6 +2403,9 @@ const createNewStudent = async () => {
         await updateDoc(existingUserDoc.ref, {
           firstName: addStudentForm.value.firstName,
           lastName: addStudentForm.value.lastName,
+          email: addStudentForm.value.email,
+          birthDate: addStudentForm.value.birthDate,
+          level: addStudentForm.value.level,
           deleted: false,
           deletedAt: null,
           status: 'active',
@@ -2363,6 +2449,9 @@ const createNewStudent = async () => {
         firstName: addStudentForm.value.firstName,
         lastName: addStudentForm.value.lastName,
         phone_number: addStudentForm.value.phone_number,
+        email: addStudentForm.value.email,
+        birthDate: addStudentForm.value.birthDate,
+        level: addStudentForm.value.level,
         phone: '',
         address: '',
         emergencyContact: '',

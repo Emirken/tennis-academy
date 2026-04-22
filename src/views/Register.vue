@@ -87,6 +87,43 @@
                       required
                   />
 
+                  <!-- Email Field -->
+                  <v-text-field
+                      v-model="registerData.email"
+                      label="E-posta"
+                      type="email"
+                      variant="outlined"
+                      :rules="emailRules"
+                      prepend-inner-icon="mdi-email"
+                      placeholder="ornek@mail.com"
+                      class="mb-4 auth-input"
+                      required
+                  />
+
+                  <!-- Birth Date Field -->
+                  <v-text-field
+                      v-model="registerData.birthDate"
+                      label="Doğum Tarihi"
+                      type="date"
+                      variant="outlined"
+                      :rules="birthDateRules"
+                      prepend-inner-icon="mdi-cake-variant"
+                      class="mb-4 auth-input"
+                      required
+                  />
+
+                  <!-- Level Field -->
+                  <v-select
+                      v-model="registerData.level"
+                      label="Seviye"
+                      :items="levelOptions"
+                      variant="outlined"
+                      :rules="levelRules"
+                      prepend-inner-icon="mdi-tennis-ball"
+                      class="mb-4 auth-input"
+                      required
+                  />
+
                   <!-- Password Fields -->
                   <v-text-field
                       v-model="registerData.password"
@@ -193,6 +230,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
+import type { PlayerLevel } from '@/types/user'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -202,10 +240,19 @@ const registerData = reactive({
   firstName: '',
   lastName: '',
   phone_number: '',
+  email: '',
+  birthDate: '',
+  level: '' as PlayerLevel | '',
   password: '',
   confirmPassword: '',
   role: 'student' as const
 })
+
+const levelOptions = [
+  { title: 'Temel', value: 'temel' },
+  { title: 'Orta', value: 'orta' },
+  { title: 'İleri', value: 'ileri' }
+]
 
 // Form validation
 const valid = ref(false)
@@ -224,6 +271,28 @@ const phoneRules = [
   (v: string) => /^[0-9]+$/.test(v) || 'Telefon numarası sadece rakamlardan oluşmalıdır',
   (v: string) => v.length === 11 || 'Telefon numarası 11 haneli olmalıdır',
   (v: string) => v.startsWith('0') || 'Telefon numarası 0 ile başlamalıdır'
+]
+
+const emailRules = [
+  (v: string) => !!v || 'E-posta gereklidir',
+  (v: string) => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz'
+]
+
+const birthDateRules = [
+  (v: string) => !!v || 'Doğum tarihi gereklidir',
+  (v: string) => {
+    if (!v) return true
+    const d = new Date(v)
+    if (isNaN(d.getTime())) return 'Geçerli bir tarih giriniz'
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (d > today) return 'Doğum tarihi gelecekte olamaz'
+    return true
+  }
+]
+
+const levelRules = [
+  (v: string) => !!v || 'Seviye seçiniz'
 ]
 
 const passwordRules = [
@@ -292,7 +361,10 @@ const handleRegister = async () => {
     password: registerData.password,
     firstName: registerData.firstName,
     lastName: registerData.lastName,
-    role: registerData.role
+    role: registerData.role,
+    email: registerData.email,
+    birthDate: registerData.birthDate,
+    level: registerData.level as PlayerLevel
   })
 
   // Do NOT logout the user. Registration automatically logs in,

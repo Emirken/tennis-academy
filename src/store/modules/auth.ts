@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { auth, db } from '@/services/firebase'
-import type { User } from '@/types/user'
+import type { User, PlayerLevel } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
 
 // Pinia state'inde function tutulamaz; listener'ı modül seviyesinde saklıyoruz
@@ -79,6 +79,9 @@ export const useAuthStore = defineStore('auth', {
             firstName: string
             lastName: string
             role: 'admin' | 'student'
+            email?: string
+            birthDate?: string
+            level?: PlayerLevel
         }) {
             this.loading = true
             this.error = null
@@ -99,6 +102,9 @@ export const useAuthStore = defineStore('auth', {
                     lastName: userData.lastName,
                     role: userData.role,
                     status: userData.role === 'admin' ? 'approved' : 'pending',
+                    ...(userData.email ? { email: userData.email } : {}),
+                    ...(userData.birthDate ? { birthDate: userData.birthDate } : {}),
+                    ...(userData.level ? { level: userData.level } : {}),
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }
@@ -138,6 +144,9 @@ export const useAuthStore = defineStore('auth', {
                                 lastName: userData.lastName,
                                 role: userData.role,
                                 status: userData.role === 'admin' ? 'approved' : 'pending',
+                                ...(userData.email ? { email: userData.email } : {}),
+                                ...(userData.birthDate ? { birthDate: userData.birthDate } : {}),
+                                ...(userData.level ? { level: userData.level } : {}),
                                 createdAt: new Date(),
                                 updatedAt: new Date()
                             }

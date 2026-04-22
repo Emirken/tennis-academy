@@ -1,3 +1,5 @@
+export type PlayerLevel = 'temel' | 'orta' | 'ileri'
+
 export interface User {
     id: string
     phone_number: string
@@ -6,6 +8,9 @@ export interface User {
     role: 'admin' | 'student'
     status?: 'pending' | 'approved'
     phone?: string
+    email?: string
+    birthDate?: string
+    level?: PlayerLevel
     address?: string
     emergencyContact?: string
     createdAt: Date
