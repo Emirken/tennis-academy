@@ -356,11 +356,11 @@
                       </div>
                       <div class="info-item mb-3">
                         <label class="info-label">E-posta:</label>
-                        <span class="info-value">{{ selectedStudent?.phone_number }}</span>
+                        <span class="info-value">{{ selectedStudent?.email }}</span>
                       </div>
                       <div class="info-item mb-3">
                         <label class="info-label">Telefon:</label>
-                        <span class="info-value">{{ selectedStudent?.phone }}</span>
+                        <span class="info-value">{{ selectedStudent?.phone_number }}</span>
                       </div>
                       <div class="info-item mb-3">
                         <label class="info-label">Adres:</label>
@@ -387,14 +387,14 @@
                           class="mb-3"
                       />
                       <v-text-field
-                          v-model="editForm.phone_number"
+                          v-model="editForm.email"
                           label="E-posta"
                           variant="outlined"
                           density="compact"
                           class="mb-3"
                       />
                       <v-text-field
-                          v-model="editForm.phone"
+                          v-model="editForm.phone_number"
                           label="Telefon"
                           variant="outlined"
                           density="compact"
@@ -1115,7 +1115,7 @@ interface Student {
   firstName: string
   lastName: string
   phone_number: string
-  phone: string
+  email: string
   address: string
   emergencyContact: string
   membershipType: string
@@ -1216,7 +1216,7 @@ const editForm = ref({
   firstName: '',
   lastName: '',
   phone_number: '',
-  phone: '',
+  email: '',
   address: '',
   emergencyContact: '',
   membershipType: '',
@@ -1696,7 +1696,7 @@ const filteredStudents = computed(() => {
     filtered = filtered.filter(student =>
         `${student.firstName} ${student.lastName}`.toLowerCase().includes(filters.search.toLowerCase()) ||
         student.phone_number.toLowerCase().includes(filters.search.toLowerCase()) ||
-        student.phone.includes(filters.search)
+        student.email.toLowerCase().includes(filters.search.toLowerCase())
     )
   }
 
@@ -2257,12 +2257,22 @@ const fetchStudents = async (): Promise<void> => {
             return
           }
 
+          const rawPhoneNumber = data.phone_number || ''
+          let actualPhone = rawPhoneNumber
+          let actualEmail = data.email || ''
+
+          // Eski edit formu kaynaklı kirlenmiş veriyi düzelt (email, phone_number alanına kaydedilmişse)
+          if (rawPhoneNumber.includes('@')) {
+            actualEmail = rawPhoneNumber
+            actualPhone = data.phone || ''
+          }
+
           const student: Student = {
             id: doc.id,
             firstName: data.firstName || '',
             lastName: data.lastName || '',
-            phone_number: data.phone_number || '',
-            phone: data.phone || '',
+            phone_number: actualPhone,
+            email: actualEmail,
             address: data.address || '',
             emergencyContact: data.emergencyContact || '',
             membershipType: data.membershipType || 'basic',
@@ -2437,9 +2447,10 @@ const createNewStudent = async () => {
       const secondaryAuth = getAuth(secondaryApp)
 
       // İkinci instance ile yeni öğrenci oluştur
+      const dummyEmail = `${addStudentForm.value.phone_number}@tennis.local`
       const userCredential = await createUserWithEmailAndPassword(
           secondaryAuth,
-          addStudentForm.value.phone_number,
+          dummyEmail,
           addStudentForm.value.password
       )
 
@@ -2452,7 +2463,6 @@ const createNewStudent = async () => {
         email: addStudentForm.value.email,
         birthDate: addStudentForm.value.birthDate,
         level: addStudentForm.value.level,
-        phone: '',
         address: '',
         emergencyContact: '',
         membershipType: 'basic',
@@ -2482,9 +2492,9 @@ const createNewStudent = async () => {
     let errorMessage = 'Öğrenci oluşturulurken hata oluştu!'
 
     if (error.code === 'auth/email-already-in-use') {
-      errorMessage = 'Bu e-posta adresi zaten kullanılıyor!'
+      errorMessage = 'Bu telefon numarası zaten kullanılıyor!'
     } else if (error.code === 'auth/invalid-email') {
-      errorMessage = 'Geçersiz e-posta adresi!'
+      errorMessage = 'Geçersiz telefon numarası!'
     } else if (error.code === 'auth/weak-password') {
       errorMessage = 'Şifre çok zayıf!'
     } else if (error.message) {
@@ -2524,7 +2534,7 @@ const toggleEditMode = async () => {
       firstName: selectedStudent.value.firstName,
       lastName: selectedStudent.value.lastName,
       phone_number: selectedStudent.value.phone_number,
-      phone: selectedStudent.value.phone,
+      email: selectedStudent.value.email,
       address: selectedStudent.value.address,
       emergencyContact: selectedStudent.value.emergencyContact,
       membershipType: selectedStudent.value.membershipType,
@@ -2547,7 +2557,7 @@ const cancelEdit = () => {
     firstName: '',
     lastName: '',
     phone_number: '',
-    phone: '',
+    email: '',
     address: '',
     emergencyContact: '',
     membershipType: '',
@@ -2681,7 +2691,7 @@ const saveStudentChanges = async (): Promise<void> => {
       firstName: editForm.value.firstName,
       lastName: editForm.value.lastName,
       phone_number: editForm.value.phone_number,
-      phone: editForm.value.phone,
+      email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
       membershipType: editForm.value.membershipType,
@@ -2769,7 +2779,7 @@ const saveStudentChanges = async (): Promise<void> => {
         firstName: editForm.value.firstName,
         lastName: editForm.value.lastName,
         phone_number: editForm.value.phone_number,
-        phone: editForm.value.phone,
+        email: editForm.value.email,
         address: editForm.value.address,
         emergencyContact: editForm.value.emergencyContact,
         membershipType: editForm.value.membershipType,
