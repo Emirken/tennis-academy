@@ -796,7 +796,8 @@ const ensureGroupReservations = async () => {
         email: user.email || ''
       }],
       membershipType,
-      true
+      true,
+      groupData.name || ''
     )
     console.log('✅ Eksik grup rezervasyonları oluşturuldu')
   } catch (err) {

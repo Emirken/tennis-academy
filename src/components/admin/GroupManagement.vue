@@ -1011,7 +1011,8 @@ const addMemberToGroup = async () => {
            selectedGroup.value.schedule,
            [{ ...newMember, email: (student as any).email || '' }],
            selectedGroup.value.membershipType,
-           true
+           true,
+           selectedGroup.value.name || ''
          )
        } catch (resErr) {
          reservationsCreated = false
@@ -1337,7 +1338,8 @@ const reconcileMembersWithGroups = async () => {
         group.schedule,
         [memberForSync],
         group.membershipType,
-        true
+        true,
+        group.name || ''
       )
       createdReservationMembers++
     } catch (err) {

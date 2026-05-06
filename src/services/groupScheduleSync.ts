@@ -216,7 +216,8 @@ export async function createFutureGroupReservations(
   schedule: GroupScheduleSlot[],
   members: GroupMember[],
   membershipType: string,
-  fromToday: boolean = false
+  fromToday: boolean = false,
+  groupName: string = ''
 ): Promise<number> {
   const validMembers = members
     .filter(m => m?.id)
@@ -269,6 +270,7 @@ export async function createFutureGroupReservations(
             studentId: member.id,
             studentName: member.name,
             groupAssignment: groupId,
+            groupName,
             membershipType,
             reservationType: 'group-lesson',
             status: 'confirmed',
@@ -291,6 +293,7 @@ export async function createFutureGroupReservations(
           studentLastName: nameParts.slice(1).join(' ') ?? '',
           studentFullName: member.name,
           groupAssignment: groupId,
+          groupName,
           membershipType,
           reservationType: 'group-lesson',
           updatedAt: serverTimestamp(),
@@ -388,6 +391,7 @@ export async function syncGroupSchedule(
   const members: GroupMember[] = groupData.members || []
   const membershipType = options?.membershipType || groupData.membershipType || 'adult_group'
   const fromToday = options?.fromToday ?? false
+  const groupName: string = groupData.name || ''
 
   // 1. Update Group.schedule (single source of truth)
   await updateDoc(groupRef, {
@@ -401,7 +405,7 @@ export async function syncGroupSchedule(
 
   // 3. Create new reservations (if schedule and members exist)
   if (normalizedSchedule.length > 0 && members.length > 0) {
-    await createFutureGroupReservations(groupId, normalizedSchedule, members, membershipType, fromToday)
+    await createFutureGroupReservations(groupId, normalizedSchedule, members, membershipType, fromToday, groupName)
   }
 
   // 4. Update all members' membershipType, groupAssignment and groupSchedule.weeklyPlan

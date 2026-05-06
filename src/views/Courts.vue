@@ -448,18 +448,24 @@ const getStudentInfo = (slotData: any) => {
   const status = slotData.status || 'available'
   if (status !== 'occupied') return null
 
-  // Öğrenciler için hiçbir detay gösterme, sadece admin'ler görebilir
-  if (!authStore.isAdmin) {
-    return null
-  }
-
-  // Admin kullanıcılar için grup dersi kontrolü
+  // Grup dersi kontrolü
   const isGroupLesson = slotData.reservationType === 'group-lesson' ||
       slotData.membershipType?.includes('_group_') ||
       slotData.groupAssignment
 
+  // Yetişkin grup adını öğrenciler de görsün
+  const isAdultGroup = slotData.membershipType === 'adult_group'
+  if (isGroupLesson && isAdultGroup && !authStore.isAdmin) {
+    return slotData.groupName || null
+  }
+
+  // Öğrenciler için diğer detayları gösterme, sadece admin görebilir
+  if (!authStore.isAdmin) {
+    return null
+  }
+
   if (isGroupLesson) {
-    // Grup dersi için üyelik türü ve grup bilgisi göster
+    // Grup dersi için üyelik türü ve grup adı göster (kod değil)
     const membershipLabel = getMembershipDisplayName(slotData.membershipType)
     const groupLabel = slotData.groupName || getGroupDisplayName(slotData.groupAssignment)
 
@@ -507,7 +513,8 @@ const getSlotTooltip = (slotData: any) => {
   }
 
   if (slotData.groupAssignment) {
-    tooltip += `Grup: ${slotData.groupAssignment}\n`
+    const groupLabel = slotData.groupName || getGroupDisplayName(slotData.groupAssignment) || slotData.groupAssignment
+    tooltip += `Grup: ${groupLabel}\n`
   }
 
   if (slotData.reservationType) {
@@ -546,7 +553,9 @@ const getGroupDisplayName = (groupAssignment: string) => {
     'group_10': 'Grup 10'
   }
 
-  return groupLabels[groupAssignment] || groupAssignment
+  // Sabit etiket yoksa ham Firestore id'sini gösterme; çağıran taraf groupName
+  // alanını fallback olarak zaten kullanıyor.
+  return groupLabels[groupAssignment] || null
 }
 
 // Firebase operations
@@ -602,20 +611,22 @@ const filterDeletedGroupsFromSchedule = async () => {
 
     if (groupIds.size === 0) return
 
-    // Check which groups still exist
+    // Check which groups still exist and capture names for display
     const existingGroupIds = new Set<string>()
+    const groupNamesById: Record<string, string> = {}
     for (const groupId of groupIds) {
       try {
         const groupDoc = await getDoc(doc(db, 'groups', groupId))
         if (groupDoc.exists()) {
           existingGroupIds.add(groupId)
+          groupNamesById[groupId] = groupDoc.data().name || ''
         }
       } catch (error) {
         console.error(`Error fetching group ${groupId}:`, error)
       }
     }
 
-    // Filter out slots with deleted groups
+    // Filter out slots with deleted groups, hydrate groupName for the rest
     Object.keys(schedule.value).forEach((courtId) => {
       Object.keys(schedule.value[courtId]).forEach((timeSlot) => {
         const slot = schedule.value[courtId][timeSlot]
@@ -625,6 +636,8 @@ const filterDeletedGroupsFromSchedule = async () => {
           if (groupId && !existingGroupIds.has(groupId)) {
             console.log(`⏭️ Removing deleted group ${groupId} from court ${courtId} at ${timeSlot}`)
             schedule.value[courtId][timeSlot] = 'available'
+          } else if (groupId && !slot.groupName && groupNamesById[groupId]) {
+            slot.groupName = groupNamesById[groupId]
           }
         }
       })
