@@ -1061,8 +1061,8 @@ export const useReservationsStore = defineStore('reservations', () => {
             .filter(r => r.status !== 'cancelled')
 
         const slots = []
-        const startHour = 8
-        const endHour = 22
+        const startHour = 6
+        const endHour = 24
 
         for (let hour = startHour; hour < endHour; hour++) {
             const slotStart = `${hour.toString().padStart(2, '0')}:00`

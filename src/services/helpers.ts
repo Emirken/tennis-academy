@@ -106,7 +106,7 @@ export class DateHelpers {
     }
 
     // Get time slots for a day
-    static getTimeSlots(startHour: number = 8, endHour: number = 22, intervalMinutes: number = 60): string[] {
+    static getTimeSlots(startHour: number = 6, endHour: number = 24, intervalMinutes: number = 60): string[] {
         const slots: string[] = []
 
         for (let hour = startHour; hour < endHour; hour++) {
@@ -363,7 +363,7 @@ export class TennisHelpers {
     // Court time slot helpers
     static generateCourtSlots(date: Date, courtId: string): CourtSlot[] {
         const slots: CourtSlot[] = []
-        const timeSlots = DateHelpers.getTimeSlots(8, 22, 60)
+        const timeSlots = DateHelpers.getTimeSlots(6, 24, 60)
 
         timeSlots.forEach((timeSlot) => {
             const [hour, minute] = timeSlot.split(':').map(Number)
