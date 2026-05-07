@@ -7,6 +7,16 @@
     margin-right: auto;
 }
 
+/* Takvim sayfası: tam ekran genişliği — yan boşluklar olmadan */
+.page-info .admin-calendar,
+.page-info .admin-calendar .v-container {
+    max-width: 100%;
+}
+.page-info .admin-calendar .v-container {
+    padding-left: 0;
+    padding-right: 0;
+}
+
 /* Enhanced Welcome Section */
 .view-color{
     background: linear-gradient(135deg, #b8642f 0%, #d17d45 100%);

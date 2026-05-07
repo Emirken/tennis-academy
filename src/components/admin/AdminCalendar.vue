@@ -1399,6 +1399,15 @@ watch([currentView, selectedDate], async () => {
 <style scoped>
 .admin-calendar {
   padding: 20px 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Tam genişlik takvim — Vuetify v-container'ın yan padding'ini sıfırla */
+.admin-calendar :deep(.v-container) {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: 100%;
 }
 
 .calendar-header {
