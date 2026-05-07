@@ -117,7 +117,7 @@
                       v-for="event in getCourtEvents(court.id, selectedDate)"
                       :key="event.id"
                       class="event-item"
-                      :style="{ borderLeftColor: event.color }"
+                      :style="{ backgroundColor: getCourtColor(event.courtId), borderLeftColor: event.color, color: '#fff' }"
                       @click="showEventDetails(event)"
                     >
                       <div class="event-time">
@@ -186,7 +186,7 @@
                             class="week-event"
                             :class="{ 'week-event-single': getHourEvents(day.date, hour).length === 1 }"
                             v-bind="tooltipProps"
-                            :style="{ backgroundColor: event.color, borderLeftColor: getCourtColor(event.courtId) }"
+                            :style="{ backgroundColor: getCourtColor(event.courtId), borderLeftColor: event.color }"
                             @click="showEventDetails(event)"
                           >
                             <div class="week-event-court-badge">{{ event.courtId }}</div>
@@ -260,7 +260,7 @@
                             v-for="event in getDayEvents(day.date).slice(0, 3)"
                             :key="event.id"
                             class="month-event"
-                            :style="{ backgroundColor: event.color, borderLeftColor: getCourtColor(event.courtId) }"
+                            :style="{ backgroundColor: getCourtColor(event.courtId), borderLeftColor: event.color }"
                             @click.stop="showEventDetails(event)"
                           >
                             <span class="month-event-badge">{{ event.courtId }}</span>
@@ -880,14 +880,15 @@ const getCourtName = (courtId: string): string => {
   return court?.name || normalized
 }
 
-// Court-based color palette for consistent visual distinction (K1: green, K2: blue, K3: orange)
+// Court-based color palette for consistent visual distinction (K1: turuncu, K2: mor, K3: yeşil)
 const getCourtColor = (courtId: string): string => {
   const courtColors: Record<string, string> = {
-    'K1': '#b8642f',
-    'K2': '#1976D2',
-    'K3': '#E65100'
+    'K1': '#E65100',
+    'K2': '#7B1FA2',
+    'K3': '#388E3C'
   }
-  return courtColors[courtId] || '#757575'
+  const normalized = normalizeCourtId(courtId)
+  return courtColors[normalized] || '#757575'
 }
 
 const getMembershipDisplayName = (type: string) => {
