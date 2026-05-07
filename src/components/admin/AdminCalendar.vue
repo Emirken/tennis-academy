@@ -1068,15 +1068,13 @@ const fetchReservations = async () => {
         const groupId = data.groupId || data.groupAssignment
         actualGroupName = groupId ? groupNames[groupId] || groupId : ''
 
-        // For group lessons, show membership type and group name
+        // For group lessons, show only the group name (fallback to membership label)
         const membershipLabel = getMembershipDisplayName(data.membershipType)
 
-        if (membershipLabel && actualGroupName) {
-          displayName = `${membershipLabel} - ${actualGroupName}`
+        if (actualGroupName) {
+          displayName = actualGroupName
         } else if (membershipLabel) {
           displayName = membershipLabel
-        } else if (actualGroupName) {
-          displayName = `Grup Dersi - ${actualGroupName}`
         } else {
           displayName = 'Grup Dersi'
         }
