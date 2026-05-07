@@ -368,6 +368,40 @@
                 <v-list-item-subtitle>{{ selectedEvent.extendedProps.notes }}</v-list-item-subtitle>
               </v-list-item>
             </v-list>
+
+            <!-- Katılımcılar / Üyeler -->
+            <v-divider class="my-2"></v-divider>
+            <div class="px-4 pt-2 pb-1 d-flex align-center">
+              <v-icon class="mr-2" size="small">mdi-account-multiple</v-icon>
+              <span class="text-subtitle-2 font-weight-medium">
+                {{ selectedEvent.isGroup ? 'Grup Üyeleri' : 'Katılımcı' }}
+                <span v-if="eventParticipants.length" class="text-grey-darken-1">
+                  ({{ eventParticipants.length }})
+                </span>
+              </span>
+            </div>
+            <div v-if="participantsLoading" class="px-4 py-2 text-caption text-grey">
+              Yükleniyor...
+            </div>
+            <v-list v-else-if="eventParticipants.length" density="compact" class="py-0">
+              <v-list-item
+                v-for="(p, i) in eventParticipants"
+                :key="p.id || i"
+              >
+                <template v-slot:prepend>
+                  <v-icon size="small">mdi-account</v-icon>
+                </template>
+                <v-list-item-title>{{ p.name }}</v-list-item-title>
+                <v-list-item-subtitle v-if="p.phone || p.email">
+                  <span v-if="p.phone">{{ p.phone }}</span>
+                  <span v-if="p.phone && p.email"> • </span>
+                  <span v-if="p.email">{{ p.email }}</span>
+                </v-list-item-subtitle>
+              </v-list-item>
+            </v-list>
+            <div v-else class="px-4 py-2 text-caption text-grey">
+              Kayıtlı katılımcı bulunamadı.
+            </div>
           </v-card-text>
           <v-divider></v-divider>
           <v-card-actions>
@@ -1146,9 +1180,46 @@ const getHourEvents = (date: Date, hour: number) => {
   })
 }
 
-const showEventDetails = (event: CalendarEvent) => {
+const eventParticipants = ref<Array<{ id?: string; name: string; phone?: string; email?: string }>>([])
+const participantsLoading = ref(false)
+
+const showEventDetails = async (event: CalendarEvent) => {
   selectedEvent.value = event
   detailsDialog.value = true
+  eventParticipants.value = []
+
+  try {
+    if (event.isGroup && event.groupId) {
+      participantsLoading.value = true
+      const groupSnap = await getDoc(doc(db, 'groups', event.groupId))
+      if (groupSnap.exists()) {
+        const data: any = groupSnap.data()
+        const members = Array.isArray(data.members) ? data.members : []
+        eventParticipants.value = members.map((m: any) => ({
+          id: m.id,
+          name: m.name || `${m.firstName || ''} ${m.lastName || ''}`.trim() || 'Bilinmiyor',
+          email: m.email,
+          phone: m.phone || m.phone_number,
+        }))
+      }
+    } else {
+      // Özel ders: tek katılımcı (öğrenci)
+      const studentName =
+        event.studentName ||
+        event.title.replace(/\s*\(.*\)\s*$/, '').trim()
+      eventParticipants.value = [
+        {
+          id: event.extendedProps.studentId || undefined,
+          name: studentName || 'Bilinmiyor',
+          phone: event.extendedProps.contactPhone,
+        },
+      ]
+    }
+  } catch (err) {
+    console.error('Katılımcılar yüklenirken hata:', err)
+  } finally {
+    participantsLoading.value = false
+  }
 }
 
 const getTypeLabel = (type: string): string => {
