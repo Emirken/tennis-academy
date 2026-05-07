@@ -25,8 +25,8 @@
             </v-col>
           </v-row>
         </div>
-        <!-- GEÇICI: Öğrenci Temizleme -->
-        <v-row class="mb-4">
+        <!-- GEÇICI: Öğrenci Temizleme (gizlendi) -->
+        <v-row v-if="false" class="mb-4">
           <v-col cols="12">
             <v-card class="modern-card" elevation="0" color="red-lighten-5">
               <v-card-text class="d-flex align-center justify-space-between">
