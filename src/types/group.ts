@@ -3,6 +3,7 @@
 export interface ScheduleSlot {
     day: string
     time: string
+    court?: string
 }
 
 export interface GroupMember {

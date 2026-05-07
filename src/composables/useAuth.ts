@@ -31,6 +31,8 @@ export interface ProfileUpdateData {
     firstName?: string
     lastName?: string
     phone?: string
+    email?: string
+    birthDate?: string
 }
 
 // Interface for password change
@@ -317,6 +319,23 @@ export function useAuth() {
                 if (phoneError) errors.phone = phoneError
             }
 
+            if (data.email) {
+                if (!/.+@.+\..+/.test(data.email)) {
+                    errors.email = 'Geçerli bir e-posta adresi giriniz'
+                }
+            }
+
+            if (data.birthDate) {
+                const d = new Date(data.birthDate)
+                if (isNaN(d.getTime())) {
+                    errors.birthDate = 'Geçerli bir tarih giriniz'
+                } else {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    if (d > today) errors.birthDate = 'Doğum tarihi gelecekte olamaz'
+                }
+            }
+
             if (Object.keys(errors).length > 0) {
                 validationErrors.value = errors
                 return false
@@ -327,7 +346,9 @@ export function useAuth() {
             await AuthService.updateProfile(user.value.id, {
                 firstName: data.firstName,
                 lastName: data.lastName,
-                phone: data.phone
+                phone: data.phone,
+                email: data.email,
+                birthDate: data.birthDate
             })
 
             // Firestore güncellendi, store'u da güncellemeliyiz.

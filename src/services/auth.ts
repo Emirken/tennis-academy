@@ -43,6 +43,8 @@ export interface UpdateProfileData {
     firstName?: string
     lastName?: string
     phone?: string
+    email?: string
+    birthDate?: string
     address?: string
     emergencyContact?: string
 }
@@ -220,6 +222,9 @@ export class AuthService {
                     role: data.role,
                     status: data.status,
                     phone: data.phone,
+                    email: data.email,
+                    birthDate: data.birthDate,
+                    level: data.level,
                     address: data.address,
                     emergencyContact: data.emergencyContact,
                     createdAt: data.createdAt?.toDate() || new Date(),

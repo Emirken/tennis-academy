@@ -108,7 +108,7 @@
                     variant="outlined"
                 >
                   <v-icon start size="small">mdi-calendar</v-icon>
-                  {{ sch.day }} - {{ sch.time }}
+                  {{ sch.day }} - {{ sch.time }}{{ sch.court ? ` - ${formatCourtLabel(sch.court)}` : '' }}
                 </v-chip>
               </div>
 
@@ -583,6 +583,16 @@ const courtOptions = [
   { title: 'Kort 2', value: 'K2' },
   { title: 'Kort 3', value: 'K3' }
 ]
+
+const formatCourtLabel = (court: string): string => {
+  if (!court) return ''
+  const opt = courtOptions.find(c => c.value === court)
+  if (opt) return opt.title
+  // Eski kayıtlarda 'court-1' gibi formatlar olabilir
+  const m = /^court-(\d+)$/.exec(court)
+  if (m) return `Kort ${m[1]}`
+  return court
+}
 
 // Computed
 const availableMembers = computed(() => {

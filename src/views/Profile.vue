@@ -68,7 +68,46 @@
                   :error-messages="validationErrors.phone"
                   class="mb-2"
               />
-              
+
+              <v-text-field
+                  v-model="profileData.email"
+                  label="E-posta"
+                  type="email"
+                  variant="outlined"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-email"
+                  placeholder="ornek@mail.com"
+                  :rules="[
+                    v => !!v || 'E-posta zorunludur',
+                    v => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz'
+                  ]"
+                  :error-messages="validationErrors.email"
+                  class="mb-2"
+              />
+
+              <v-text-field
+                  v-model="profileData.birthDate"
+                  label="Doğum Tarihi"
+                  type="date"
+                  variant="outlined"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-cake-variant"
+                  :rules="[
+                    v => !!v || 'Doğum tarihi zorunludur',
+                    v => {
+                      if (!v) return true
+                      const d = new Date(v)
+                      if (isNaN(d.getTime())) return 'Geçerli bir tarih giriniz'
+                      const today = new Date()
+                      today.setHours(0, 0, 0, 0)
+                      if (d > today) return 'Doğum tarihi gelecekte olamaz'
+                      return true
+                    }
+                  ]"
+                  :error-messages="validationErrors.birthDate"
+                  class="mb-2"
+              />
+
               <v-text-field
                   label="Rol"
                   :model-value="userRoleText"
@@ -257,7 +296,9 @@ const showConfirmPassword = ref(false)
 const profileData = ref<ProfileUpdateData>({
   firstName: '',
   lastName: '',
-  phone: ''
+  phone: '',
+  email: '',
+  birthDate: ''
 })
 
 const passwordData = ref<PasswordChangeData>({
@@ -278,7 +319,9 @@ onMounted(() => {
       firstName: user.value.firstName || '',
       lastName: user.value.lastName || '',
       // Ensure phone_number is displayed in phone field if available
-      phone: user.value.phone_number || user.value.phone || ''
+      phone: user.value.phone_number || user.value.phone || '',
+      email: user.value.email || '',
+      birthDate: user.value.birthDate || ''
     }
   } else {
     // Profil bilgileri yoksa anasayfaya yönlendir
