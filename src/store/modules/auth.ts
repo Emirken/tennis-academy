@@ -7,7 +7,7 @@ import {
     sendPasswordResetEmail,
     User as FirebaseUser
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, type Unsubscribe } from 'firebase/firestore'
 import { auth, db } from '@/services/firebase'
 import type { User, PlayerLevel } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
@@ -87,6 +87,21 @@ export const useAuthStore = defineStore('auth', {
             this.error = null
 
             try {
+                // Önce: aynı telefon numarasıyla soft-deleted bir doc var mı kontrol et.
+                // Spark planda Firebase Auth user'ı client SDK'dan silinemediği için
+                // silinen kullanıcılar Firestore'da deleted=true olarak işaretli kalır;
+                // burada net bir hata mesajı vererek kullanıcıyı yönlendiriyoruz.
+                const existingDeletedQuery = query(
+                    collection(db, 'users'),
+                    where('phone_number', '==', userData.phone_number),
+                    where('deleted', '==', true),
+                )
+                const existingDeletedSnap = await getDocs(existingDeletedQuery)
+                if (!existingDeletedSnap.empty) {
+                    this.error = 'Bu telefon numarası daha önce sistemde kayıtlıydı ve silindi. Yeniden kayıt için lütfen yöneticiyle iletişime geçin (Firebase Console üzerinden auth kaydının kaldırılması gerekiyor).'
+                    return false
+                }
+
                 const dummyEmail = phoneToEmail(userData.phone_number)
                 console.log('📝 Kullanıcı kaydediliyor:', userData.phone_number)
                 const userCredential = await createUserWithEmailAndPassword(
@@ -119,6 +134,19 @@ export const useAuthStore = defineStore('auth', {
                         'approval_pending',
                         user.id
                     )
+
+                    // Yeni kayıt eden öğrenciye hoş geldin maili (mail varsa, EmailJS yapılandırılmışsa)
+                    if (userData.email) {
+                        try {
+                            const { sendWelcomeEmail } = await import('@/services/emailService')
+                            await sendWelcomeEmail({
+                                email: userData.email,
+                                fullName: `${user.firstName} ${user.lastName}`,
+                            })
+                        } catch (mailErr) {
+                            console.warn('Welcome email gönderilemedi:', mailErr)
+                        }
+                    }
                 }
 
                 this.user = user

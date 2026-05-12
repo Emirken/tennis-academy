@@ -294,10 +294,29 @@ const approveUserFromNotification = async (notification: UserNotification) => {
 
   try {
     const userRef = doc(db, 'users', userId)
+    // Kullanıcı bilgilerini onay maili için önceden oku (status değiştikten sonra
+    // doc yine erişilebilir ama tek read ile hem ad hem mail aldığımıza emin olalım)
+    const { getDoc } = await import('firebase/firestore')
+    const userSnap = await getDoc(userRef)
+    const userData: any = userSnap.exists() ? userSnap.data() : null
+
     await updateDoc(userRef, { status: 'active' })
 
     if (notification.id && !String(notification.id).startsWith('pending-')) {
       await deleteDoc(doc(db, 'notifications', notification.id))
+    }
+
+    // Onay maili (EmailJS yapılandırılmışsa ve kullanıcının email'i varsa)
+    if (userData?.email) {
+      try {
+        const { sendApprovalEmail } = await import('@/services/emailService')
+        await sendApprovalEmail({
+          email: userData.email,
+          fullName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Sayın Kullanıcı',
+        })
+      } catch (mailErr) {
+        console.warn('Approval email gönderilemedi:', mailErr)
+      }
     }
 
     showSnackbar('Kullanıcı başarıyla onaylandı.')

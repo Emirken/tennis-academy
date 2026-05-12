@@ -323,7 +323,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import { collection, getDocs, doc, getDoc, deleteDoc, query, where, updateDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, getDoc, deleteDoc, query, where, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import {
   getPendingArchives,
@@ -355,11 +355,26 @@ const deleteAllStudents = async () => {
     const studentIds = usersSnap.docs.map(d => d.id)
     cleanupLog.value = `${studentIds.length} öğrenci bulundu. Siliniyor...`
 
-    // 2. users sil
+    // 2. users soft delete (Firebase Auth client SDK'dan silinemiyor; kişisel alanları
+    // anonimleştirip deleted=true işaretliyoruz, phone_number reaktivasyon kontrolü için kalıyor)
     for (const id of studentIds) {
-      await deleteDoc(doc(db, 'users', id))
+      await updateDoc(doc(db, 'users', id), {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        firstName: '',
+        lastName: '',
+        email: '',
+        birthDate: '',
+        address: '',
+        emergencyContact: '',
+        level: '',
+        membershipType: '',
+        groupAssignment: '',
+        status: 'deleted',
+      })
     }
-    cleanupLog.value += `\n✅ ${studentIds.length} kullanıcı silindi.`
+    cleanupLog.value += `\n✅ ${studentIds.length} kullanıcı işaretlendi (soft delete).`
 
     // 3. Rezervasyonları sil (studentId eşleşenleri)
     const resSnap = await getDocs(collection(db, 'reservations'))

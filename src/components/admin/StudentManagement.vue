@@ -2837,7 +2837,11 @@ const deleteStudent = async (student: Student): Promise<void> => {
   }
 
   // Yoklama geçmişi yoksa direkt silme işlemine devam et
-  if (!confirm(`${student.firstName} ${student.lastName} adlı öğrenciyi silmek istediğinizden emin misiniz?\n\nÖğrenci listesinden kaldırılacaktır.`)) {
+  if (!confirm(
+    `${student.firstName} ${student.lastName} adlı öğrenciyi silmek istediğinizden emin misiniz?\n\n` +
+    `Öğrencinin tüm kişisel bilgileri sistemden temizlenecek.\n\n` +
+    `ÖNEMLİ: Aynı telefon numarasıyla yeniden kayıt yapılamaz; gerekirse Firebase Console üzerinden Auth kaydını da silmeniz gerekir.`
+  )) {
     return
   }
 
@@ -2849,13 +2853,29 @@ const performStudentDelete = async (student: Student): Promise<void> => {
   savingChanges.value = true
 
   try {
-    console.log('🗑️ Öğrenci siliniyor (soft delete):', student.id)
+    console.log('🗑️ Öğrenci siliniyor (soft delete + alanları anonimleştir):', student.id)
 
-    // Firestore'da öğrenciyi tamamen sil (hard delete)
+    // Firebase Auth kaydı client SDK ile silinemediği için soft delete yapıyoruz:
+    // kişisel alanları anonimleştirip deleted=true işaretliyoruz. phone_number,
+    // yeniden kayıt akışında "bu numara daha önce kayıtlıydı" kontrolü için kalır.
     const userDocRef = doc(db, 'users', student.id)
-    await deleteDoc(userDocRef)
+    await updateDoc(userDocRef, {
+      deleted: true,
+      deletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      firstName: '',
+      lastName: '',
+      email: '',
+      birthDate: '',
+      address: '',
+      emergencyContact: '',
+      level: '',
+      membershipType: '',
+      groupAssignment: '',
+      status: 'deleted',
+    })
 
-    console.log('✅ Öğrenci silindi (hard delete)')
+    console.log('✅ Öğrenci silindi (soft delete)')
 
     // Öğrenciyi gruplardan çıkar
     const groupsRef = collection(db, 'groups')
