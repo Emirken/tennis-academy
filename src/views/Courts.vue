@@ -448,21 +448,15 @@ const getStudentInfo = (slotData: any) => {
   const status = slotData.status || 'available'
   if (status !== 'occupied') return null
 
+  // Öğrenciler için hiçbir ders detayı gösterilmez; yalnızca "Dolu" görünür
+  if (!authStore.isAdmin) {
+    return null
+  }
+
   // Grup dersi kontrolü
   const isGroupLesson = slotData.reservationType === 'group-lesson' ||
       slotData.membershipType?.includes('_group_') ||
       slotData.groupAssignment
-
-  // Yetişkin grup adını öğrenciler de görsün
-  const isAdultGroup = slotData.membershipType === 'adult_group'
-  if (isGroupLesson && isAdultGroup && !authStore.isAdmin) {
-    return slotData.groupName || null
-  }
-
-  // Öğrenciler için diğer detayları gösterme, sadece admin görebilir
-  if (!authStore.isAdmin) {
-    return null
-  }
 
   if (isGroupLesson) {
     // Grup dersi için üyelik türü ve grup adı göster (kod değil)

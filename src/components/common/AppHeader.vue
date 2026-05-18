@@ -198,6 +198,7 @@
             Giriş Yap
           </v-btn>
 
+          <!--
           <v-btn
               variant="flat"
               color="white"
@@ -207,6 +208,7 @@
             <v-icon start icon="mdi-account-plus" />
             Kayıt Ol
           </v-btn>
+          -->
         </template>
       </v-toolbar-items>
 
@@ -421,6 +423,7 @@
           <v-list-item-title>Giriş Yap</v-list-item-title>
         </v-list-item>
 
+        <!--
         <v-list-item
             :to="{ name: 'Register' }"
             class="drawer-item"
@@ -431,6 +434,7 @@
           </template>
           <v-list-item-title>Kayıt Ol</v-list-item-title>
         </v-list-item>
+        -->
       </template>
     </v-list>
   </v-navigation-drawer>
