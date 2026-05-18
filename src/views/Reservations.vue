@@ -41,6 +41,18 @@
               </div>
 
               <v-card-text class="pa-4 pt-0">
+                <v-alert
+                    :type="openReservationDate ? 'info' : 'warning'"
+                    variant="tonal"
+                    density="compact"
+                    class="mb-4"
+                >
+                  <div class="text-body-2">
+                    <strong>Rezervasyon penceresi:</strong>
+                    {{ openReservationInfoText }}
+                  </div>
+                </v-alert>
+
                 <v-form v-model="valid" @submit.prevent="submitReservation">
                   <!-- Date Selection -->
                   <v-text-field
@@ -49,7 +61,9 @@
                       type="date"
                       variant="outlined"
                       :rules="dateRules"
-                      :min="new Date().toISOString().split('T')[0]"
+                      :min="openReservationDate || todayDateStr"
+                      :max="openReservationDate || todayDateStr"
+                      :disabled="!openReservationDate"
                       @change="onDateChange"
                       required
                       class="mb-4"
@@ -292,7 +306,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import {
   doc,
@@ -309,6 +323,11 @@ import {
 import { db } from '@/services/firebase'
 import { notificationService } from '@/services/notificationService'
 import type { Reservation } from '@/types/reservation'
+import {
+  getOpenReservationDate,
+  isReservationDateOpen,
+  getNextOpenAt
+} from '@/utils/reservationWindow'
 
 const authStore = useAuthStore()
 
@@ -356,6 +375,32 @@ const timeSlots = [
 ]
 
 
+// Rezervasyon penceresi — her dakika tick edip 20:00'de açılan günü canlı yansıtır
+const now = ref(new Date())
+let nowTimerId: ReturnType<typeof setInterval> | null = null
+
+const openReservationDate = computed(() => getOpenReservationDate(now.value))
+const todayDateStr = computed(() => {
+  const d = new Date(now.value)
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString().split('T')[0]
+})
+
+const openReservationInfoText = computed(() => {
+  if (openReservationDate.value) {
+    const d = new Date(openReservationDate.value + 'T00:00:00')
+    const formatted = d.toLocaleDateString('tr-TR', {
+      day: 'numeric', month: 'long', year: 'numeric', weekday: 'long'
+    })
+    return `Şu anda yalnızca ${formatted} için rezervasyon yapılabilir. Bir sonraki gün her akşam 20:00'de açılır.`
+  }
+  const nextOpen = getNextOpenAt(now.value)
+  const formattedNext = nextOpen.toLocaleString('tr-TR', {
+    day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+  })
+  return `Rezervasyon sistemi şu an kapalı. Bir sonraki açılış: ${formattedNext}.`
+})
+
 // Computed properties
 const availableTimeSlots = computed(() => {
   if (!reservationData.date || !reservationData.courtId) return []
@@ -371,10 +416,11 @@ const availableTimeSlots = computed(() => {
 const dateRules = [
   (v: string) => !!v || 'Tarih gereklidir',
   (v: string) => {
-    const selectedDate = new Date(v)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return selectedDate >= today || 'Geçmiş tarih seçilemez'
+    if (!openReservationDate.value) {
+      return 'Rezervasyon sistemi şu an kapalı. Her akşam 20:00\'de yeni gün açılır.'
+    }
+    return isReservationDateOpen(v, now.value) ||
+      `Yalnızca ${openReservationDate.value} tarihi için rezervasyon yapılabilir.`
   }
 ]
 
@@ -578,6 +624,16 @@ const getCourtnameById = (courtId: string): string => {
 
 const submitReservation = async () => {
   if (!valid.value) return
+
+  // Rezervasyon penceresi kontrolü — tarayıcı saatini submit anında tekrar doğrula
+  now.value = new Date()
+  if (!isReservationDateOpen(reservationData.date, now.value)) {
+    errorMessage.value = openReservationDate.value
+      ? `Yalnızca ${openReservationDate.value} tarihi için rezervasyon yapılabilir.`
+      : 'Rezervasyon sistemi şu an kapalı. Her akşam 20:00\'de yeni gün açılır.'
+    errorSnackbar.value = true
+    return
+  }
 
   // Rezervasyon süresi sabit 1 saat
   const endTime = calculateEndTime(reservationData.startTime, 1)
@@ -871,9 +927,21 @@ onMounted(async () => {
   setDefaultSchedule()
   console.log('🚀 Component mount edildi')
 
+  // Saat tick'i — 30 sn'de bir; 20:00'de açılan gün otomatik güncellensin
+  nowTimerId = setInterval(() => {
+    now.value = new Date()
+  }, 30 * 1000)
+
   await authStore.waitForAuth()
   console.log('✅ Auth hazır, rezervasyonlar yükleniyor...')
   await loadUserReservations()
+})
+
+onUnmounted(() => {
+  if (nowTimerId) {
+    clearInterval(nowTimerId)
+    nowTimerId = null
+  }
 })
 
 // Auth user değişikliklerini dinle
