@@ -81,6 +81,15 @@
                       >
                         Okunmadı Olarak İşaretle
                       </v-btn>
+                      <v-btn
+                          color="error"
+                          variant="text"
+                          size="small"
+                          prepend-icon="mdi-delete-outline"
+                          @click="deleteNotification(notification)"
+                      >
+                        Sil
+                      </v-btn>
                     </div>
                   </template>
                 </v-list-item>
@@ -90,11 +99,20 @@
         </v-col>
       </v-row>
     </v-container>
+
+    <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="3000" location="top">
+      {{ snackbarText }}
+      <template v-slot:actions>
+        <v-btn variant="text" @click="snackbar = false">Kapat</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { doc, deleteDoc } from 'firebase/firestore'
+import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
 
@@ -102,7 +120,18 @@ const authStore = useAuthStore()
 
 const notifications = ref<UserNotification[]>([])
 const loading = ref(false)
+const processingId = ref<string | null>(null)
 let unsubscribe: (() => void) | null = null
+
+const snackbar = ref(false)
+const snackbarText = ref('')
+const snackbarColor = ref('success')
+
+const showSnackbar = (text: string, color: 'success' | 'error' = 'success') => {
+  snackbarText.value = text
+  snackbarColor.value = color
+  snackbar.value = true
+}
 
 const formatDate = (dateValue: any) => {
   if (!dateValue) return ''
@@ -185,6 +214,22 @@ const markAsUnread = async (notification: UserNotification) => {
     await notificationService.markAsUnread(notification.id)
   } catch (error) {
     console.error('Error marking notification as unread:', error)
+  }
+}
+
+const deleteNotification = async (notification: UserNotification) => {
+  if (!authStore.user || processingId.value || !notification.id) return
+
+  processingId.value = notification.id
+
+  try {
+    await deleteDoc(doc(db, 'notifications', notification.id))
+    showSnackbar('Bildirim silindi.')
+  } catch (error) {
+    console.error('Error deleting notification:', error)
+    showSnackbar('Bildirim silinirken hata oluştu.', 'error')
+  } finally {
+    processingId.value = null
   }
 }
 

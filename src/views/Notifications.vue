@@ -109,25 +109,36 @@
                           Reddet
                         </v-btn>
                       </template>
-                      <v-btn
-                          v-else-if="!isReadByMe(notification)"
-                          color="primary"
-                          variant="tonal"
-                          size="small"
-                          @click="markAsRead(notification)"
-                      >
-                        Okundu İşaretle
-                      </v-btn>
-                      <v-btn
-                          v-else
-                          color="grey"
-                          variant="text"
-                          size="small"
-                          prepend-icon="mdi-eye-off-outline"
-                          @click="markAsUnread(notification)"
-                      >
-                        Okunmadı Olarak İşaretle
-                      </v-btn>
+                      <template v-else>
+                        <v-btn
+                            v-if="!isReadByMe(notification)"
+                            color="primary"
+                            variant="tonal"
+                            size="small"
+                            @click="markAsRead(notification)"
+                        >
+                          Okundu İşaretle
+                        </v-btn>
+                        <v-btn
+                            v-else
+                            color="grey"
+                            variant="text"
+                            size="small"
+                            prepend-icon="mdi-eye-off-outline"
+                            @click="markAsUnread(notification)"
+                        >
+                          Okunmadı Olarak İşaretle
+                        </v-btn>
+                        <v-btn
+                            color="error"
+                            variant="text"
+                            size="small"
+                            prepend-icon="mdi-delete-outline"
+                            @click="deleteNotification(notification)"
+                        >
+                          Sil
+                        </v-btn>
+                      </template>
                     </div>
                   </template>
                 </v-list-item>
@@ -149,7 +160,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { collection, getDocs, doc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc, onSnapshot, deleteDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
@@ -287,6 +298,23 @@ const markAsUnread = async (notification: UserNotification) => {
   }
 }
 
+const deleteNotification = async (notification: UserNotification) => {
+  if (!authStore.user || processingId.value || !notification.id) return
+  if (String(notification.id).startsWith('pending-')) return
+  
+  processingId.value = notification.id
+
+  try {
+    await deleteDoc(doc(db, 'notifications', notification.id))
+    showSnackbar('Bildirim silindi.')
+  } catch (error) {
+    console.error('Error deleting notification:', error)
+    showSnackbar('Bildirim silinirken hata oluştu.', 'error')
+  } finally {
+    processingId.value = null
+  }
+}
+
 const approveUserFromNotification = async (notification: UserNotification) => {
   if (!authStore.user || processingId.value || !notification.relatedData) return
   const userId = typeof notification.relatedData === 'string' ? notification.relatedData : notification.relatedData
@@ -389,13 +417,15 @@ const approveReservation = async (notification: UserNotification) => {
     await updateDoc(reservationRef, { status: 'confirmed' })
 
     // Öğrenciye onay bildirimi gönder
-    await notificationService.createStudentNotification(
-      studentId,
-      'Rezervasyonunuz Onaylandı',
-      'Rezervasyon talebiniz admin tarafından onaylandı.',
-      'reservation_approved',
-      { reservationId }
-    )
+    if (studentId) {
+      await notificationService.createStudentNotification(
+        studentId,
+        'Rezervasyonunuz Onaylandı',
+        'Rezervasyon talebiniz admin tarafından onaylandı.',
+        'reservation_approved',
+        { reservationId }
+      )
+    }
 
     if (notification.id && !String(notification.id).startsWith('pending-')) {
       await deleteDoc(doc(db, 'notifications', notification.id))
@@ -418,16 +448,22 @@ const rejectReservation = async (notification: UserNotification) => {
   try {
     // Rezervasyonu 'cancelled' olarak güncelle
     const reservationRef = doc(db, 'reservations', reservationId)
-    await updateDoc(reservationRef, { status: 'cancelled' })
+    await updateDoc(reservationRef, {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+      cancelledBy: 'admin'
+    })
 
     // Öğrenciye red bildirimi gönder
-    await notificationService.createStudentNotification(
-      studentId,
-      'Rezervasyonunuz Reddedildi',
-      'Rezervasyon talebiniz admin tarafından reddedildi. Farklı bir saat veya kort seçerek tekrar deneyebilirsiniz.',
-      'reservation_rejected',
-      { reservationId }
-    )
+    if (studentId) {
+      await notificationService.createStudentNotification(
+        studentId,
+        'Rezervasyonunuz Reddedildi',
+        'Rezervasyon talebiniz admin tarafından reddedildi. Farklı bir saat veya kort seçerek tekrar deneyebilirsiniz.',
+        'reservation_rejected',
+        { reservationId }
+      )
+    }
 
     if (notification.id && !String(notification.id).startsWith('pending-')) {
       await deleteDoc(doc(db, 'notifications', notification.id))
