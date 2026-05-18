@@ -1,0 +1,17 @@
+{
+  "name": "Urla Tenis Akademisi",
+  "short_name": "Urla Tenis",
+  "description": "Urla Tenis Akademisi Rezervasyon Sistemi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#b8642f",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/Uta-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

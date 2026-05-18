@@ -139,11 +139,6 @@ export const useAuthStore = defineStore('auth', {
                     // Yeni kayıt eden öğrenciye hoş geldin maili (mail varsa, EmailJS yapılandırılmışsa)
                     if (userData.email) {
                         try {
-                            const { sendWelcomeEmail } = await import('@/services/emailService')
-                            await sendWelcomeEmail({
-                                email: userData.email,
-                                fullName: `${user.firstName} ${user.lastName}`,
-                            })
                         } catch (mailErr) {
                             console.warn('Welcome email gönderilemedi:', mailErr)
                         }
@@ -334,7 +329,8 @@ export const useAuthStore = defineStore('auth', {
 
                         try {
                             await this.fetchUserData(firebaseUser.uid)
-                            console.log('✅ Kullanıcı verisi başarıyla yüklendi')
+                            console.log('✅ Kullanıcı verisi başarıyla yüklendi')
+
                             pushNotificationService.registerDeviceToken(firebaseUser.uid).catch(() => {})
                         } catch (error) {
                             console.error('❌ Kullanıcı verisi yüklenemedi:', error)
