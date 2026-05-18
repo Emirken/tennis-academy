@@ -264,7 +264,7 @@
         </v-row>
 
         <!-- Success Dialog -->
-        <v-dialog v-model="successDialog" max-width="400">
+        <v-dialog v-model="successDialog" max-width="480" persistent>
           <v-card class="modern-dialog">
             <v-card-text class="text-center pa-5">
               <div class="success-icon-wrapper mb-4">
@@ -280,6 +280,14 @@
                 Rezervasyonunuz onaylandıktan sonra, rezervasyonunuzu en geç 6 saat kala iptal edebilirsiniz.
                 6 saatten az kalan rezervasyonların ücretleri iade edilmeyecektir.
               </p>
+              <v-alert
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-4 text-left"
+              >
+                <strong>Rezervasyonunuz 30 dk içinde onaylanmaz ise lütfen 0551 850 84 86 numaralı telefondan rezervasyonunuzu onaylatın.</strong>
+              </v-alert>
             </v-card-text>
             <v-card-actions class="pa-4 pt-0">
               <v-spacer />
