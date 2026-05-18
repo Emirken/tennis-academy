@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
@@ -11,6 +11,7 @@ import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, typ
 import { auth, db } from '@/services/firebase'
 import type { User, PlayerLevel } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
+import { pushNotificationService } from '@/services/pushNotificationService'
 
 // Pinia state'inde function tutulamaz; listener'ı modül seviyesinde saklıyoruz
 let userDocUnsubscribe: Unsubscribe | null = null
@@ -333,13 +334,15 @@ export const useAuthStore = defineStore('auth', {
 
                         try {
                             await this.fetchUserData(firebaseUser.uid)
-                            console.log('✅ Kullanıcı verisi başarıyla yüklendi')
+                            console.log('✅ Kullanıcı verisi başarıyla yüklendi')
+                            pushNotificationService.registerDeviceToken(firebaseUser.uid).catch(() => {})
                         } catch (error) {
                             console.error('❌ Kullanıcı verisi yüklenemedi:', error)
                         }
                     } else {
                         console.log('👤 Kullanıcı oturumu kapalı')
                         stopUserDocListener()
+                        if (this.user?.id) { pushNotificationService.unregisterDeviceToken(this.user.id).catch(() => {}) }
                         this.user = null
                         this.isAuthenticated = false
                     }

@@ -1,4 +1,5 @@
 import { db } from '@/services/firebase'
+import { pushNotificationService } from '@/services/pushNotificationService'
 import {
     collection,
     addDoc,
@@ -18,26 +19,20 @@ export type NotificationType = 'system' | 'approval_pending' | 'payment_due' | '
 export interface UserNotification {
     id?: string
     targetType: 'student' | 'admin' | 'all'
-    targetId?: string // if targetType is 'student', this is the userId.
+    targetId?: string
     title: string
     message: string
     type: NotificationType
-    isRead: boolean | string[] // boolean for student/single, array of userIds for admin/multi
+    isRead: boolean | string[]
     createdAt: Timestamp | any
-    relatedData?: any // e.g. userId of the pending user
+    relatedData?: any
 }
 
 const COLLECTION_NAME = 'notifications'
 
 export const notificationService = {
-    // Dinleme işlemi için
     subscribeToNotifications(userId: string, userRole: string, callback: (notifications: UserNotification[]) => void) {
         const notificationsRef = collection(db, COLLECTION_NAME)
-
-        // Admin ise hem 'admin' hem 'all' görebilir. Öğrenci ise kendi IDsine özel ve 'all' olanları görebilir.
-        // Ancak firestore'da OR sorguları karmaşık olduğundan genelde ayrı ayrı dinlenir veya
-        // basitleştirmek adına iki sorgu birleştirilir. 
-        // Burada in sorgusu kullanabiliriz: targetType in ['admin', 'all'] vs.
 
         let q;
         const normalizedRole = userRole?.toLowerCase?.() || userRole
@@ -48,7 +43,6 @@ export const notificationService = {
                 orderBy('createdAt', 'desc')
             )
         } else {
-            // Öğrenci
             q = query(
                 notificationsRef,
                 where('targetType', '==', 'student'),
@@ -57,6 +51,8 @@ export const notificationService = {
             )
         }
 
+        const seenIds = new Set<string>()
+
         return onSnapshot(
             q,
             (snapshot) => {
@@ -64,11 +60,33 @@ export const notificationService = {
                 snapshot.forEach((doc) => {
                     notifications.push({ id: doc.id, ...doc.data() } as UserNotification)
                 })
+
+                // Yeni gelen bildirimler icin tarayici bildirimi goster
+                for (const notif of notifications) {
+                    if (notif.id && !seenIds.has(notif.id)) {
+                        seenIds.add(notif.id)
+                        if (notif.createdAt && typeof notif.createdAt.toDate === 'function') {
+                            const age = Date.now() - notif.createdAt.toDate().getTime()
+                            if (age < 10000) {
+                                pushNotificationService.showBrowserNotification(
+                                    notif.title,
+                                    notif.message,
+                                    {
+                                        notificationId: notif.id,
+                                        type: notif.type,
+                                        clickAction: userRole === 'admin' ? '/admin/notifications' : '/student/notifications'
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 callback(notifications)
             },
             (error) => {
-                console.error('❌ Bildirim dinleme hatası:', error)
-                console.error('Kullanıcı rolü:', userRole, '| Index veya izin hatası olabilir.')
+                console.error('Bildirim dinleme hatasi:', error)
+                console.error('Kullanici rolu:', userRole, '| Index veya izin hatasi olabilir.')
                 callback([])
             }
         )

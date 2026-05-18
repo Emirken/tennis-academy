@@ -1,4 +1,4 @@
-import { initializeApp, FirebaseApp, getApps, deleteApp } from 'firebase/app'
+﻿import { initializeApp, FirebaseApp, getApps, deleteApp } from 'firebase/app'
 import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth'
 import {
     getFirestore,
@@ -10,6 +10,7 @@ import {
 import { getStorage, FirebaseStorage, connectStorageEmulator } from 'firebase/storage'
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics'
 import { getFunctions, Functions, connectFunctionsEmulator } from 'firebase/functions'
+import { getMessaging, Messaging, getToken, onMessage } from 'firebase/messaging'
 
 // Environment-based configuration
 const firebaseConfig = {
@@ -73,6 +74,17 @@ export const auth: Auth = getAuth(app)
 export const db: Firestore = getFirestore(app)
 export const storage: FirebaseStorage = getStorage(app)
 export const functions: Functions = getFunctions(app)
+
+// Firebase Cloud Messaging
+export let messaging: Messaging | null = null
+if (typeof window !== 'undefined') {
+    try {
+        messaging = getMessaging(app)
+        console.log('ğŸ“¨ Firebase Messaging initialized')
+    } catch (error) {
+        console.warn('ğŸ“¨ Firebase Messaging not available:', error)
+    }
+}
 
 // Analytics (only in browser and if supported)
 let analytics: Analytics | null = null
