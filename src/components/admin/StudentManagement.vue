@@ -2775,26 +2775,32 @@ const saveStudentChanges = async (): Promise<void> => {
     await fetchGroups()
 
     // 5. Local state'i güncelle
+    const updatedStudent: Student = {
+      ...oldStudent,
+      firstName: editForm.value.firstName,
+      lastName: editForm.value.lastName,
+      phone_number: editForm.value.phone_number,
+      email: editForm.value.email,
+      address: editForm.value.address,
+      emergencyContact: editForm.value.emergencyContact,
+      membershipType: editForm.value.membershipType,
+      groupAssignment,
+      groupSchedule,
+      weeklyPlan: privateLessonWeeklyPlan || undefined,
+      status: editForm.value.status as 'active' | 'inactive' | 'suspended',
+      balance: editForm.value.balance,
+      notes: editForm.value.notes,
+      updatedAt: new Date()
+    }
+
     const index = students.value.findIndex(s => s.id === studentId)
     if (index > -1) {
-      students.value[index] = {
-        ...oldStudent,
-        firstName: editForm.value.firstName,
-        lastName: editForm.value.lastName,
-        phone_number: editForm.value.phone_number,
-        email: editForm.value.email,
-        address: editForm.value.address,
-        emergencyContact: editForm.value.emergencyContact,
-        membershipType: editForm.value.membershipType,
-        groupAssignment,
-        groupSchedule,
-        weeklyPlan: privateLessonWeeklyPlan || undefined,
-        status: editForm.value.status as 'active' | 'inactive' | 'suspended',
-        balance: editForm.value.balance,
-        notes: editForm.value.notes,
-        updatedAt: new Date()
-      }
+      students.value[index] = updatedStudent
     }
+
+    // Detay kartı (Kişisel Bilgiler vb.) selectedStudent'a bağlı olduğu için
+    // sayfa yenilemeden güncellensin diye selectedStudent'ı da güncelle
+    selectedStudent.value = updatedStudent
 
     successMessage.value = willRunSync
       ? 'Öğrenci ve grup programı güncellendi! Tüm grup üyelerinin profilleri yenilendi.'
