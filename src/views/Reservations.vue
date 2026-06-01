@@ -336,7 +336,13 @@ import {
   isReservationDateOpen,
   getNextOpenAt
 } from '@/utils/reservationWindow'
-import { hasActiveReservationOnDate, isLessonDoc, type RawReservationDoc } from '@/utils/dailyReservationLimit'
+import {
+  hasActiveReservationOnDate,
+  isLessonDoc,
+  getReservationGroupId,
+  isOrphanGroupReservation,
+  type RawReservationDoc
+} from '@/utils/dailyReservationLimit'
 
 const authStore = useAuthStore()
 
@@ -460,6 +466,31 @@ const firestoreToFormCourtId = (firestoreId: string): string => {
   return mapping[firestoreId] || firestoreId
 }
 
+// Verilen rezervasyon dokümanlarındaki benzersiz grup ID'lerinden hâlâ
+// `groups` koleksiyonunda var olanların kümesini döndürür. Silinmiş gruplara
+// ait "hayalet" rezervasyonları doluluk hesabından çıkarmak için kullanılır.
+const getExistingGroupIds = async (docs: RawReservationDoc[]): Promise<Set<string>> => {
+  const groupIds = new Set<string>()
+  docs.forEach((d) => {
+    const gid = getReservationGroupId(d)
+    if (gid) groupIds.add(gid)
+  })
+
+  const existing = new Set<string>()
+  await Promise.all(
+    [...groupIds].map(async (gid) => {
+      try {
+        const groupDoc = await getDoc(doc(db, 'groups', gid))
+        if (groupDoc.exists()) existing.add(gid)
+      } catch {
+        // Okuma başarısızsa güvenli tarafta kal: grubu var say (slotu dolu bırak)
+        existing.add(gid)
+      }
+    })
+  )
+  return existing
+}
+
 // Slot verisinden durum stringini çıkarır (string veya nesne olabilir)
 const getSlotStatusValue = (slotData: any): string => {
   if (!slotData) return 'available'
@@ -479,10 +510,9 @@ const loadCourtSchedule = async (date: string) => {
     )
     const snapshot = await getDocs(activeQ)
 
-    snapshot.forEach((docSnap) => {
+    // Seçilen tarihe ait dokümanları topla
+    const dayDocs = snapshot.docs.filter((docSnap) => {
       const data = docSnap.data()
-
-      // Tarihi normalize et
       let docDateStr: string
       if (typeof data.date === 'string') {
         docDateStr = data.date
@@ -491,8 +521,19 @@ const loadCourtSchedule = async (date: string) => {
       } else {
         docDateStr = new Date(data.date).toISOString().split('T')[0]
       }
+      return docDateStr === date
+    })
 
-      if (docDateStr !== date) return
+    // Grubu silinmiş "hayalet" rezervasyonları ele — AdminCalendar bunları
+    // gizler; doluluk kontrolü de aynı şekilde yok saymalı, aksi halde
+    // takvimde boş görünen slot rezervasyon yaparken "dolu" çıkar.
+    const existingGroupIds = await getExistingGroupIds(dayDocs.map((d) => d.data() as RawReservationDoc))
+
+    dayDocs.forEach((docSnap) => {
+      const data = docSnap.data()
+
+      // Grubu artık var olmayan rezervasyonu atla (yetim/orphan kayıt)
+      if (isOrphanGroupReservation(data as RawReservationDoc, existingGroupIds)) return
 
       // courtId K1/K2/K3 veya court-1/2/3 formatında olabilir — form formatına normalize et
       const courtId = firestoreToFormCourtId(data.courtId)
@@ -521,6 +562,8 @@ const loadCourtSchedule = async (date: string) => {
           timeSlots.forEach(timeSlot => {
             const slotData = data.schedule[firestoreCourtId]?.[timeSlot]
             if (!slotData) return
+            // courtSchedule fallback'inde de grubu silinmiş slotları atla
+            if (isOrphanGroupReservation(slotData as RawReservationDoc, existingGroupIds)) return
             const status = getSlotStatusValue(slotData)
             const isGroup = status === 'group_lesson' ||
               (typeof slotData === 'object' && slotData.reservationType === 'group-lesson')
@@ -710,7 +753,8 @@ const submitReservation = async () => {
 
     const selectedDateStr = reservationData.date
 
-    let hasConflict = false
+    // Aynı gün + aktif olan adayları topla
+    const candidateDocs: RawReservationDoc[] = []
     conflictSnapshots.forEach((conflictSnapshot) => {
       conflictSnapshot.forEach((docSnap) => {
         const docData = docSnap.data()
@@ -727,20 +771,29 @@ const submitReservation = async () => {
         }
 
         if (docDateStr !== selectedDateStr) return
-
-        const existingStart = docData.startTime
-        const existingEnd = docData.endTime
-        const newStart = reservationData.startTime
-        const newEnd = endTime
-
-        if (
-          (newStart >= existingStart && newStart < existingEnd) ||
-          (newEnd > existingStart && newEnd <= existingEnd) ||
-          (newStart <= existingStart && newEnd >= existingEnd)
-        ) {
-          hasConflict = true
-        }
+        candidateDocs.push(docData as RawReservationDoc)
       })
+    })
+
+    // Grubu silinmiş "hayalet" rezervasyonları çakışma sayma (AdminCalendar ile tutarlı)
+    const conflictGroupIds = await getExistingGroupIds(candidateDocs)
+
+    let hasConflict = false
+    candidateDocs.forEach((docData) => {
+      if (isOrphanGroupReservation(docData, conflictGroupIds)) return
+
+      const existingStart = docData.startTime as string
+      const existingEnd = docData.endTime as string
+      const newStart = reservationData.startTime
+      const newEnd = endTime
+
+      if (
+        (newStart >= existingStart && newStart < existingEnd) ||
+        (newEnd > existingStart && newEnd <= existingEnd) ||
+        (newStart <= existingStart && newEnd >= existingEnd)
+      ) {
+        hasConflict = true
+      }
     })
 
     if (hasConflict) {

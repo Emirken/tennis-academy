@@ -53,6 +53,37 @@ export function isLessonDoc(doc: RawReservationDoc): boolean {
 }
 
 /**
+ * Bir rezervasyonun bağlı olduğu grup ID'sini döndürür (yoksa null).
+ * groupId veya groupAssignment alanından — string olan ilkini alır.
+ */
+export function getReservationGroupId(doc: RawReservationDoc): string | null {
+  const gid = doc.groupId ?? doc.groupAssignment
+  return typeof gid === 'string' && gid.trim() !== '' ? gid : null
+}
+
+/**
+ * Bir rezervasyon "hayalet/yetim" mi? Yani bir gruba bağlı (groupId/
+ * groupAssignment dolu) ama o grup artık `groups` koleksiyonunda YOK.
+ *
+ * Grup silindiğinde gelecek grup rezervasyonları her zaman tam
+ * temizlenemeyebildiğinden, bu tür kayıtlar `reservations` koleksiyonunda
+ * `confirmed` olarak kalabilir. AdminCalendar bunları gizler; rezervasyon
+ * ekranındaki doluluk kontrolü de aynı şekilde yok saymalı — aksi halde
+ * takvimde boş görünen slot rezervasyon yaparken "dolu" çıkar.
+ *
+ * @param doc                Rezervasyon dokümanı
+ * @param existingGroupIds   Hâlâ var olan grup ID'leri kümesi
+ */
+export function isOrphanGroupReservation(
+  doc: RawReservationDoc,
+  existingGroupIds: Set<string>,
+): boolean {
+  const gid = getReservationGroupId(doc)
+  if (gid === null) return false
+  return !existingGroupIds.has(gid)
+}
+
+/**
  * Çeşitli date temsillerini (string | Firestore Timestamp | Date) yerel
  * YYYY-MM-DD formatına normalize eder. Çözülemezse null döner.
  *
