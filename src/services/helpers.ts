@@ -106,7 +106,7 @@ export class DateHelpers {
     }
 
     // Get time slots for a day
-    static getTimeSlots(startHour: number = 6, endHour: number = 24, intervalMinutes: number = 60): string[] {
+    static getTimeSlots(startHour: number = 8, endHour: number = 23, intervalMinutes: number = 60): string[] {
         const slots: string[] = []
 
         for (let hour = startHour; hour < endHour; hour++) {

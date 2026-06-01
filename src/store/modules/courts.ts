@@ -264,8 +264,8 @@ export const useCourtsStore = defineStore('courts', () => {
             r.status !== 'cancelled'
         )
 
-        // Generate time slots from 06:00 to 23:00 (last start)
-        for (let hour = 6; hour <= 23; hour++) {
+        // Generate time slots from 08:00 to 22:00 (last start)
+        for (let hour = 8; hour <= 22; hour++) {
             const timeString = `${hour.toString().padStart(2, '0')}:00`
             const slotStart = new Date(date)
             slotStart.setHours(hour, 0, 0, 0)

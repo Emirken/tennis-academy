@@ -654,15 +654,15 @@ const courts = ref([
   { id: 'K3', name: 'Kort 3' }
 ])
 
-// Hours for week view (06:00 to 23:00)
-const hours = Array.from({ length: 18 }, (_, i) => i + 6)
+// Hours for week view (08:00 to 22:00)
+const hours = Array.from({ length: 15 }, (_, i) => i + 8)
 
 // Month day names
 const monthDayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 
-// Time slots for reservation form (06:00 - 23:00, son slot 23:00 - 00:00)
-const timeSlots = Array.from({ length: 18 }, (_, i) => {
-  const hour = i + 6
+// Time slots for reservation form (08:00 - 22:00, son slot 22:00 - 23:00)
+const timeSlots = Array.from({ length: 15 }, (_, i) => {
+  const hour = i + 8
   return `${hour.toString().padStart(2, '0')}:00`
 })
 

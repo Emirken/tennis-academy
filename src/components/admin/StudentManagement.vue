@@ -1346,10 +1346,8 @@ const dayOptions = [
   { title: 'Pazar', value: 'sunday' }
 ]
 
-// Saat seçenekleri (06:00 - 23:00, son slot 23:00 - 00:00)
+// Saat seçenekleri (08:00 - 22:00, son slot 22:00 - 23:00)
 const timeOptions = [
-  { title: '06:00', value: '06:00' },
-  { title: '07:00', value: '07:00' },
   { title: '08:00', value: '08:00' },
   { title: '09:00', value: '09:00' },
   { title: '10:00', value: '10:00' },
@@ -1364,8 +1362,7 @@ const timeOptions = [
   { title: '19:00', value: '19:00' },
   { title: '20:00', value: '20:00' },
   { title: '21:00', value: '21:00' },
-  { title: '22:00', value: '22:00' },
-  { title: '23:00', value: '23:00' }
+  { title: '22:00', value: '22:00' }
 ]
 
 // Kort seçenekleri

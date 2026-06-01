@@ -42,7 +42,7 @@
 
               <v-card-text class="pa-4 pt-0">
                 <v-alert
-                    :type="openReservationDate ? 'info' : 'warning'"
+                    :type="openReservationRange ? 'info' : 'warning'"
                     variant="tonal"
                     density="compact"
                     class="mb-4"
@@ -61,9 +61,9 @@
                       type="date"
                       variant="outlined"
                       :rules="dateRules"
-                      :min="openReservationDate || todayDateStr"
-                      :max="openReservationDate || todayDateStr"
-                      :disabled="!openReservationDate"
+                      :min="openReservationRange?.start || todayDateStr"
+                      :max="openReservationRange?.end || todayDateStr"
+                      :disabled="!openReservationRange"
                       @change="onDateChange"
                       required
                       class="mb-4"
@@ -332,10 +332,11 @@ import { db } from '@/services/firebase'
 import { notificationService } from '@/services/notificationService'
 import type { Reservation } from '@/types/reservation'
 import {
-  getOpenReservationDate,
+  getOpenReservationRange,
   isReservationDateOpen,
   getNextOpenAt
 } from '@/utils/reservationWindow'
+import { hasActiveReservationOnDate, type RawReservationDoc } from '@/utils/dailyReservationLimit'
 
 const authStore = useAuthStore()
 
@@ -377,9 +378,9 @@ const availableCourts = ref([
 ])
 
 const timeSlots = [
-  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
-  '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
-  '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
+  '08:00', '09:00', '10:00', '11:00', '12:00',
+  '13:00', '14:00', '15:00', '16:00', '17:00',
+  '18:00', '19:00', '20:00', '21:00', '22:00'
 ]
 
 
@@ -387,7 +388,7 @@ const timeSlots = [
 const now = ref(new Date())
 let nowTimerId: ReturnType<typeof setInterval> | null = null
 
-const openReservationDate = computed(() => getOpenReservationDate(now.value))
+const openReservationRange = computed(() => getOpenReservationRange(now.value))
 const todayDateStr = computed(() => {
   const d = new Date(now.value)
   d.setHours(0, 0, 0, 0)
@@ -395,12 +396,13 @@ const todayDateStr = computed(() => {
 })
 
 const openReservationInfoText = computed(() => {
-  if (openReservationDate.value) {
-    const d = new Date(openReservationDate.value + 'T00:00:00')
-    const formatted = d.toLocaleDateString('tr-TR', {
-      day: 'numeric', month: 'long', year: 'numeric', weekday: 'long'
-    })
-    return `Şu anda yalnızca ${formatted} için rezervasyon yapılabilir. Bir sonraki gün her akşam 20:00'de açılır.`
+  const range = openReservationRange.value
+  if (range) {
+    const fmt = (s: string) =>
+      new Date(s + 'T00:00:00').toLocaleDateString('tr-TR', {
+        day: 'numeric', month: 'long', year: 'numeric', weekday: 'long'
+      })
+    return `Şu anda ${fmt(range.start)} – ${fmt(range.end)} aralığı için rezervasyon yapılabilir. Yeni hafta her Pazar 20:00'de açılır.`
   }
   const nextOpen = getNextOpenAt(now.value)
   const formattedNext = nextOpen.toLocaleString('tr-TR', {
@@ -424,11 +426,12 @@ const availableTimeSlots = computed(() => {
 const dateRules = [
   (v: string) => !!v || 'Tarih gereklidir',
   (v: string) => {
-    if (!openReservationDate.value) {
-      return 'Rezervasyon sistemi şu an kapalı. Her akşam 20:00\'de yeni gün açılır.'
+    const range = openReservationRange.value
+    if (!range) {
+      return 'Rezervasyon sistemi şu an kapalı. Yeni hafta her Pazar 20:00\'de açılır.'
     }
     return isReservationDateOpen(v, now.value) ||
-      `Yalnızca ${openReservationDate.value} tarihi için rezervasyon yapılabilir.`
+      `Yalnızca ${range.start} – ${range.end} aralığı için rezervasyon yapılabilir.`
   }
 ]
 
@@ -636,9 +639,10 @@ const submitReservation = async () => {
   // Rezervasyon penceresi kontrolü — tarayıcı saatini submit anında tekrar doğrula
   now.value = new Date()
   if (!isReservationDateOpen(reservationData.date, now.value)) {
-    errorMessage.value = openReservationDate.value
-      ? `Yalnızca ${openReservationDate.value} tarihi için rezervasyon yapılabilir.`
-      : 'Rezervasyon sistemi şu an kapalı. Her akşam 20:00\'de yeni gün açılır.'
+    const range = openReservationRange.value
+    errorMessage.value = range
+      ? `Yalnızca ${range.start} – ${range.end} aralığı için rezervasyon yapılabilir.`
+      : 'Rezervasyon sistemi şu an kapalı. Yeni hafta her Pazar 20:00\'de açılır.'
     errorSnackbar.value = true
     return
   }
@@ -651,30 +655,16 @@ const submitReservation = async () => {
 
   try {
     // 0. Aynı öğrencinin aynı gün için zaten aktif (pending/confirmed) rezervasyonu var mı kontrol et
+    //    Kural: her öğrenci günde en fazla bir rezervasyon yapabilir.
     if (authStore.user?.id) {
       const sameDayQuery = query(
         collection(db, 'reservations'),
         where('studentId', '==', authStore.user.id)
       )
       const sameDaySnapshot = await getDocs(sameDayQuery)
+      const docs = sameDaySnapshot.docs.map((docSnap) => docSnap.data() as RawReservationDoc)
 
-      const hasSameDayReservation = sameDaySnapshot.docs.some((docSnap) => {
-        const docData = docSnap.data()
-        if (!['pending', 'confirmed'].includes(docData.status)) return false
-
-        let docDateStr: string
-        if (typeof docData.date === 'string') {
-          docDateStr = docData.date
-        } else if (docData.date?.toDate) {
-          docDateStr = docData.date.toDate().toISOString().split('T')[0]
-        } else {
-          docDateStr = new Date(docData.date).toISOString().split('T')[0]
-        }
-
-        return docDateStr === reservationData.date
-      })
-
-      if (hasSameDayReservation) {
+      if (hasActiveReservationOnDate(docs, authStore.user.id, reservationData.date)) {
         errorMessage.value = 'Aynı gün içinde yalnızca bir rezervasyon yapabilirsiniz. Lütfen farklı bir tarih seçin.'
         errorSnackbar.value = true
         loading.value = false
