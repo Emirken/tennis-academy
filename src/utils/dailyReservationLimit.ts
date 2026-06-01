@@ -3,6 +3,11 @@
 // Bir öğrencinin belirli bir tarihte zaten aktif (pending/confirmed) bir
 // rezervasyonu olup olmadığını saf (yan etkisiz) bir şekilde hesaplar.
 // submitReservation içindeki inline kontrolün test edilebilir karşılığıdır.
+//
+// ÖNEMLİ: Ders (grup/özel) ile rezervasyon FARKLI şeylerdir. Dersler de
+// `reservations` koleksiyonuna yazılıyor olsa bile, günde-bir rezervasyon
+// limitine SAYILMAZLAR; öğrencinin o gün dersi olması yeni bir KORT
+// rezervasyonu yapmasını engellemez.
 
 // Firestore'dan gelen ham rezervasyon dokümanı: date alanı string,
 // Firestore Timestamp ({ toDate() }) veya Date olabilir.
@@ -10,11 +15,42 @@ export interface RawReservationDoc {
   studentId?: string
   status?: string
   date?: unknown
+  // Ders/rezervasyon ayrımı için kullanılan alanlar.
+  type?: unknown
+  reservationType?: unknown
+  groupId?: unknown
+  groupAssignment?: unknown
+  groupSchedule?: unknown
   [key: string]: unknown
 }
 
 // Günde-bir limitinde sayılan durumlar. İptal/no_show gibi durumlar sayılmaz.
 export const ACTIVE_RESERVATION_STATUSES = ['pending', 'confirmed'] as const
+
+// Bir dokümanı "ders" yapan işaretler. type veya reservationType bu
+// değerlerden biriyse ya da grup alanlarından biri doluysa, bu bir derstir.
+const LESSON_TYPE_VALUES = ['group-lesson', 'private-lesson', 'lesson'] as const
+
+/**
+ * Doküman bir DERS mi (grup ya da özel), yoksa öğrencinin kendi yaptığı bir
+ * KORT rezervasyonu mu? Dersler ve rezervasyonlar farklı kavramlardır:
+ *  - Dersler admin tarafından haftalık programdan oluşturulur (group-lesson /
+ *    private-lesson, groupSchedule/groupId/groupAssignment işaretli).
+ *  - Rezervasyonlar öğrencinin kendi yaptığı kort rezervasyonlarıdır
+ *    (type: 'court-rental').
+ *
+ * Reservations.vue içindeki isGroupLesson tespitini genişletir (özel dersleri
+ * de kapsar) ve hem günde-bir limitinde hem de "Rezervasyonlarım" listesinde
+ * dersleri ayırmak için tek kaynak olarak kullanılır.
+ */
+export function isLessonDoc(doc: RawReservationDoc): boolean {
+  if (LESSON_TYPE_VALUES.includes(doc.type as any)) return true
+  if (LESSON_TYPE_VALUES.includes(doc.reservationType as any)) return true
+  if (doc.groupSchedule === true) return true
+  if (!!doc.groupId) return true
+  if (!!doc.groupAssignment) return true
+  return false
+}
 
 /**
  * Çeşitli date temsillerini (string | Firestore Timestamp | Date) yerel
@@ -67,6 +103,8 @@ export function hasActiveReservationOnDate(
 
   return docs.some((doc) => {
     if (doc.studentId !== studentId) return false
+    // Dersler (grup/özel) günde-bir rezervasyon limitine sayılmaz.
+    if (isLessonDoc(doc)) return false
     if (!ACTIVE_RESERVATION_STATUSES.includes(doc.status as any)) return false
     return normalizeReservationDate(doc.date) === dateStr
   })

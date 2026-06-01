@@ -14,5 +14,8 @@ export interface Reservation {
     totalCost: number
     createdAt: Date
     isGroupLesson?: boolean
+    // Grup VEYA özel ders ise true. Dersler "Rezervasyonlarım" listesinde
+    // gösterilmez; sadece öğrencinin kendi yaptığı kort rezervasyonları görünür.
+    isLesson?: boolean
     groupId?: string
 }

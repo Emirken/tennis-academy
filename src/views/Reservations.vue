@@ -336,7 +336,7 @@ import {
   isReservationDateOpen,
   getNextOpenAt
 } from '@/utils/reservationWindow'
-import { hasActiveReservationOnDate, type RawReservationDoc } from '@/utils/dailyReservationLimit'
+import { hasActiveReservationOnDate, isLessonDoc, type RawReservationDoc } from '@/utils/dailyReservationLimit'
 
 const authStore = useAuthStore()
 
@@ -357,10 +357,11 @@ const errorMessage = ref('')
 const showReservations = ref(true)
 const myReservations = ref<Reservation[]>([])
 
-// Grup dersleri StudentDashboard'daki "Derslerim" kartında gösterilir;
-// bu sayfadaki "Rezervasyonlarım" listesi yalnızca kişisel rezervasyonları içerir.
+// Dersler (grup VE özel) StudentDashboard'daki "Derslerim" kartında gösterilir;
+// bu sayfadaki "Rezervasyonlarım" listesi yalnızca öğrencinin kendi yaptığı
+// kort rezervasyonlarını içerir. Ders ile rezervasyon farklı şeylerdir.
 const personalReservations = computed(() =>
-  myReservations.value.filter(r => !r.isGroupLesson)
+  myReservations.value.filter(r => !r.isLesson)
 )
 
 // Court schedule state
@@ -593,6 +594,8 @@ const loadUserReservations = async () => {
 
       const isGroupLesson = data.reservationType === 'group-lesson' ||
         !!data.groupId || !!data.groupAssignment || data.groupSchedule === true
+      // Ders (grup VEYA özel) tespiti — "Rezervasyonlarım" listesinden çıkarmak için.
+      const isLesson = isLessonDoc(data as RawReservationDoc)
 
       reservations.push({
         id: doc.id,
@@ -608,6 +611,7 @@ const loadUserReservations = async () => {
         totalCost: data.totalCost,
         createdAt: data.createdAt?.toDate() || new Date(),
         isGroupLesson,
+        isLesson,
         groupId: data.groupId
       })
     })
