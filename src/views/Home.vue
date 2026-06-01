@@ -5,7 +5,7 @@
       <v-container fluid class="pa-0">
         <div class="hero-image-container">
           <v-img
-              src="/images/tennis-court-hero.jpg"
+              :src="heroImage"
               height="560"
               cover
               class="hero-image"
@@ -175,6 +175,7 @@
 </template>
 
 <script setup lang="ts">
+import heroImage from '@/assets/images/photo1.jpeg'
 import banner1 from '@/assets/images/photo1.jpeg'
 import banner2 from '@/assets/images/photo2.jpeg'
 import banner3 from '@/assets/images/photo3.jpeg'

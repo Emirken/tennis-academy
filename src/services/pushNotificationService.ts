@@ -52,20 +52,28 @@ export const pushNotificationService = {
     },
 
     async unregisterDeviceToken(userId: string): Promise<void> {
+        // Tarayıcı bildirimleri engellemişse getToken/deleteToken
+        // "messaging/permission-blocked" hatası fırlatır. Bu durumda FCM
+        // token'ı silmeye çalışmadan sadece Firestore kaydını temizleriz.
         try {
-            if (messaging) {
-                const currentToken = await getFCMToken(messaging, {
-                    vapidKey: VAPID_KEY,
-                    serviceWorkerRegistration: await navigator.serviceWorker.getRegistration()
-                })
-                if (currentToken) {
-                    await deleteToken(messaging)
+            const permissionGranted =
+                'Notification' in window && Notification.permission === 'granted'
+            if (messaging && permissionGranted) {
+                try {
+                    const currentToken = await getFCMToken(messaging, {
+                        vapidKey: VAPID_KEY,
+                        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration()
+                    })
+                    if (currentToken) {
+                        await deleteToken(messaging)
+                    }
+                } catch (tokenError) {
+                    console.warn('FCM token silinemedi (yok sayılıyor):', tokenError)
                 }
             }
+        } finally {
             await deleteDoc(doc(db, 'deviceTokens', userId)).catch(() => {})
             console.log('Device token silindi.')
-        } catch (error) {
-            console.error('Device token silinirken hata:', error)
         }
     },
 
