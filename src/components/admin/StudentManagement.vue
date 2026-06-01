@@ -757,6 +757,89 @@
                   </v-card-text>
                 </v-card>
               </v-col>
+
+              <!-- Şifre Sıfırlama Section -->
+              <v-col v-if="!isEditMode" cols="12">
+                <v-card class="modern-card mb-4" elevation="2">
+                  <v-card-title class="pa-4 bg-warning text-white d-flex align-center">
+                    <v-icon icon="mdi-lock-reset" class="mr-2" />
+                    Şifre Sıfırlama
+                  </v-card-title>
+                  <v-card-text class="pa-4">
+                    <p class="text-body-2 text-medium-emphasis mb-3">
+                      Şifresini unutan öğrenciye geçici bir şifre atayın. Öğrenci bu geçici
+                      şifreyle giriş yaptığında, sistem kendisinden yeni bir kalıcı şifre
+                      belirlemesini isteyecektir.
+                    </p>
+                    <v-row align="center">
+                      <v-col cols="12" sm="6">
+                        <v-text-field
+                            v-model="tempPasswordInput"
+                            label="Geçici Şifre"
+                            variant="outlined"
+                            density="compact"
+                            :type="showTempPassword ? 'text' : 'password'"
+                            :append-inner-icon="showTempPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                            hint="En az 6 karakter"
+                            persistent-hint
+                            @click:append-inner="showTempPassword = !showTempPassword"
+                        />
+                      </v-col>
+                      <v-col cols="12" sm="6" class="d-flex gap-2 flex-wrap">
+                        <v-btn
+                            color="grey-darken-1"
+                            variant="tonal"
+                            size="small"
+                            @click="generateTempPasswordForStudent"
+                        >
+                          <v-icon icon="mdi-dice-multiple" class="mr-1" />
+                          Otomatik Üret
+                        </v-btn>
+                        <v-btn
+                            class="ml-2"
+                            color="warning"
+                            variant="flat"
+                            size="small"
+                            :loading="assigningTempPassword"
+                            :disabled="!tempPasswordInput || tempPasswordInput.length < 6"
+                            @click="handleAssignTempPassword"
+                        >
+                          <v-icon icon="mdi-lock-reset" class="mr-1" />
+                          Geçici Şifre Ata
+                        </v-btn>
+                      </v-col>
+                    </v-row>
+
+                    <!-- Atanan geçici şifreyi göster (admin öğrenciye iletsin) -->
+                    <v-alert
+                        v-if="assignedTempPassword"
+                        type="success"
+                        variant="tonal"
+                        class="mt-3"
+                        density="compact"
+                    >
+                      <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                        <span>
+                          Geçici şifre atandı:
+                          <strong class="text-h6 ml-1">{{ assignedTempPassword }}</strong>
+                        </span>
+                        <v-btn
+                            size="x-small"
+                            variant="text"
+                            color="success"
+                            @click="copyTempPassword"
+                        >
+                          <v-icon icon="mdi-content-copy" class="mr-1" />
+                          Kopyala
+                        </v-btn>
+                      </div>
+                      <div class="text-caption mt-1">
+                        Bu şifreyi öğrenciye iletin. Öğrenci giriş yapınca yeni şifre belirleyecek.
+                      </div>
+                    </v-alert>
+                  </v-card-text>
+                </v-card>
+              </v-col>
             </v-row>
           </v-container>
         </v-card-text>
@@ -1102,6 +1185,7 @@ import {
   type OccupiedSlot 
 } from '@/services/courtAvailability'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
+import { assignTempPassword, generateTempPassword } from '@/services/passwordResetService'
 
 interface WeeklyPlan {
   day: string
@@ -1155,6 +1239,12 @@ const selectedStudent = ref<Student | null>(null)
 const isEditMode = ref(false)
 const savingChanges = ref(false)
 const itemsPerPage = ref(10)
+
+// Şifre sıfırlama (geçici şifre) state'leri
+const tempPasswordInput = ref('')
+const showTempPassword = ref(false)
+const assigningTempPassword = ref(false)
+const assignedTempPassword = ref('')
 
 // Grup üyeleri dialog state'leri
 const showGroupMembersDialogState = ref(false)
@@ -2516,6 +2606,10 @@ const viewStudentDetails = (student: Student) => {
   selectedStudent.value = student
   showStudentDetailsDialog.value = true
   isEditMode.value = false
+  // Şifre sıfırlama alanını her öğrenci açılışında temizle
+  tempPasswordInput.value = ''
+  showTempPassword.value = false
+  assignedTempPassword.value = ''
 }
 
 const toggleEditMode = async () => {
@@ -2813,6 +2907,58 @@ const saveStudentChanges = async (): Promise<void> => {
     successSnackbar.value = true
   } finally {
     savingChanges.value = false
+  }
+}
+
+// Şifre Sıfırlama: rastgele geçici şifre üret
+const generateTempPasswordForStudent = (): void => {
+  tempPasswordInput.value = generateTempPassword(8)
+  showTempPassword.value = true
+}
+
+// Şifre Sıfırlama: öğrenciye geçici şifre ata
+const handleAssignTempPassword = async (): Promise<void> => {
+  if (!selectedStudent.value) return
+
+  const phone = selectedStudent.value.phone_number
+  if (!phone) {
+    successMessage.value = 'Bu öğrencinin telefon numarası yok, geçici şifre atanamıyor!'
+    successSnackbar.value = true
+    return
+  }
+
+  if (!tempPasswordInput.value || tempPasswordInput.value.length < 6) {
+    successMessage.value = 'Geçici şifre en az 6 karakter olmalı!'
+    successSnackbar.value = true
+    return
+  }
+
+  assigningTempPassword.value = true
+  try {
+    await assignTempPassword(selectedStudent.value.id, phone, tempPasswordInput.value)
+    assignedTempPassword.value = tempPasswordInput.value
+    tempPasswordInput.value = ''
+    showTempPassword.value = false
+    successMessage.value = 'Geçici şifre atandı! Öğrenci bu şifreyle giriş yapıp yeni şifre belirleyebilir.'
+    successSnackbar.value = true
+  } catch (error: any) {
+    console.error('Geçici şifre atama hatası:', error)
+    successMessage.value = error?.message || 'Geçici şifre atanırken hata oluştu!'
+    successSnackbar.value = true
+  } finally {
+    assigningTempPassword.value = false
+  }
+}
+
+// Atanan geçici şifreyi panoya kopyala
+const copyTempPassword = async (): Promise<void> => {
+  if (!assignedTempPassword.value) return
+  try {
+    await navigator.clipboard.writeText(assignedTempPassword.value)
+    successMessage.value = 'Geçici şifre panoya kopyalandı!'
+    successSnackbar.value = true
+  } catch {
+    // Pano erişimi yoksa sessizce geç
   }
 }
 

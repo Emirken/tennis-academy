@@ -7,12 +7,18 @@
     </v-main>
 
     <AppFooter />
+
+    <!-- Geçici şifreyle giriş yapan kullanıcı için zorunlu şifre belirleme dialog'u.
+         Global olduğu için kullanıcı hangi sayfada olursa olsun gösterilir ve
+         şifre belirlenene kadar kapatılamaz. -->
+    <ForcePasswordReset />
   </v-app>
 </template>
 
 <script setup lang="ts">
 import AppHeader from '@/components/common/AppHeader.vue'
 import AppFooter from '@/components/common/AppFooter.vue'
+import ForcePasswordReset from '@/components/common/ForcePasswordReset.vue'
 </script>
 
 <style>

@@ -90,5 +90,19 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read, write: if isAuthenticated();
     }
+
+    // Password resets (geçici şifre) collection
+    // Backend (Admin SDK) olmadığı için admin başka kullanıcının Auth şifresini
+    // doğrudan değiştiremiyor; geçici şifre burada saklanır.
+    // - Tek doküman olarak (ID = telefon) herkes okuyabilir: öğrenci giriş anında
+    //   henüz authenticated DEĞİLDİR, kendi geçici şifresini kontrol edebilmeli.
+    //   Liste/sorgu izni YOK; sadece tam ID ile get yapılabilir.
+    // - Yalnızca admin yazabilir; kullanıcı kendi kaydını ilk girişten sonra silebilir.
+    match /passwordResets/{phone} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+      allow delete: if isAuthenticated();
+    }
   }
 }

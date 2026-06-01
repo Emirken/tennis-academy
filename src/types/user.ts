@@ -17,4 +17,6 @@ export interface User {
     updatedAt: Date
     lastLoginAt?: Date
     membershipType?: string
+    // Admin geçici şifre atadığında true; öğrenci kalıcı şifre belirleyince false
+    mustResetPassword?: boolean
 }

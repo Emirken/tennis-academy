@@ -236,7 +236,9 @@ const handleLogin = async () => {
   const success = await authStore.login(loginData.phone_number, loginData.password)
 
   if (success) {
-    // Kullanıcı rolüne göre yönlendir
+    // Geçici şifreyle girildiyse zorunlu şifre belirleme dialog'u App.vue'da
+    // (ForcePasswordReset) global olarak gösterilir. Burada normal yönlendirme yapılır;
+    // kullanıcı şifresini belirleyene kadar dialog onu engeller.
     if (authStore.isAdmin) {
       router.push({ name: 'AdminDashboard' })
     } else {

@@ -12,6 +12,7 @@ import { auth, db } from '@/services/firebase'
 import type { User, PlayerLevel } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
 import { pushNotificationService } from '@/services/pushNotificationService'
+import { getTempPasswordRecord } from '@/services/passwordResetService'
 
 // Pinia state'inde function tutulamaz; listener'ı modül seviyesinde saklıyoruz
 let userDocUnsubscribe: Unsubscribe | null = null
@@ -29,6 +30,11 @@ interface AuthState {
     loading: boolean
     error: string | null
     initialized: boolean
+    // Geçici şifreyle giriş yapıldığında true olur; kullanıcı kalıcı şifresini
+    // belirleyene kadar zorunlu şifre değiştirme ekranı gösterilir.
+    mustResetPassword: boolean
+    // Geçici şifreyle giriş yapan kullanıcının telefonu (kaydı temizlemek için)
+    resetPhone: string | null
 }
 
 // Helper: telefon numarasından dummy email oluştur
@@ -42,7 +48,9 @@ export const useAuthStore = defineStore('auth', {
         isAuthenticated: false,
         loading: false,
         error: null,
-        initialized: false
+        initialized: false,
+        mustResetPassword: false,
+        resetPhone: null
     }),
 
     getters: {
@@ -54,10 +62,13 @@ export const useAuthStore = defineStore('auth', {
         async login(phoneNumber: string, password: string) {
             this.loading = true
             this.error = null
+            this.mustResetPassword = false
+            this.resetPhone = null
+
+            const dummyEmail = phoneToEmail(phoneNumber)
+            console.log('🔐 Giriş yapılıyor:', phoneNumber)
 
             try {
-                const dummyEmail = phoneToEmail(phoneNumber)
-                console.log('🔐 Giriş yapılıyor:', phoneNumber)
                 const userCredential = await signInWithEmailAndPassword(auth, dummyEmail, password)
                 console.log('✅ Firebase auth başarılı, UID:', userCredential.user.uid)
 
@@ -66,12 +77,67 @@ export const useAuthStore = defineStore('auth', {
 
                 return true
             } catch (error: any) {
+                // Normal şifre tutmadıysa: admin tarafından atanmış bir geçici şifre var mı?
+                const wrongPassword =
+                    error?.code === 'auth/wrong-password' ||
+                    error?.code === 'auth/invalid-credential' ||
+                    error?.code === 'auth/invalid-login-credentials'
+
+                if (wrongPassword) {
+                    try {
+                        const reset = await getTempPasswordRecord(phoneNumber)
+                        if (reset && reset.tempPassword === password) {
+                            console.log('🔑 Geçici şifre eşleşti, giriş yapılıyor...')
+                            const cred = await signInWithEmailAndPassword(auth, dummyEmail, reset.tempPassword)
+                            await this.fetchUserData(cred.user.uid)
+
+                            // Kullanıcı kalıcı şifresini belirlemeye zorlanacak
+                            this.mustResetPassword = true
+                            this.resetPhone = phoneNumber
+                            return true
+                        }
+                    } catch (resetError) {
+                        console.error('Geçici şifre kontrolü başarısız:', resetError)
+                    }
+                }
+
                 console.error('❌ Giriş hatası:', error)
                 this.error = this.getErrorMessage(error)
                 return false
             } finally {
                 this.loading = false
             }
+        },
+
+        // Geçici şifreyle giriş yapan kullanıcı kalıcı şifresini belirler.
+        // Gerçek Firebase Auth şifresi burada güncellenir, geçici kayıt silinir.
+        async completePasswordReset(newPassword: string) {
+            const { updatePassword } = await import('firebase/auth')
+            const { clearTempPassword } = await import('@/services/passwordResetService')
+
+            const currentUser = auth.currentUser
+            if (!currentUser) {
+                throw new Error('Oturum bulunamadı, lütfen tekrar giriş yapın.')
+            }
+
+            try {
+                // Gerçek Auth şifresini güncelle. Geçici şifreyle yeni giriş yapıldıysa
+                // reauthenticate gerekmez; ancak sayfa yenilenip oturum eskidiyse Firebase
+                // 'requires-recent-login' döndürebilir — bunu kullanıcıya açıkça bildiriyoruz.
+                await updatePassword(currentUser, newPassword)
+            } catch (error: any) {
+                if (error?.code === 'auth/requires-recent-login') {
+                    throw new Error('Güvenlik nedeniyle lütfen çıkış yapıp geçici şifrenizle tekrar giriş yapın, ardından yeni şifrenizi belirleyin.')
+                }
+                throw new Error(this.getErrorMessage(error))
+            }
+
+            // Geçici kaydı temizle + mustResetPassword bayrağını kaldır
+            const phone = this.resetPhone || this.user?.phone_number || ''
+            await clearTempPassword(currentUser.uid, phone)
+
+            this.mustResetPassword = false
+            this.resetPhone = null
         },
 
         async register(userData: {
