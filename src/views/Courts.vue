@@ -298,6 +298,8 @@ import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where } fr
 import { db } from '@/services/firebase'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { DEFAULT_MEMBERSHIP_TYPES } from '@/types/membershipType'
+import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
+import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
 
 const authStore = useAuthStore()
 const membershipTypesStore = useMembershipTypesStore()
@@ -553,32 +555,50 @@ const getGroupDisplayName = (groupAssignment: string) => {
 }
 
 // Firebase operations
+//
+// Doluluğun TEK doğru kaynağı canlı `reservations` koleksiyonudur (tıpkı
+// /admin/calendar gibi). Kaydedilmiş `courtSchedule` snapshot'ı yalnızca
+// admin'in elle koyduğu bakım/kapalı durumları ve grup dersi yedeği için
+// kullanılır; bayat 'occupied' slotlar canlı veriyi asla ezmez. Bu sayede
+// "takvimde Ayda İleri, /courts'ta eski grup adı görünüyor" tutarsızlığı
+// ortadan kalkar. (Bkz. src/utils/courtScheduleBuild.ts)
 const fetchCourtSchedule = async (date: Date) => {
   loading.value = true
   try {
     const dateString = date.toISOString().split('T')[0]
-    const docRef = doc(db, 'courtSchedule', dateString)
-    const docSnap = await getDoc(docRef)
 
-    if (docSnap.exists()) {
-      schedule.value = docSnap.data().schedule || {}
+    // 1) Kaydedilmiş snapshot (admin bakım/kapalı durumları + grup yedeği için)
+    const docSnap = await getDoc(doc(db, 'courtSchedule', dateString))
+    const storedSchedule = docSnap.exists() ? (docSnap.data().schedule || {}) : {}
 
-      // Filter out deleted groups from courtSchedule data
-      await filterDeletedGroupsFromSchedule()
-    } else {
-      // Create default schedule
-      const defaultSchedule: any = {}
-      courts.value.forEach(court => {
-        defaultSchedule[court.id] = {}
-        timeSlots.forEach(time => {
-          defaultSchedule[court.id][time] = 'available'
-        })
-      })
-      schedule.value = defaultSchedule
-    }
+    // 2) O güne ait canlı rezervasyonlar
+    const startOfDay = new Date(date)
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date(date)
+    endOfDay.setHours(23, 59, 59, 999)
 
-    // Rezervasyonları kontrol et ve schedule'ı güncelle
-    await checkReservationsAndUpdateSchedule(date)
+    const reservationsQuery = query(
+        collection(db, 'reservations'),
+        where('date', '>=', startOfDay),
+        where('date', '<=', endOfDay)
+    )
+    const querySnapshot = await getDocs(reservationsQuery)
+    const reservations = querySnapshot.docs.map(d => d.data() as RawReservationDoc)
+
+    // 3) Hangi grupların hâlâ var olduğunu ve adlarını topla (canlı + snapshot)
+    const { existingGroupIds, groupNames } = await resolveGroups(reservations, storedSchedule)
+
+    // 4) Programı canlı veriyi taban alarak oluştur
+    schedule.value = buildCourtSchedule({
+      courtIds: courts.value.map(c => c.id),
+      timeSlots,
+      storedSchedule,
+      reservations,
+      existingGroupIds,
+      mapCourtId,
+      groupNames
+    })
+
     updateCourtStats()
   } catch (error) {
     console.error('Error fetching court schedule:', error)
@@ -588,145 +608,42 @@ const fetchCourtSchedule = async (date: Date) => {
   }
 }
 
-const filterDeletedGroupsFromSchedule = async () => {
-  try {
-    // Collect all group IDs from the schedule
-    const groupIds = new Set<string>()
+// Rezervasyonlardan ve snapshot'tan referans verilen tüm grup id'lerini
+// toplar; her birinin var olup olmadığını ve adını Firebase'den çeker.
+const resolveGroups = async (
+  reservations: RawReservationDoc[],
+  storedSchedule: Record<string, Record<string, any>>
+): Promise<{ existingGroupIds: Set<string>; groupNames: Record<string, string> }> => {
+  const groupIds = new Set<string>()
 
-    Object.values(schedule.value).forEach((courtSchedule: any) => {
-      Object.values(courtSchedule).forEach((slot: any) => {
-        if (typeof slot === 'object' && slot !== null) {
-          if (slot.groupAssignment) {
-            groupIds.add(slot.groupAssignment)
-          }
-        }
-      })
-    })
-
-    if (groupIds.size === 0) return
-
-    // Check which groups still exist and capture names for display
-    const existingGroupIds = new Set<string>()
-    const groupNamesById: Record<string, string> = {}
-    for (const groupId of groupIds) {
-      try {
-        const groupDoc = await getDoc(doc(db, 'groups', groupId))
-        if (groupDoc.exists()) {
-          existingGroupIds.add(groupId)
-          groupNamesById[groupId] = groupDoc.data().name || ''
-        }
-      } catch (error) {
-        console.error(`Error fetching group ${groupId}:`, error)
+  reservations.forEach((r) => {
+    if (r.groupId) groupIds.add(r.groupId as string)
+    if (r.groupAssignment) groupIds.add(r.groupAssignment as string)
+  })
+  Object.values(storedSchedule).forEach((courtSchedule: any) => {
+    Object.values(courtSchedule || {}).forEach((slot: any) => {
+      if (slot && typeof slot === 'object' && slot.groupAssignment) {
+        groupIds.add(slot.groupAssignment)
       }
+    })
+  })
+
+  const existingGroupIds = new Set<string>()
+  const groupNames: Record<string, string> = {}
+
+  for (const groupId of groupIds) {
+    try {
+      const groupDoc = await getDoc(doc(db, 'groups', groupId))
+      if (groupDoc.exists()) {
+        existingGroupIds.add(groupId)
+        groupNames[groupId] = groupDoc.data().name || ''
+      }
+    } catch (error) {
+      console.error(`Error fetching group ${groupId}:`, error)
     }
-
-    // Filter out slots with deleted groups, hydrate groupName for the rest
-    Object.keys(schedule.value).forEach((courtId) => {
-      Object.keys(schedule.value[courtId]).forEach((timeSlot) => {
-        const slot = schedule.value[courtId][timeSlot]
-
-        if (typeof slot === 'object' && slot !== null) {
-          const groupId = slot.groupAssignment
-          if (groupId && !existingGroupIds.has(groupId)) {
-            console.log(`⏭️ Removing deleted group ${groupId} from court ${courtId} at ${timeSlot}`)
-            schedule.value[courtId][timeSlot] = 'available'
-          } else if (groupId && !slot.groupName && groupNamesById[groupId]) {
-            slot.groupName = groupNamesById[groupId]
-          }
-        }
-      })
-    })
-  } catch (error) {
-    console.error('Error filtering deleted groups:', error)
   }
-}
 
-const checkReservationsAndUpdateSchedule = async (date: Date) => {
-  try {
-    const startOfDay = new Date(date)
-    startOfDay.setHours(0, 0, 0, 0)
-
-    const endOfDay = new Date(date)
-    endOfDay.setHours(23, 59, 59, 999)
-
-    const reservationsQuery = query(
-        collection(db, 'reservations'),
-        where('date', '>=', startOfDay),
-        where('date', '<=', endOfDay)
-    )
-
-    const querySnapshot = await getDocs(reservationsQuery)
-
-    // Fetch group names first if needed
-    const groupIds = new Set<string>()
-    querySnapshot.forEach((doc) => {
-      const reservation = doc.data()
-      if (reservation.groupId) {
-        groupIds.add(reservation.groupId)
-      }
-      if (reservation.groupAssignment) {
-        groupIds.add(reservation.groupAssignment)
-      }
-    })
-
-    // Fetch group names from Firebase and track which groups exist
-    const groupNames: { [key: string]: string } = {}
-    const existingGroupIds = new Set<string>()
-
-    for (const groupId of groupIds) {
-      try {
-        const groupDoc = await getDoc(doc(db, 'groups', groupId))
-        if (groupDoc.exists()) {
-          groupNames[groupId] = groupDoc.data().name || groupId
-          existingGroupIds.add(groupId)
-        }
-      } catch (error) {
-        console.error(`Error fetching group ${groupId}:`, error)
-      }
-    }
-
-    querySnapshot.forEach((docSnap) => {
-      const reservation = docSnap.data()
-      const { courtId, startTime, status } = reservation
-
-      if (status !== 'confirmed' && status !== 'active') {
-        return
-      }
-
-      // Skip this reservation if it has a specific group ID but the group has been deleted
-      const groupId = reservation.groupId || reservation.groupAssignment
-      if (groupId && !existingGroupIds.has(groupId)) {
-        console.log(`⏭️ Skipping court reservation ${docSnap.id} - group ${groupId} no longer exists`)
-        return
-      }
-
-      const mappedCourtId = mapCourtId(courtId)
-
-      if (schedule.value[mappedCourtId] && timeSlots.includes(startTime)) {
-        // Önceki "available" durumunu kontrol et
-        if (schedule.value[mappedCourtId][startTime] === 'available' ||
-            !schedule.value[mappedCourtId][startTime]) {
-
-          // Yeni format ile detaylı bilgi kaydet
-          schedule.value[mappedCourtId][startTime] = {
-            status: 'occupied',
-            studentId: reservation.studentId,
-            studentFirstName: reservation.studentName?.split(' ')[0] || '',
-            studentLastName: reservation.studentName?.split(' ').slice(1).join(' ') || '',
-            studentFullName: reservation.studentName || '',
-            groupAssignment: reservation.groupId || '',
-            groupName: reservation.groupId ? groupNames[reservation.groupId] : '',
-            membershipType: reservation.membershipType || '',
-            reservationType: reservation.type || 'lesson',
-            updatedAt: new Date(),
-            updatedBy: 'system-sync'
-          }
-        }
-      }
-    })
-  } catch (error) {
-    console.error('Error checking reservations:', error)
-  }
+  return { existingGroupIds, groupNames }
 }
 
 const mapCourtId = (reservationCourtId: string): string => {
@@ -766,14 +683,34 @@ const saveCourtSchedule = async () => {
 
     const updatedBy = authStore.user?.id || authStore.user?.phone_number || 'unknown'
 
+    // Snapshot'a yalnızca admin kontrollü durumları yaz (available/maintenance/
+    // closed). Rezervasyondan türeyen 'occupied' slotları kaydetme — aksi halde
+    // bayat grup/öğrenci verisi snapshot'a sızar ve canlı veriyle çelişir.
+    // 'occupied' slotlar 'available' olarak yazılır; bir sonraki yüklemede
+    // canlı rezervasyonlardan yeniden doldurulur.
+    const persistable: Record<string, Record<string, string>> = {}
+    courts.value.forEach(court => {
+      persistable[court.id] = {}
+      const courtSchedule = schedule.value[court.id] || {}
+      timeSlots.forEach(time => {
+        const status = getSlotStatusValue(courtSchedule[time])
+        persistable[court.id][time] =
+          status === 'maintenance' || status === 'closed' ? status : 'available'
+      })
+    })
+
     await setDoc(docRef, {
-      schedule: schedule.value,
+      schedule: persistable,
       lastUpdated: new Date(),
       updatedBy: updatedBy
     })
 
     editMode.value = false
     console.log('✅ Court schedule saved successfully')
+
+    // Snapshot artık sadece admin durumlarını içeriyor; canlı rezervasyonları
+    // yeniden bindirmek için programı yeniden oluştur.
+    await fetchCourtSchedule(selectedDate.value)
   } catch (error) {
     console.error('❌ Error saving court schedule:', error)
   } finally {
@@ -785,11 +722,18 @@ const setupRealTimeListener = () => {
   const dateString = selectedDate.value.toISOString().split('T')[0]
   const docRef = doc(db, 'courtSchedule', dateString)
 
-  unsubscribeCourtSchedule = onSnapshot(docRef, (doc) => {
-    if (doc.exists()) {
-      schedule.value = doc.data().schedule || {}
-      updateCourtStats()
+  // Snapshot değiştiğinde ham veriyi DOĞRUDAN atama — bu, canlı rezervasyon
+  // verisini bayat snapshot ile ezerdi. Bunun yerine tüm programı yeniden
+  // oluştur (canlı rezervasyonlar yine doğru kaynak). Admin düzenleme
+  // modundayken yeniden yükleme yapma; kullanıcının değişikliklerini ezmesin.
+  let initial = true
+  unsubscribeCourtSchedule = onSnapshot(docRef, () => {
+    if (initial) {
+      initial = false
+      return
     }
+    if (editMode.value) return
+    fetchCourtSchedule(selectedDate.value)
   })
 }
 
