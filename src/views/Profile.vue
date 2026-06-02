@@ -270,7 +270,8 @@ const {
   clearValidationErrors,
   successMessage,
   error: authError,
-  isAdmin
+  isAdmin,
+  isBoss
 } = useAuth()
 
 // Form References
@@ -309,6 +310,8 @@ const passwordData = ref<PasswordChangeData>({
 
 const userRoleText = computed(() => {
   if (!user.value) return ''
+  // Boss isAdmin'e dahil olduğundan önce boss'u kontrol et.
+  if (isBoss.value) return 'Patron'
   return isAdmin.value ? 'Yönetici (Admin)' : 'Öğrenci'
 })
 

@@ -53,7 +53,11 @@ export const useAuthStore = defineStore('auth', {
     }),
 
     getters: {
-        isAdmin: (state) => state.user?.role === 'admin',
+        // Patron (boss) admin'in tüm yetkilerine sahiptir: kortlarda kimin
+        // olduğunu görür, slot iptal eder, fiyat/yoklama düzenler. Bu yüzden
+        // isAdmin boss'u da kapsar. Saf admin'i ayırmak gerektiğinde isBoss ile
+        // ayrıştırın (örn. login sonrası kendi paneline yönlendirme).
+        isAdmin: (state) => state.user?.role === 'admin' || state.user?.role === 'boss',
         isStudent: (state) => state.user?.role === 'student',
         isBoss: (state) => state.user?.role === 'boss'
     },

@@ -478,19 +478,20 @@ const drawer = ref(false)
 
 // Rol bazlı görsel ipuçları (avatar rengi, ikon, etiket). Patron (boss) için
 // admin/öğrenciden ayrı bir kimlik gösterilir.
+// Boss isAdmin'e dahil olduğundan her birinde önce boss'u kontrol et.
 const roleAvatarColor = computed(() => {
-  if (authStore.isAdmin) return 'amber'
   if (authStore.isBoss) return 'deep-purple'
+  if (authStore.isAdmin) return 'amber'
   return 'success'
 })
 const roleIcon = computed(() => {
-  if (authStore.isAdmin) return 'mdi-account-cog'
   if (authStore.isBoss) return 'mdi-crown'
+  if (authStore.isAdmin) return 'mdi-account-cog'
   return 'mdi-account'
 })
 const roleLabel = computed(() => {
-  if (authStore.isAdmin) return 'Yönetici'
   if (authStore.isBoss) return 'Patron'
+  if (authStore.isAdmin) return 'Yönetici'
   return 'Öğrenci'
 })
 

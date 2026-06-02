@@ -239,7 +239,10 @@ const handleLogin = async () => {
     // Geçici şifreyle girildiyse zorunlu şifre belirleme dialog'u App.vue'da
     // (ForcePasswordReset) global olarak gösterilir. Burada normal yönlendirme yapılır;
     // kullanıcı şifresini belirleyene kadar dialog onu engeller.
-    if (authStore.isAdmin) {
+    // Boss isAdmin'e dahil; önce boss'u kontrol edip kendi izleme paneline yolla.
+    if (authStore.isBoss) {
+      router.push({ name: 'BossDashboard' })
+    } else if (authStore.isAdmin) {
       router.push({ name: 'AdminDashboard' })
     } else {
       router.push({ name: 'StudentDashboard' })

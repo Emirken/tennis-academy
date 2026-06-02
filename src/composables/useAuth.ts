@@ -64,6 +64,7 @@ export function useAuth() {
     const isAuthenticated = computed<boolean>(() => authStore.isAuthenticated)
     const isAdmin = computed<boolean>(() => authStore.isAdmin)
     const isStudent = computed<boolean>(() => authStore.isStudent)
+    const isBoss = computed<boolean>(() => authStore.isBoss)
     const loading = computed<boolean>(() => authStore.loading)
     const error = computed<string | null>(() => authStore.error)
 
@@ -418,7 +419,11 @@ export function useAuth() {
 
     // Navigation helpers
     const redirectAfterLogin = async (): Promise<void> => {
-        if (isAdmin.value) {
+        // Boss isAdmin'e dahil olduğundan önce boss'u kontrol et: kendi izleme
+        // paneline gitsin, admin dashboard'a değil.
+        if (isBoss.value) {
+            await router.push({ name: 'BossDashboard' })
+        } else if (isAdmin.value) {
             await router.push({ name: 'AdminDashboard' })
         } else if (isStudent.value) {
             await router.push({ name: 'StudentDashboard' })
@@ -505,6 +510,7 @@ export function useAuth() {
         isAuthenticated,
         isAdmin,
         isStudent,
+        isBoss,
         loading,
         error,
         validationErrors,
