@@ -2426,7 +2426,7 @@ const fetchGroups = async () => {
         
         // Eğer grupta artık sistemde olmayan bir öğrenci varsa veritabanından temizle
         if (validMembers.length !== data.members.length) {
-           updatePromises.push(updateDoc(docSnap.ref, { members: validMembers }).catch(console.error))
+           updatePromises.push(updateDoc(docSnap.ref, { members: validMembers }).catch(() => { /* sessizce yoksay */ }))
            data.members = validMembers
            console.log(`Silinmiş veya reddedilmiş hayalet üyeler gruptan temizlendi: ${docSnap.id}`)
         }

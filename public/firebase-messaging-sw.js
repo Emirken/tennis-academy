@@ -13,8 +13,6 @@ firebase.initializeApp({
 const messaging = firebase.messaging()
 
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Arka plan mesajı alındı:', payload)
-
   const notificationTitle = payload.notification?.title || payload.data?.title || 'Urla Tenis Akademisi'
   const notificationOptions = {
     body: payload.notification?.body || payload.data?.body || '',
