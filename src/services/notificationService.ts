@@ -6,6 +6,7 @@ import {
     query,
     where,
     orderBy,
+    limit,
     onSnapshot,
     doc,
     updateDoc,
@@ -13,6 +14,10 @@ import {
     serverTimestamp,
     Timestamp
 } from 'firebase/firestore'
+
+// Okuma optimizasyonu: dinleyici en fazla bu kadar (en yeni) bildirimi çeker.
+// İstemci tarafında sayfalama yok; daha eski bildirimler listede görünmez.
+const NOTIF_FETCH_LIMIT = 50
 
 export type NotificationType = 'system' | 'approval_pending' | 'payment_due' | 'lesson_cancelled' | 'lesson_added' | 'reservation_pending' | 'reservation_approved' | 'reservation_rejected'
 
@@ -40,14 +45,16 @@ export const notificationService = {
             q = query(
                 notificationsRef,
                 where('targetType', 'in', ['admin', 'all']),
-                orderBy('createdAt', 'desc')
+                orderBy('createdAt', 'desc'),
+                limit(NOTIF_FETCH_LIMIT)
             )
         } else {
             q = query(
                 notificationsRef,
                 where('targetType', '==', 'student'),
                 where('targetId', '==', userId),
-                orderBy('createdAt', 'desc')
+                orderBy('createdAt', 'desc'),
+                limit(NOTIF_FETCH_LIMIT)
             )
         }
 

@@ -297,12 +297,14 @@ import { useAuthStore } from '@/store/modules/auth'
 import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
+import { useGroupsStore } from '@/store/modules/groups'
 import { DEFAULT_MEMBERSHIP_TYPES } from '@/types/membershipType'
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
 import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
 
 const authStore = useAuthStore()
 const membershipTypesStore = useMembershipTypesStore()
+const groupsStore = useGroupsStore()
 let unsubscribeCourtSchedule: () => void
 
 // Reactive data
@@ -631,6 +633,20 @@ const resolveGroups = async (
   const existingGroupIds = new Set<string>()
   const groupNames: Record<string, string> = {}
 
+  // Okuma optimizasyonu: paylaşılan groups önbelleği hazırsa per-id getDoc
+  // yerine onu kullan. Önbellek yüklenmemiş/başarısızsa eski getDoc döngüsüne
+  // düş (orphan semantiğini bozmamak için — boş önbellek "hepsi silinmiş"
+  // anlamına GELMEZ). Etiket fallback'i `|| ''` aynen korunur.
+  if (groupsStore.isReady()) {
+    for (const groupId of groupIds) {
+      if (groupsStore.existingGroupIds.has(groupId)) {
+        existingGroupIds.add(groupId)
+        groupNames[groupId] = groupsStore.getName(groupId) || ''
+      }
+    }
+    return { existingGroupIds, groupNames }
+  }
+
   for (const groupId of groupIds) {
     try {
       const groupDoc = await getDoc(doc(db, 'groups', groupId))
@@ -781,6 +797,9 @@ watch(selectedDate, (newDate) => {
 // Lifecycle
 onMounted(async () => {
   await membershipTypesStore.initialize()
+  // Paylaşılan groups önbelleğini başlat (N+1 getDoc yerine). İlk veri asenkron
+  // gelir; gelene kadar resolveGroups güvenli per-id getDoc fallback'ini kullanır.
+  groupsStore.initialize()
   fetchCourtSchedule(selectedDate.value)
   setupRealTimeListener()
 })

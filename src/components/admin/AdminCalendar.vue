@@ -589,6 +589,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
+import { useGroupsStore } from '@/store/modules/groups'
 
 interface CalendarEvent {
   id: string
@@ -615,12 +616,24 @@ interface CalendarEvent {
 
 // State
 const membershipTypesStore = useMembershipTypesStore()
+const groupsStore = useGroupsStore()
 const currentView = ref<'day' | 'week' | 'month'>('week')
 const selectedDate = ref(new Date())
 const detailsDialog = ref(false)
 const selectedEvent = ref<CalendarEvent | null>(null)
 const calendarEvents = ref<CalendarEvent[]>([])
 const loading = ref(false)
+
+// Okuma optimizasyonu: takvimde ileri/geri gezinirken aynı tarih aralığına geri
+// dönüldüğünde reservations'ı yeniden okumamak için kısa ömürlü bellek-içi
+// önbellek. Anahtar: "view|startISO|endISO". Bayat veri riskini sınırlamak için
+// kısa TTL kullanılır ve herhangi bir yazım sonrası fetchReservations(true) ile
+// baypas edilir. Doluluk için canlı reservations yine doğru kaynaktır.
+const CALENDAR_CACHE_TTL_MS = 15_000
+const CALENDAR_CACHE_MAX_ENTRIES = 6
+const reservationsCache = new Map<string, { events: CalendarEvent[]; ts: number }>()
+
+const clearReservationsCache = () => reservationsCache.clear()
 
 // Reservation Dialog State
 const reservationDialog = ref(false)
@@ -929,7 +942,7 @@ const getMembershipDisplayName = (type: string) => {
   return membershipTypesStore.getDisplayInfo(type)?.name || type
 }
 
-const fetchReservations = async () => {
+const fetchReservations = async (force = false) => {
   loading.value = true
   try {
     // Get date range based on current view
@@ -949,6 +962,21 @@ const fetchReservations = async () => {
       startDate = new Date(selectedDate.value.getFullYear(), selectedDate.value.getMonth(), 1)
       endDate = new Date(selectedDate.value.getFullYear(), selectedDate.value.getMonth() + 1, 0)
       endDate.setHours(23, 59, 59, 999)
+    }
+
+    // Önbellek kontrolü: zorlanmadıysa ve TTL içinde geçerli bir giriş varsa
+    // yeniden okuma yapmadan onu kullan.
+    const cacheKey = `${currentView.value}|${startDate.toISOString()}|${endDate.toISOString()}`
+    if (!force) {
+      const cached = reservationsCache.get(cacheKey)
+      if (cached && Date.now() - cached.ts < CALENDAR_CACHE_TTL_MS) {
+        calendarEvents.value = cached.events
+        loading.value = false
+        return
+      }
+    } else {
+      // Zorlanan yenilemede (ör. yazım sonrası) bayat girişleri temizle.
+      clearReservationsCache()
     }
 
     const reservationsQuery = query(
@@ -972,19 +1000,31 @@ const fetchReservations = async () => {
       }
     })
 
-    // Fetch group names from Firebase and track which groups exist
+    // Fetch group names and track which groups exist.
+    // Okuma optimizasyonu: paylaşılan groups önbelleği hazırsa per-id getDoc
+    // yerine onu kullan; aksi halde eski getDoc döngüsüne düş. Etiket fallback'i
+    // `|| groupId` aynen korunur (getName boş isimde '' döndürür).
     const groupNames: { [key: string]: string } = {}
     const existingGroupIds = new Set<string>()
 
-    for (const groupId of groupIds) {
-      try {
-        const groupDoc = await getDoc(doc(db, 'groups', groupId))
-        if (groupDoc.exists()) {
-          groupNames[groupId] = groupDoc.data().name || groupId
+    if (groupsStore.isReady()) {
+      for (const groupId of groupIds) {
+        if (groupsStore.existingGroupIds.has(groupId)) {
+          groupNames[groupId] = groupsStore.getName(groupId) || groupId
           existingGroupIds.add(groupId)
         }
-      } catch (error) {
-        console.error(`Error fetching group ${groupId}:`, error)
+      }
+    } else {
+      for (const groupId of groupIds) {
+        try {
+          const groupDoc = await getDoc(doc(db, 'groups', groupId))
+          if (groupDoc.exists()) {
+            groupNames[groupId] = groupDoc.data().name || groupId
+            existingGroupIds.add(groupId)
+          }
+        } catch (error) {
+          console.error(`Error fetching group ${groupId}:`, error)
+        }
       }
     }
 
@@ -1124,6 +1164,14 @@ const fetchReservations = async () => {
     }
 
     calendarEvents.value = events
+
+    // Sonucu önbelleğe al (kısa TTL). Önbellek büyümesin diye en eski girişi at.
+    reservationsCache.set(cacheKey, { events, ts: Date.now() })
+    if (reservationsCache.size > CALENDAR_CACHE_MAX_ENTRIES) {
+      const oldestKey = reservationsCache.keys().next().value
+      if (oldestKey !== undefined) reservationsCache.delete(oldestKey)
+    }
+
     console.log(`✅ ${events.length} rezervasyon yüklendi`)
   } catch (error) {
     console.error('❌ Rezervasyonlar yüklenirken hata:', error)
@@ -1189,16 +1237,27 @@ const showEventDetails = async (event: CalendarEvent) => {
   try {
     if (event.isGroup && event.groupId) {
       participantsLoading.value = true
-      const groupSnap = await getDoc(doc(db, 'groups', event.groupId))
-      if (groupSnap.exists()) {
-        const data: any = groupSnap.data()
-        const members = Array.isArray(data.members) ? data.members : []
+
+      // Okuma optimizasyonu: önbellek hazır ve grup orada ise getDoc YAPMA.
+      // Aksi halde (hazır değil / grup önbellekte yok) eski getDoc'a düş.
+      const mapMembers = (data: any) => {
+        const members = Array.isArray(data?.members) ? data.members : []
         eventParticipants.value = members.map((m: any) => ({
           id: m.id,
           name: m.name || `${m.firstName || ''} ${m.lastName || ''}`.trim() || 'Bilinmiyor',
           email: m.email,
           phone: m.phone || m.phone_number,
         }))
+      }
+
+      const cachedGroup = groupsStore.isReady() ? groupsStore.getGroup(event.groupId) : undefined
+      if (cachedGroup) {
+        mapMembers(cachedGroup)
+      } else {
+        const groupSnap = await getDoc(doc(db, 'groups', event.groupId))
+        if (groupSnap.exists()) {
+          mapMembers(groupSnap.data())
+        }
       }
     } else {
       // Özel ders: tek katılımcı (öğrenci)
@@ -1436,9 +1495,9 @@ const saveReservation = async () => {
 
     showSnackbar('Rezervasyon başarıyla oluşturuldu', 'success')
     closeReservationDialog()
-    
-    // Refresh calendar
-    await fetchReservations()
+
+    // Refresh calendar — yazım sonrası önbelleği baypas et (force=true).
+    await fetchReservations(true)
   } catch (error) {
     console.error('Error saving reservation:', error)
     showSnackbar('Rezervasyon kaydedilirken bir hata oluştu', 'error')
@@ -1456,6 +1515,9 @@ const showSnackbar = (message: string, color: string = 'success') => {
 // Lifecycle
 onMounted(async () => {
   await membershipTypesStore.initialize()
+  // Paylaşılan groups önbelleğini başlat (grup-adı ve katılımcı okumaları için
+  // N+1 getDoc yerine). Hazır olana kadar eski getDoc fallback'i devrede.
+  groupsStore.initialize()
   await fetchReservations()
 })
 

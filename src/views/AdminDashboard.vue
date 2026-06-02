@@ -494,12 +494,18 @@ const managementActions: ManagementAction[] = [
 // Firebase'den öğrenci sayısını al
 const fetchTotalStudents = async () => {
   try {
-    const usersSnapshot = await getDocs(collection(db, 'users'))
+    // Okuma optimizasyonu: tüm users yerine yalnızca öğrencileri çek.
+    // `deleted` filtresi BELLEKTE yapılır (role+deleted composite index
+    // gerektirir ve eski dokümanlarda alan olmayabilir). Gösterilen sayı
+    // önceki davranışla birebir aynı kalır.
+    const usersSnapshot = await getDocs(
+      query(collection(db, 'users'), where('role', '==', 'student'))
+    )
     let studentCount = 0
 
     usersSnapshot.forEach((doc) => {
       const userData = doc.data()
-      if (userData.role === 'student' && userData.deleted !== true) {
+      if (userData.deleted !== true) {
         studentCount++
       }
     })

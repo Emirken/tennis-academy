@@ -443,7 +443,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { collection, getDocs, onSnapshot } from 'firebase/firestore'
+import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
@@ -497,11 +497,22 @@ const setupNotificationsListener = () => {
     )
 
     if (authStore.user.role === 'admin') {
-      unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      // Okuma optimizasyonu: tüm users koleksiyonunu dinlemek yerine yalnızca
+      // bekleyen öğrencileri sorgula. Böylece herhangi bir user yazımında değil,
+      // sadece bekleyen-öğrenci dokümanları değiştiğinde yeniden okuma olur.
+      // `deleted` filtresi BELLEKTE yapılır: eski dokümanlarda alan olmayabilir,
+      // `where('deleted','==',false)` bunları yanlışlıkla eler ve ayrıca
+      // role+status+deleted üçlü filtresi composite index gerektirirdi.
+      const pendingStudentsQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'student'),
+        where('status', '==', 'pending')
+      )
+      unsubscribeUsers = onSnapshot(pendingStudentsQuery, (snapshot) => {
         let pending = 0
         snapshot.forEach((doc) => {
           const d = doc.data()
-          if (d.role === 'student' && d.status === 'pending' && !d.deleted) pending++
+          if (!d.deleted) pending++
         })
         pendingStudentsCount.value = pending
       })

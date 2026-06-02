@@ -345,8 +345,10 @@ import {
   type RawReservationDoc
 } from '@/utils/dailyReservationLimit'
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
+import { useGroupsStore } from '@/store/modules/groups'
 
 const authStore = useAuthStore()
+const groupsStore = useGroupsStore()
 
 // Form data
 const reservationData = reactive({
@@ -479,6 +481,18 @@ const getExistingGroupIds = async (docs: RawReservationDoc[]): Promise<Set<strin
   })
 
   const existing = new Set<string>()
+
+  // Okuma optimizasyonu: paylaşılan groups önbelleği hazırsa per-id getDoc
+  // yerine onu kullan. Başarılı tam yükleme yetkilidir: önbellekte olmayan gid
+  // gerçekten yok → doğru şekilde orphan. Önbellek hazır DEĞİLSE eski per-id
+  // getDoc mantığına düş (başarısızlıkta grubu VAR sayan güvenli davranış korunur).
+  if (groupsStore.isReady()) {
+    groupIds.forEach((gid) => {
+      if (groupsStore.existingGroupIds.has(gid)) existing.add(gid)
+    })
+    return existing
+  }
+
   await Promise.all(
     [...groupIds].map(async (gid) => {
       try {
@@ -968,6 +982,10 @@ const cancelReservation = async (reservation: Reservation) => {
 // Initialize
 onMounted(async () => {
   setDefaultSchedule()
+  // Paylaşılan groups önbelleğini başlat (loadCourtSchedule içindeki
+  // getExistingGroupIds N+1 getDoc yerine bunu kullanır; hazır olmadan güvenli
+  // per-id fallback devrededir).
+  groupsStore.initialize()
   console.log('🚀 Component mount edildi')
 
   // Saat tick'i — 30 sn'de bir; 20:00'de açılan gün otomatik güncellensin
