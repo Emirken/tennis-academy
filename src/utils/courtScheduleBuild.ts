@@ -32,6 +32,14 @@ export interface OccupiedSlot {
   groupName?: string
   membershipType?: string
   reservationType?: string
+  // İptal için: bu slotu dolduran rezervasyon dokümanının id'si, zamanı ve
+  // HAM (Firestore) kort id'si. Canlı rezervasyondan gelen slotlarda dolu olur;
+  // snapshot yedeğinde boştur. rawCourtId, grup üyelerini eşlerken ekran id'si
+  // (K1) yerine ham id (court-1) ile kıyaslama yapmak için tutulur.
+  reservationId?: string
+  startTime?: string
+  endTime?: string
+  rawCourtId?: string
 }
 
 export type SlotValue = string | OccupiedSlot | Record<string, unknown>
@@ -150,6 +158,10 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
       groupName: isGroup ? (groupNames[groupId] || (res.groupName as string) || '') : '',
       membershipType: (res.membershipType as string) || '',
       reservationType: (res.reservationType as string) || (res.type as string) || 'lesson',
+      reservationId: (res.id as string) || undefined,
+      startTime: (res.startTime as string) || undefined,
+      endTime: (res.endTime as string) || undefined,
+      rawCourtId: (res.courtId as string) || undefined,
     }
 
     const slots = slotsInRange(timeSlots, res.startTime as string, res.endTime as string)

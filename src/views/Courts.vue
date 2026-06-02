@@ -239,6 +239,18 @@
                               ({{ getStudentInfo(schedule[court.id]?.[timeSlot]) }})
                             </div>
                           </div>
+                          <!-- Admin: dolu slotu iptal et (düzenleme modu dışında) -->
+                          <v-btn
+                              v-if="authStore.isAdmin && !editMode && isCancellableSlot(schedule[court.id]?.[timeSlot])"
+                              icon="mdi-cancel"
+                              size="x-small"
+                              variant="text"
+                              color="error"
+                              class="slot-cancel-btn"
+                              :loading="cancellingSlotKey === `${court.id}-${timeSlot}`"
+                              title="Rezervasyonu iptal et"
+                              @click.stop="cancelSlotReservation(court.id, timeSlot)"
+                          />
                         </div>
                       </td>
                     </tr>
@@ -288,19 +300,42 @@
         </v-row>
       </v-container>
     </v-container>
+
+    <!-- İptal sonucu bildirimi -->
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+      {{ snackbar.message }}
+      <template v-slot:actions>
+        <v-btn color="white" variant="text" @click="snackbar.show = false">Kapat</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
+
+<style scoped>
+.slot-status {
+  position: relative;
+}
+
+/* Dolu slotun sağ üst köşesindeki iptal butonu */
+.slot-cancel-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+</style>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
-import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { useGroupsStore } from '@/store/modules/groups'
 import { DEFAULT_MEMBERSHIP_TYPES } from '@/types/membershipType'
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
 import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
+import { notificationService } from '@/services/notificationService'
+import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
 
 const authStore = useAuthStore()
 const membershipTypesStore = useMembershipTypesStore()
@@ -314,6 +349,12 @@ const schedule = ref<any>({})
 const loading = ref(false)
 const editMode = ref(false)
 const saving = ref(false)
+
+// İptal işlemi için: seçilen güne ait ham rezervasyon dokümanları (id dahil),
+// iptal sürerken loading durumu ve kullanıcı geri bildirimi için snackbar.
+const dayReservations = ref<RawReservationDocWithId[]>([])
+const cancellingSlotKey = ref<string | null>(null)
+const snackbar = ref({ show: false, message: '', color: 'success' })
 
 // Time slots (08:00 - 22:00, son slot 22:00 - 23:00)
 const timeSlots = [
@@ -585,7 +626,9 @@ const fetchCourtSchedule = async (date: Date) => {
         where('date', '<=', endOfDay)
     )
     const querySnapshot = await getDocs(reservationsQuery)
-    const reservations = querySnapshot.docs.map(d => d.data() as RawReservationDoc)
+    const reservations = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as RawReservationDocWithId)
+    // İptal işleminde grup üyelerini bulabilmek için o günün ham dokümanlarını sakla.
+    dayReservations.value = reservations
 
     // 3) Hangi grupların hâlâ var olduğunu ve adlarını topla (canlı + snapshot)
     const { existingGroupIds, groupNames } = await resolveGroups(reservations, storedSchedule)
@@ -669,6 +712,88 @@ const mapCourtId = (reservationCourtId: string): string => {
     'court-3': 'K3',
   }
   return mapping[reservationCourtId] || reservationCourtId
+}
+
+// Bir slotun iptal edilebilir (canlı bir rezervasyona bağlı) olup olmadığını
+// döndürür. Snapshot yedeği slotlarında reservationId bulunmaz; onlar buradan
+// iptal edilemez (haftalık programdan yönetilir).
+const isCancellableSlot = (slotData: any): boolean => {
+  return !!(slotData && typeof slotData === 'object' && slotData.status === 'occupied' && slotData.reservationId)
+}
+
+const showSnackbar = (message: string, color: string = 'success') => {
+  snackbar.value = { show: true, message, color }
+}
+
+// Admin, kort durumundan dolu bir slotu iptal eder. Grup dersinde o
+// grup+tarih+saat+kort için TÜM üye dokümanları iptal edilir.
+const cancelSlotReservation = async (courtId: string, timeSlot: string) => {
+  const slotData = schedule.value[courtId]?.[timeSlot]
+  if (!authStore.isAdmin || !isCancellableSlot(slotData) || cancellingSlotKey.value) return
+
+  const isGroup = !!slotData.groupAssignment
+  const confirmMsg = isGroup
+    ? 'Bu grup dersinin tüm üye rezervasyonları iptal edilecek. Emin misiniz?'
+    : 'Rezervasyonu iptal etmek istediğinize emin misiniz?'
+  if (!confirm(confirmMsg)) return
+
+  const slotKey = `${courtId}-${timeSlot}`
+  cancellingSlotKey.value = slotKey
+  try {
+    const ids = getReservationIdsToCancel(
+      {
+        reservationId: slotData.reservationId,
+        groupId: isGroup ? (slotData.groupAssignment || null) : null,
+        date: selectedDate.value,
+        startTime: slotData.startTime || timeSlot,
+        // Ham (Firestore) kort id'si — ham dokümanlarla aynı biçimde olduğu için
+        // grup üyesi eşleştirmesi doğru çalışır (ekran id'si K1 değil).
+        courtId: slotData.rawCourtId,
+      },
+      dayReservations.value
+    )
+
+    const cancelData = {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+      cancelledBy: 'admin',
+      cancelledByUserId: authStore.user?.id || null,
+    }
+    await Promise.all(ids.map(id => updateDoc(doc(db, 'reservations', id), cancelData)))
+
+    // İlgili öğrenci(ler)e iptal bildirimi gönder.
+    const dateLabel = selectedDate.value.toLocaleDateString('tr-TR', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    })
+    const courtName = courts.value.find(c => c.id === courtId)?.name || courtId
+    const idSet = new Set(ids)
+    const notified = new Set<string>()
+    for (const d of dayReservations.value) {
+      if (!idSet.has(d.id)) continue
+      const sid = d.studentId
+      if (!sid || notified.has(sid)) continue
+      notified.add(sid)
+      try {
+        await notificationService.createStudentNotification(
+          sid,
+          isGroup ? 'Dersiniz İptal Edildi' : 'Rezervasyonunuz İptal Edildi',
+          `${dateLabel} ${slotData.startTime || timeSlot} • ${courtName} için kaydınız yönetici tarafından iptal edildi.`,
+          'reservation_rejected',
+          { reservationId: d.id }
+        )
+      } catch (e) {
+        console.error('İptal bildirimi gönderilemedi:', e)
+      }
+    }
+
+    showSnackbar(ids.length > 1 ? `${ids.length} rezervasyon iptal edildi` : 'Rezervasyon iptal edildi')
+    await fetchCourtSchedule(selectedDate.value)
+  } catch (error) {
+    console.error('Rezervasyon iptal hatası:', error)
+    showSnackbar('Rezervasyon iptal edilirken bir hata oluştu', 'error')
+  } finally {
+    cancellingSlotKey.value = null
+  }
 }
 
 const updateCourtStats = () => {

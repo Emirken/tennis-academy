@@ -405,6 +405,16 @@
           </v-card-text>
           <v-divider></v-divider>
           <v-card-actions>
+            <v-btn
+              v-if="canCancelEvent(selectedEvent)"
+              color="error"
+              variant="text"
+              prepend-icon="mdi-cancel"
+              :loading="isCancelling"
+              @click="cancelSelectedReservation"
+            >
+              {{ selectedEvent.isGroup ? 'Dersi İptal Et' : 'Rezervasyonu İptal Et' }}
+            </v-btn>
             <v-spacer></v-spacer>
             <v-btn color="primary" variant="text" @click="detailsDialog = false">
               Kapat
@@ -586,10 +596,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { useGroupsStore } from '@/store/modules/groups'
+import { useAuthStore } from '@/store/modules/auth'
+import { notificationService } from '@/services/notificationService'
+import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
 
 interface CalendarEvent {
   id: string
@@ -617,10 +630,12 @@ interface CalendarEvent {
 // State
 const membershipTypesStore = useMembershipTypesStore()
 const groupsStore = useGroupsStore()
+const authStore = useAuthStore()
 const currentView = ref<'day' | 'week' | 'month'>('week')
 const selectedDate = ref(new Date())
 const detailsDialog = ref(false)
 const selectedEvent = ref<CalendarEvent | null>(null)
+const isCancelling = ref(false)
 const calendarEvents = ref<CalendarEvent[]>([])
 const loading = ref(false)
 
@@ -1276,6 +1291,109 @@ const showEventDetails = async (event: CalendarEvent) => {
     console.error('Katılımcılar yüklenirken hata:', err)
   } finally {
     participantsLoading.value = false
+  }
+}
+
+// Sadece slotu meşgul eden (iptal/tamamlanmamış) etkinlikler iptal edilebilir.
+const canCancelEvent = (event: CalendarEvent | null): boolean => {
+  if (!event) return false
+  return event.status !== 'cancelled' && event.status !== 'completed' && event.status !== 'no_show'
+}
+
+// Date'i 'HH:mm' formatına çevirir (eşleştirme/karşılaştırma için).
+const toTimeString = (d: Date): string => {
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${h}:${m}`
+}
+
+// Admin bir rezervasyonu/dersi iptal eder. Grup dersinde o grup+tarih+saat+kort
+// için TÜM üye dokümanları iptal edilir (slotun tamamen boşalması için).
+const cancelSelectedReservation = async () => {
+  const event = selectedEvent.value
+  if (!event || isCancelling.value || !canCancelEvent(event)) return
+
+  const confirmMsg = event.isGroup
+    ? 'Bu grup dersinin tüm üye rezervasyonları iptal edilecek. Emin misiniz?'
+    : 'Rezervasyonu iptal etmek istediğinize emin misiniz?'
+  if (!confirm(confirmMsg)) return
+
+  isCancelling.value = true
+  try {
+    // O güne ait ham rezervasyon dokümanlarını oku (grup üyelerini bulmak için).
+    const dayStart = new Date(event.start)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(event.start)
+    dayEnd.setHours(23, 59, 59, 999)
+
+    const daySnap = await getDocs(query(
+      collection(db, 'reservations'),
+      where('date', '>=', dayStart),
+      where('date', '<=', dayEnd)
+    ))
+    const dayDocs: RawReservationDocWithId[] = daySnap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+    const ids = getReservationIdsToCancel(
+      {
+        reservationId: event.id,
+        groupId: event.isGroup ? (event.groupId || null) : null,
+        date: event.start,
+        startTime: toTimeString(event.start),
+        courtId: event.courtId,
+      },
+      dayDocs
+    )
+
+    // Eşleşen tüm dokümanları 'cancelled' yap.
+    const cancelData = {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+      cancelledBy: 'admin',
+      cancelledByUserId: authStore.user?.id || null,
+    }
+    await Promise.all(
+      ids.map(id => updateDoc(doc(db, 'reservations', id), cancelData))
+    )
+
+    // İlgili öğrenci(ler)e iptal bildirimi gönder (benzersiz studentId'ler).
+    const dateLabel = new Date(event.start).toLocaleDateString('tr-TR', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    })
+    const timeLabel = toTimeString(event.start)
+    const notifiedStudents = new Set<string>()
+    const idSet = new Set(ids)
+    for (const d of dayDocs) {
+      if (!idSet.has(d.id)) continue
+      const sid = d.studentId
+      if (!sid || notifiedStudents.has(sid)) continue
+      notifiedStudents.add(sid)
+      try {
+        await notificationService.createStudentNotification(
+          sid,
+          event.isGroup ? 'Dersiniz İptal Edildi' : 'Rezervasyonunuz İptal Edildi',
+          `${dateLabel} ${timeLabel} • ${event.courtName} için kaydınız yönetici tarafından iptal edildi.`,
+          'reservation_rejected',
+          { reservationId: d.id }
+        )
+      } catch (e) {
+        console.error('İptal bildirimi gönderilemedi:', e)
+      }
+    }
+
+    showSnackbar(
+      ids.length > 1 ? `${ids.length} rezervasyon iptal edildi` : 'Rezervasyon iptal edildi',
+      'success'
+    )
+    detailsDialog.value = false
+    selectedEvent.value = null
+
+    // Yazım sonrası önbelleği baypas ederek takvimi tazele.
+    await fetchReservations(true)
+  } catch (error) {
+    console.error('Rezervasyon iptal hatası:', error)
+    showSnackbar('Rezervasyon iptal edilirken bir hata oluştu', 'error')
+  } finally {
+    isCancelling.value = false
   }
 }
 
