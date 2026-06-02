@@ -344,6 +344,7 @@ import {
   isSlotBlockingReservation,
   type RawReservationDoc
 } from '@/utils/dailyReservationLimit'
+import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
 
 const authStore = useAuthStore()
 
@@ -500,83 +501,66 @@ const getSlotStatusValue = (slotData: any): string => {
   return 'available'
 }
 
+// Kort programını /courts (Kort Durumu) ekranıyla TAM AYNI motoru
+// (buildCourtSchedule) kullanarak yükler. Önceden burada ayrı bir doluluk
+// mantığı vardı; status/slot-aralığı/court-id ele alışı /courts ve takvimden
+// hafifçe sapınca "takvimde dolu, rezervasyonda boş" tutarsızlığı çıkıyordu.
+// Artık tek motor → üç ekran (takvim, /courts, bu form) daima aynı sonucu verir.
 const loadCourtSchedule = async (date: string) => {
   try {
     setDefaultSchedule()
 
-    // Slotu meşgul eden tüm rezervasyonları çek. Durum filtresini SERVER'da
-    // yapmıyoruz: 'active' veya status alanı OLMAYAN (legacy/elle eklenen)
-    // dokümanlar 'in' sorgusunda kaybolur ve takvimde dolu görünen slot burada
-    // boş çıkardı. Bunun yerine TÜM modüllerle ortak isSlotBlockingReservation
-    // ölçütünü client-side uygula (bkz. dailyReservationLimit.ts).
-    const snapshot = await getDocs(collection(db, 'reservations'))
+    // O güne ait rezervasyonları, Courts.vue ile aynı Timestamp aralık
+    // sorgusuyla çek (yerel gün sınırları). String '.toISOString()' eşitliği
+    // yerine instant karşılaştırması saat dilimi kaymalarına dayanıklıdır.
+    const dayStart = new Date(`${date}T00:00:00`)
+    const dayEnd = new Date(`${date}T23:59:59.999`)
 
-    // Seçilen tarihe ait + slotu meşgul eden dokümanları topla
-    const dayDocs = snapshot.docs.filter((docSnap) => {
-      const data = docSnap.data()
-      if (!isSlotBlockingReservation(data as RawReservationDoc)) return false
-      let docDateStr: string
-      if (typeof data.date === 'string') {
-        docDateStr = data.date
-      } else if (data.date?.toDate) {
-        docDateStr = data.date.toDate().toISOString().split('T')[0]
-      } else {
-        docDateStr = new Date(data.date).toISOString().split('T')[0]
-      }
-      return docDateStr === date
+    const reservationsQuery = query(
+      collection(db, 'reservations'),
+      where('date', '>=', dayStart),
+      where('date', '<=', dayEnd)
+    )
+    const snapshot = await getDocs(reservationsQuery)
+    const reservations = snapshot.docs.map((d) => d.data() as RawReservationDoc)
+
+    // Grubu silinmiş "hayalet" rezervasyonları ele (takvim/​courts ile aynı).
+    const existingGroupIds = await getExistingGroupIds(reservations)
+
+    // Admin bakım/kapalı durumları + grup yedeği için snapshot.
+    const scheduleDoc = await getDoc(doc(db, 'courtSchedule', date))
+    const storedSchedule = scheduleDoc.exists() ? (scheduleDoc.data().schedule || {}) : {}
+
+    // /courts ile AYNI motor. Sonuç court-1/2/3 anahtarlarıyla döner.
+    const built = buildCourtSchedule({
+      courtIds: ['court-1', 'court-2', 'court-3'],
+      timeSlots,
+      storedSchedule,
+      reservations,
+      existingGroupIds,
+      mapCourtId: firestoreToFormCourtId,
     })
 
-    // Grubu silinmiş "hayalet" rezervasyonları ele — AdminCalendar bunları
-    // gizler; doluluk kontrolü de aynı şekilde yok saymalı, aksi halde
-    // takvimde boş görünen slot rezervasyon yaparken "dolu" çıkar.
-    const existingGroupIds = await getExistingGroupIds(dayDocs.map((d) => d.data() as RawReservationDoc))
-
-    dayDocs.forEach((docSnap) => {
-      const data = docSnap.data()
-
-      // Grubu artık var olmayan rezervasyonu atla (yetim/orphan kayıt)
-      if (isOrphanGroupReservation(data as RawReservationDoc, existingGroupIds)) return
-
-      // courtId K1/K2/K3 veya court-1/2/3 formatında olabilir — form formatına normalize et
-      const courtId = firestoreToFormCourtId(data.courtId)
-      if (!courtSchedule[courtId]) return
-
-      // Grup dersleri özel olarak işaretle; normal rezervasyonlar 'occupied'
-      const isGroupLesson = data.reservationType === 'group-lesson' ||
-        data.groupId || data.groupAssignment || data.groupSchedule === true
-      const slotStatus = isGroupLesson ? 'group_lesson' : 'occupied'
-
-      // Rezervasyonun kapladığı tüm slotları dolu işaretle
-      const slots = getTimeSlotsInRange(data.startTime, data.endTime)
-      slots.forEach(slot => {
-        courtSchedule[courtId][slot] = slotStatus
+    // buildCourtSchedule zengin SlotValue döndürür (occupied nesneleri /
+    // maintenance / closed string'leri). Form yalnızca basit string durumlara
+    // bakıyor; "available değilse rezerve edilemez" mantığı için düzleştir.
+    Object.keys(courtSchedule).forEach((courtId) => {
+      const builtCourt = built[courtId] || {}
+      timeSlots.forEach((time) => {
+        const slot = builtCourt[time]
+        const status = getSlotStatusValue(slot)
+        if (status === 'occupied') {
+          // Grup dersi mi? Etiket için ayrı işaretle (form 'group_lesson' ile de
+          // "available değil" sayar; ikisi de rezervasyonu engeller).
+          const isGroup =
+            typeof slot === 'object' &&
+            ((slot as any).reservationType === 'group-lesson' || !!(slot as any).groupAssignment)
+          courtSchedule[courtId][time] = isGroup ? 'group_lesson' : 'occupied'
+        } else {
+          courtSchedule[courtId][time] = status // available | maintenance | closed
+        }
       })
     })
-
-    // Grup dersleri için courtSchedule koleksiyonuna da bak (rezervasyonlarda olmayanlar için yedek)
-    const scheduleDoc = await getDoc(doc(db, 'courtSchedule', date))
-    if (scheduleDoc.exists()) {
-      const data = scheduleDoc.data()
-      if (data.schedule) {
-        Object.keys(data.schedule).forEach(firestoreCourtId => {
-          const formCourtId = firestoreToFormCourtId(firestoreCourtId)
-          if (!courtSchedule[formCourtId]) return
-          timeSlots.forEach(timeSlot => {
-            const slotData = data.schedule[firestoreCourtId]?.[timeSlot]
-            if (!slotData) return
-            // courtSchedule fallback'inde de grubu silinmiş slotları atla
-            if (isOrphanGroupReservation(slotData as RawReservationDoc, existingGroupIds)) return
-            const status = getSlotStatusValue(slotData)
-            const isGroup = status === 'group_lesson' ||
-              (typeof slotData === 'object' && slotData.reservationType === 'group-lesson')
-            // Hali hazırda müsait görünen slotları grup dersi ile işaretle
-            if (isGroup && courtSchedule[formCourtId][timeSlot] === 'available') {
-              courtSchedule[formCourtId][timeSlot] = 'group_lesson'
-            }
-          })
-        })
-      }
-    }
   } catch (error) {
     console.error('Kort programını yükleme hatası:', error)
     setDefaultSchedule()
