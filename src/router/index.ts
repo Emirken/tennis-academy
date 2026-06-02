@@ -116,6 +116,18 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('@/views/Notifications.vue')
       }
     ]
+  },
+  // Patron (boss) rotaları — monitoring paneli
+  {
+    path: '/boss',
+    meta: { requiresAuth: true, role: 'boss' },
+    children: [
+      {
+        path: 'dashboard',
+        name: 'BossDashboard',
+        component: () => import('@/views/BossDashboard.vue')
+      }
+    ]
   }
 ]
 
@@ -157,6 +169,8 @@ router.beforeEach(async (to, from, next) => {
     // Kullanıcının rolüne göre yönlendir
     if (authStore.user?.role === 'admin') {
       next('/admin/dashboard')
+    } else if (authStore.user?.role === 'boss') {
+      next('/boss/dashboard')
     } else if (authStore.user?.role === 'student') {
       next('/student/dashboard')
     } else {
@@ -165,11 +179,15 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // Rol kontrolü
+  // Rol kontrolü. Patron (boss) admin için işaretli rotalara da erişebilir
+  // (monitoring + tüm admin sayfaları); kendi /boss rotalarına ise yalnızca boss.
   if (to.meta.role && authStore.user?.role !== to.meta.role) {
-    console.log('❌ Rol uyumsuzluğu, home\'a yönlendiriliyor')
-    next('/')
-    return
+    const bossCanAccess = authStore.user?.role === 'boss' && to.meta.role === 'admin'
+    if (!bossCanAccess) {
+      console.log('❌ Rol uyumsuzluğu, home\'a yönlendiriliyor')
+      next('/')
+      return
+    }
   }
 
   // Pending student kontrolü - sadece StudentDashboard ve public sayfalara izin ver (Login için vs.)
@@ -185,6 +203,8 @@ router.beforeEach(async (to, from, next) => {
   if (to.path === '/' && authStore.isAuthenticated) {
     if (authStore.user?.role === 'admin') {
       next('/admin/dashboard')
+    } else if (authStore.user?.role === 'boss') {
+      next('/boss/dashboard')
     } else if (authStore.user?.role === 'student') {
       next('/student/dashboard')
     } else {

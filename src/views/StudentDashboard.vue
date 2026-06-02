@@ -550,7 +550,7 @@ interface User {
   email: string
   firstName: string
   lastName: string
-  role: 'admin' | 'student'
+  role: 'admin' | 'student' | 'boss'
   phone?: string
   address?: string
   emergencyContact?: string

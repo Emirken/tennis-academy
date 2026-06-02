@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, type Unsubscribe } from 'firebase/firestore'
 import { auth, db } from '@/services/firebase'
-import type { User, PlayerLevel } from '@/types/user'
+import type { User, PlayerLevel, UserRole } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
 import { pushNotificationService } from '@/services/pushNotificationService'
 
@@ -54,7 +54,8 @@ export const useAuthStore = defineStore('auth', {
 
     getters: {
         isAdmin: (state) => state.user?.role === 'admin',
-        isStudent: (state) => state.user?.role === 'student'
+        isStudent: (state) => state.user?.role === 'student',
+        isBoss: (state) => state.user?.role === 'boss'
     },
 
     actions: {
@@ -129,7 +130,7 @@ export const useAuthStore = defineStore('auth', {
             password: string
             firstName: string
             lastName: string
-            role: 'admin' | 'student'
+            role: UserRole
             email?: string
             birthDate?: string
             level?: PlayerLevel

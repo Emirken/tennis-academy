@@ -3,20 +3,35 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Helper function to check if user is admin
     function isAdmin() {
-      return request.auth != null && 
+      return request.auth != null &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
+
+    // Helper function to check if user is boss (patron). Boss has read-only
+    // access to monitoring data (öğrenciler, rezervasyonlar, paketler) but
+    // does NOT get write privileges.
+    function isBoss() {
+      return request.auth != null &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'boss';
+    }
+
+    // Admin or boss — used to grant the monitoring read access boss needs.
+    function isAdminOrBoss() {
+      return isAdmin() || isBoss();
+    }
+
     // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
     
-    // Users collection - allow users to read/write their own document + admin can read all
+    // Users collection - allow users to read/write their own document + admin
+    // can read/write all. Boss (patron) can READ all users (monitoring paneli
+    // için öğrenci listesini sorgular) ama YAZAMAZ.
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow read: if isAdmin(); 
-      allow write: if isAdmin(); 
+      allow read: if isAdminOrBoss();
+      allow write: if isAdmin();
     }
     
     // Courts collection - allow authenticated users to read

@@ -48,7 +48,7 @@
         </v-btn>
 
         <v-btn
-            v-if="authStore.isAdmin"
+            v-if="authStore.isAdmin || authStore.isBoss"
             variant="text"
             color="white"
             :to="{ name: 'Pricing' }"
@@ -69,10 +69,10 @@
         </v-btn>
 
         <v-btn
-            v-if="authStore.isAuthenticated && (authStore.isAdmin || authStore.isStudent)"
+            v-if="authStore.isAuthenticated && (authStore.isAdmin || authStore.isBoss || authStore.isStudent)"
             variant="text"
             color="white"
-            :to="{ name: authStore.isAdmin ? 'Notifications' : 'StudentNotifications' }"
+            :to="{ name: authStore.isStudent ? 'StudentNotifications' : 'Notifications' }"
             class="nav-btn mx-1"
         >
           <v-badge
@@ -102,7 +102,7 @@
               >
                 <v-avatar
                     size="32"
-                    :color="authStore.isAdmin ? 'amber' : 'success'"
+                    :color="roleAvatarColor"
                     class="mr-2"
                 >
                   <span class="white--text font-weight-bold">
@@ -111,7 +111,7 @@
                 </v-avatar>
                 <span class="mr-2">{{ authStore.user?.firstName }}</span>
                 <v-icon
-                    :icon="authStore.isAdmin ? 'mdi-account-cog' : 'mdi-account'"
+                    :icon="roleIcon"
                     size="20"
                     class="mr-1"
                 />
@@ -142,7 +142,18 @@
               </v-list-item>
 
               <v-list-item
-                  v-if="authStore.isAdmin"
+                  v-if="authStore.isBoss"
+                  :to="{ name: 'BossDashboard' }"
+                  class="dropdown-item"
+              >
+                <v-list-item-title>
+                  <v-icon icon="mdi-chart-line" class="mr-2" />
+                  İzleme Paneli
+                </v-list-item-title>
+              </v-list-item>
+
+              <v-list-item
+                  v-if="authStore.isAdmin || authStore.isBoss"
                   :to="{ name: 'AdminDashboard' }"
                   class="dropdown-item"
               >
@@ -164,7 +175,7 @@
               </v-list-item>
 
               <v-list-item
-                  v-if="authStore.isAdmin"
+                  v-if="authStore.isAdmin || authStore.isBoss"
                   :to="{ name: 'Attendance' }"
                   class="dropdown-item"
               >
@@ -274,7 +285,7 @@
       </v-list-item>
 
       <v-list-item
-          v-if="authStore.isAdmin"
+          v-if="authStore.isAdmin || authStore.isBoss"
           :to="{ name: 'Pricing' }"
           class="drawer-item"
           @click="drawer = false"
@@ -297,8 +308,8 @@
       </v-list-item>
 
       <v-list-item
-          v-if="authStore.isAuthenticated && (authStore.isAdmin || authStore.isStudent)"
-          :to="{ name: authStore.isAdmin ? 'Notifications' : 'StudentNotifications' }"
+          v-if="authStore.isAuthenticated && (authStore.isAdmin || authStore.isBoss || authStore.isStudent)"
+          :to="{ name: authStore.isStudent ? 'StudentNotifications' : 'Notifications' }"
           class="drawer-item"
           @click="drawer = false"
       >
@@ -327,7 +338,7 @@
         <div class="user-info">
           <v-avatar
               size="48"
-              :color="authStore.isAdmin ? 'amber' : 'success'"
+              :color="roleAvatarColor"
               class="mb-3"
           >
             <span class="white--text text-h6 font-weight-bold">
@@ -336,7 +347,7 @@
           </v-avatar>
           <h4 class="user-name">{{ authStore.user?.firstName }} {{ authStore.user?.lastName }}</h4>
           <p class="user-role">
-            {{ authStore.isAdmin ? 'Yönetici' : 'Öğrenci' }}
+            {{ roleLabel }}
           </p>
         </div>
 
@@ -364,7 +375,19 @@
         </v-list-item>
 
         <v-list-item
-            v-if="authStore.isAdmin"
+            v-if="authStore.isBoss"
+            :to="{ name: 'BossDashboard' }"
+            class="drawer-item"
+            @click="drawer = false"
+        >
+          <template v-slot:prepend>
+            <v-icon icon="mdi-chart-line" />
+          </template>
+          <v-list-item-title>İzleme Paneli</v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
+            v-if="authStore.isAdmin || authStore.isBoss"
             :to="{ name: 'AdminDashboard' }"
             class="drawer-item"
             @click="drawer = false"
@@ -387,7 +410,7 @@
           <v-list-item-title>Rezervasyonlar</v-list-item-title>
         </v-list-item>
         <v-list-item
-            v-if="authStore.isAdmin"
+            v-if="authStore.isAdmin || authStore.isBoss"
             :to="{ name: 'Attendance' }"
             class="drawer-item"
             @click="drawer = false"
@@ -452,6 +475,24 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const drawer = ref(false)
+
+// Rol bazlı görsel ipuçları (avatar rengi, ikon, etiket). Patron (boss) için
+// admin/öğrenciden ayrı bir kimlik gösterilir.
+const roleAvatarColor = computed(() => {
+  if (authStore.isAdmin) return 'amber'
+  if (authStore.isBoss) return 'deep-purple'
+  return 'success'
+})
+const roleIcon = computed(() => {
+  if (authStore.isAdmin) return 'mdi-account-cog'
+  if (authStore.isBoss) return 'mdi-crown'
+  return 'mdi-account'
+})
+const roleLabel = computed(() => {
+  if (authStore.isAdmin) return 'Yönetici'
+  if (authStore.isBoss) return 'Patron'
+  return 'Öğrenci'
+})
 
 // Notifications Badge Logic
 const notifCount = ref(0)

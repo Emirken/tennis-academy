@@ -1,7 +1,7 @@
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import type { User } from '@/types/user'
+import type { User, UserRole } from '@/types/user'
 
 // Interface for login credentials
 export interface LoginCredentials {
@@ -17,7 +17,7 @@ export interface RegisterData {
     confirmPassword: string
     firstName: string
     lastName: string
-    role?: 'admin' | 'student'
+    role?: UserRole
     agreeToTerms: boolean
 }
 
@@ -81,11 +81,11 @@ export function useAuth() {
     })
 
     // Authentication status helpers
-    const hasRole = (role: 'admin' | 'student'): boolean => {
+    const hasRole = (role: UserRole): boolean => {
         return user.value?.role === role
     }
 
-    const canAccess = (requiredRole: 'admin' | 'student' | 'any' = 'any'): boolean => {
+    const canAccess = (requiredRole: UserRole | 'any' = 'any'): boolean => {
         if (!isAuthenticated.value) return false
         if (requiredRole === 'any') return true
         return hasRole(requiredRole)
@@ -435,7 +435,7 @@ export function useAuth() {
         return true
     }
 
-    const requireRole = (role: 'admin' | 'student'): boolean => {
+    const requireRole = (role: UserRole): boolean => {
         if (!requireAuth()) return false
 
         if (!hasRole(role)) {

@@ -22,7 +22,7 @@ import {
     DocumentData
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
-import type { User } from '@/types/user'
+import type { User, UserRole } from '@/types/user'
 
 // Helper: telefon numarasından dummy email oluştur
 function phoneToEmail(phoneNumber: string): string {
@@ -35,7 +35,7 @@ export interface RegisterUserData {
     password: string
     firstName: string
     lastName: string
-    role: 'admin' | 'student'
+    role: UserRole
 }
 
 // Interface for user profile update
@@ -497,7 +497,7 @@ export class AuthService {
     }
 
     // Check if user has specific role
-    static async hasRole(userId: string, role: 'admin' | 'student'): Promise<boolean> {
+    static async hasRole(userId: string, role: UserRole): Promise<boolean> {
         try {
             const userRole = await this.getUserRole(userId)
             return userRole === role
