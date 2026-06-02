@@ -198,6 +198,45 @@
             </v-col>
           </v-row>
 
+          <!-- Takvim ve Kort Rezervasyonu Dialogu ("Hızlı İşlemler" kartından açılır) -->
+          <v-dialog v-model="reservationDialog" width="95vw" max-width="1600" scrollable>
+            <v-card class="modern-dialog">
+              <v-card-title class="d-flex align-center pa-4">
+                <v-icon icon="mdi-calendar-clock" class="mr-3" color="primary" />
+                <span class="text-h6 font-weight-bold">Takvim ve Kort Rezervasyonu</span>
+                <v-spacer />
+                <v-btn icon="mdi-close" variant="text" @click="reservationDialog = false" />
+              </v-card-title>
+              <v-divider />
+              <v-card-text class="pa-4" style="min-height: 80vh;">
+                <v-row>
+                  <!-- Dolu/boş takvim -->
+                  <v-col cols="12" md="8">
+                    <StudentCourtCalendar v-if="reservationDialog" ref="calendarRef" />
+                  </v-col>
+                  <!-- Rezervasyon formu -->
+                  <v-col cols="12" md="4">
+                    <h3 class="text-h6 font-weight-bold mb-3">Yeni Rezervasyon</h3>
+                    <ReservationForm @success="onReservationSuccess" />
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+          </v-dialog>
+
+          <!-- Rezervasyon başarı bildirimi -->
+          <v-snackbar
+              v-model="reservationSuccessSnackbar"
+              color="warning"
+              :timeout="6000"
+              location="top"
+          >
+            Rezervasyon talebiniz alındı ve admin onayına gönderildi.
+            <template #actions>
+              <v-btn variant="text" @click="reservationSuccessSnackbar = false">Tamam</v-btn>
+            </template>
+          </v-snackbar>
+
           <!-- Attendance Section -->
           <v-row class="mb-6">
             <v-col cols="12">
@@ -481,6 +520,8 @@ import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { createFutureGroupReservations } from '@/services/groupScheduleSync'
+import StudentCourtCalendar from '@/components/student/StudentCourtCalendar.vue'
+import ReservationForm from '@/components/reservations/ReservationForm.vue'
 
 console.log('📦 Firebase imports loaded:', { db, collection, query, where })
 
@@ -530,6 +571,18 @@ const isPending = computed(() => {
 
 // Dialog state
 const showProfileDialog = ref(false)
+
+// Kort rezervasyon takvimi + dialog
+const reservationDialog = ref(false)
+const reservationSuccessSnackbar = ref(false)
+const calendarRef = ref<InstanceType<typeof StudentCourtCalendar> | null>(null)
+
+const onReservationSuccess = () => {
+  reservationDialog.value = false
+  reservationSuccessSnackbar.value = true
+  // Yeni rezervasyon takvimde dolu görünsün diye önbelleği bypass ederek yenile.
+  calendarRef.value?.refresh()
+}
 
 // Real data from Firebase
 const upcomingReservations = ref(0)
@@ -590,11 +643,11 @@ interface QuickAction {
 const quickActions = computed<QuickAction[]>(() => {
   const actions: QuickAction[] = [
     {
-      title: 'Kort Rezervasyonu',
-      description: 'Bir sonraki oyununuz için kort rezerve edin',
-      icon: 'mdi-calendar-plus',
+      title: 'Takvim ve Kort Rezervasyonu',
+      description: 'Kort durumunu görüntüleyin ve rezervasyon yapın',
+      icon: 'mdi-calendar-clock',
       gradient: 'primary-gradient',
-      route: { name: 'Reservations' }
+      action: () => { reservationDialog.value = true }
     },
     {
       title: 'Aidat Takibi',
