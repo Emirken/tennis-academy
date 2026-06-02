@@ -12,7 +12,6 @@ import { auth, db } from '@/services/firebase'
 import type { User, PlayerLevel } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
 import { pushNotificationService } from '@/services/pushNotificationService'
-import { getTempPasswordRecord } from '@/services/passwordResetService'
 
 // Pinia state'inde function tutulamaz; listener'ı modül seviyesinde saklıyoruz
 let userDocUnsubscribe: Unsubscribe | null = null
@@ -69,38 +68,24 @@ export const useAuthStore = defineStore('auth', {
             console.log('🔐 Giriş yapılıyor:', phoneNumber)
 
             try {
+                // Geçici şifre artık admin tarafından (setTempPassword Cloud Function ile)
+                // doğrudan gerçek Auth şifresine yazılıyor; bu yüzden geçici şifreyle de
+                // normal giriş çalışır. Kalıcı şifre belirleme zorunluluğu, kullanıcı
+                // dokümanındaki mustResetPassword bayrağıyla yönetilir (ForcePasswordReset.vue).
                 const userCredential = await signInWithEmailAndPassword(auth, dummyEmail, password)
                 console.log('✅ Firebase auth başarılı, UID:', userCredential.user.uid)
 
                 await this.fetchUserData(userCredential.user.uid)
                 console.log('✅ Kullanıcı verisi yüklendi:', this.user)
 
-                return true
-            } catch (error: any) {
-                // Normal şifre tutmadıysa: admin tarafından atanmış bir geçici şifre var mı?
-                const wrongPassword =
-                    error?.code === 'auth/wrong-password' ||
-                    error?.code === 'auth/invalid-credential' ||
-                    error?.code === 'auth/invalid-login-credentials'
-
-                if (wrongPassword) {
-                    try {
-                        const reset = await getTempPasswordRecord(phoneNumber)
-                        if (reset && reset.tempPassword === password) {
-                            console.log('🔑 Geçici şifre eşleşti, giriş yapılıyor...')
-                            const cred = await signInWithEmailAndPassword(auth, dummyEmail, reset.tempPassword)
-                            await this.fetchUserData(cred.user.uid)
-
-                            // Kullanıcı kalıcı şifresini belirlemeye zorlanacak
-                            this.mustResetPassword = true
-                            this.resetPhone = phoneNumber
-                            return true
-                        }
-                    } catch (resetError) {
-                        console.error('Geçici şifre kontrolü başarısız:', resetError)
-                    }
+                // Firestore'daki kalıcı bayrağı login akışına da yansıt
+                if (this.user?.mustResetPassword === true) {
+                    this.mustResetPassword = true
+                    this.resetPhone = phoneNumber
                 }
 
+                return true
+            } catch (error: any) {
                 console.error('❌ Giriş hatası:', error)
                 this.error = this.getErrorMessage(error)
                 return false
@@ -113,7 +98,7 @@ export const useAuthStore = defineStore('auth', {
         // Gerçek Firebase Auth şifresi burada güncellenir, geçici kayıt silinir.
         async completePasswordReset(newPassword: string) {
             const { updatePassword } = await import('firebase/auth')
-            const { clearTempPassword } = await import('@/services/passwordResetService')
+            const { clearMustResetPassword } = await import('@/services/passwordResetService')
 
             const currentUser = auth.currentUser
             if (!currentUser) {
@@ -132,9 +117,8 @@ export const useAuthStore = defineStore('auth', {
                 throw new Error(this.getErrorMessage(error))
             }
 
-            // Geçici kaydı temizle + mustResetPassword bayrağını kaldır
-            const phone = this.resetPhone || this.user?.phone_number || ''
-            await clearTempPassword(currentUser.uid, phone)
+            // mustResetPassword bayrağını kaldır
+            await clearMustResetPassword(currentUser.uid)
 
             this.mustResetPassword = false
             this.resetPhone = null

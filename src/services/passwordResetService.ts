@@ -1,38 +1,21 @@
 // Geçici Şifre (Temporary Password) Servisi
 //
-// Bu projede Cloud Functions / Admin SDK YOK. Bu yüzden admin, başka bir
-// kullanıcının Firebase Auth şifresini doğrudan değiştiremez. Çözüm:
+// Admin, bir öğrencinin Firebase Auth şifresini doğrudan client SDK ile
+// değiştiremez. Bu yüzden geçici şifre atama işi `setTempPassword` adlı
+// Cloud Function (Admin SDK) üzerinden yapılır:
 //
-//  1) Admin bir "geçici şifre" atar -> passwordResets/{phone} dokümanına yazılır,
-//     kullanıcı dokümanına mustResetPassword: true bayrağı eklenir.
-//  2) Öğrenci giriş yaparken normal Auth şifresi başarısız olursa, login akışı
-//     passwordResets/{phone} dokümanını okur; geçici şifre eşleşirse onunla giriş
-//     yapılır ve öğrenci hemen yeni (kalıcı) şifresini belirlemeye zorlanır.
+//  1) Admin geçici şifre atar -> setTempPassword çağrılır. Fonksiyon öğrencinin
+//     GERÇEK Auth şifresini geçici şifreye eşitler ve
+//     users/{userId}.mustResetPassword = true yazar.
+//  2) Öğrenci geçici şifreyle NORMAL şekilde giriş yapar (Firestore tabanlı
+//     fallback yok). Giriş sonrası mustResetPassword bayrağı nedeniyle kalıcı
+//     şifre belirlemeye zorlanır (bkz. ForcePasswordReset.vue).
 //  3) Öğrenci yeni şifreyi belirleyince updatePassword ile gerçek Auth şifresi
-//     güncellenir, geçici kayıt silinir ve bayrak temizlenir.
-//
-// GÜVENLİK NOTU: Geçici şifre, öğrenci ilk girişini yapana kadar Firestore'da
-// düz metin olarak tutulur. passwordResets koleksiyonu yalnızca doküman ID'si
-// (telefon) ile tek tek okunabilir (listelenemez) ve sadece admin yazabilir.
-// Geçici şifre ilk kullanımdan hemen sonra silinir.
+//     güncellenir ve bayrak temizlenir (bkz. auth.completePasswordReset).
 
-import { doc, getDoc, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from './firebase'
-
-const RESET_COLLECTION = 'passwordResets'
-
-export interface PasswordResetRecord {
-    phone: string
-    userId: string
-    tempPassword: string
-    used: boolean
-    createdAt?: any
-}
-
-// Telefon numarasını doküman ID olarak güvenli kullanmak için normalize et
-function normalizePhone(phone: string): string {
-    return (phone || '').trim()
-}
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from './firebase'
 
 // Rastgele, okunması kolay geçici şifre üret (8 karakter, karışık)
 export function generateTempPassword(length = 8): string {
@@ -54,64 +37,36 @@ export function generateTempPassword(length = 8): string {
     return result
 }
 
-// ADMIN: Bir öğrenciye geçici şifre ata
-// - passwordResets/{phone} oluşturulur
-// - users/{userId}.mustResetPassword = true
+// ADMIN: Bir öğrenciye geçici şifre ata.
+// setTempPassword Cloud Function öğrencinin gerçek Auth şifresini geçici şifreye
+// eşitler ve mustResetPassword bayrağını yazar. (phoneNumber yalnızca eski imzayla
+// uyum için kabul edilir; artık kullanılmaz.)
 export async function assignTempPassword(
     userId: string,
-    phoneNumber: string,
+    _phoneNumber: string,
     tempPassword: string
 ): Promise<void> {
-    const phone = normalizePhone(phoneNumber)
-    if (!phone) throw new Error('Geçici şifre atamak için telefon numarası gerekli')
+    if (!userId) throw new Error('Geçici şifre atamak için kullanıcı kimliği gerekli')
     if (!tempPassword || tempPassword.length < 6) {
         throw new Error('Geçici şifre en az 6 karakter olmalı')
     }
 
-    const record: PasswordResetRecord = {
-        phone,
-        userId,
-        tempPassword,
-        used: false,
-    }
+    const callable = httpsCallable<{ userId: string; tempPassword: string }, { success: boolean }>(
+        functions,
+        'setTempPassword'
+    )
 
-    await setDoc(doc(db, RESET_COLLECTION, phone), {
-        ...record,
-        createdAt: serverTimestamp(),
-    })
-
-    await updateDoc(doc(db, 'users', userId), {
-        mustResetPassword: true,
-        updatedAt: serverTimestamp(),
-    })
-}
-
-// LOGIN: Verilen telefon için aktif (kullanılmamış) geçici şifre kaydını getir
-export async function getTempPasswordRecord(phoneNumber: string): Promise<PasswordResetRecord | null> {
-    const phone = normalizePhone(phoneNumber)
-    if (!phone) return null
-
-    const snap = await getDoc(doc(db, RESET_COLLECTION, phone))
-    if (!snap.exists()) return null
-
-    const data = snap.data() as PasswordResetRecord
-    if (data.used) return null
-    return { ...data, phone }
-}
-
-// LOGIN sonrası: geçici şifre kaydını temizle ve bayrağı kaldır
-// (öğrenci kalıcı şifresini belirledikten sonra çağrılır)
-export async function clearTempPassword(userId: string, phoneNumber: string): Promise<void> {
-    const phone = normalizePhone(phoneNumber)
     try {
-        if (phone) {
-            await deleteDoc(doc(db, RESET_COLLECTION, phone))
-        }
-    } catch (e) {
-        // Doküman zaten yoksa sorun değil
-        console.warn('Geçici şifre kaydı silinemedi (zaten silinmiş olabilir):', e)
+        await callable({ userId, tempPassword })
+    } catch (err: any) {
+        // Cloud Function HttpsError mesajını kullanıcıya aktar
+        throw new Error(err?.message || 'Geçici şifre atanırken bir hata oluştu')
     }
+}
 
+// LOGIN sonrası: mustResetPassword bayrağını kaldır.
+// (öğrenci kalıcı şifresini belirledikten sonra çağrılır)
+export async function clearMustResetPassword(userId: string): Promise<void> {
     await updateDoc(doc(db, 'users', userId), {
         mustResetPassword: false,
         updatedAt: serverTimestamp(),

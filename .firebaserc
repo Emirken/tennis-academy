@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "urla-tenis"
+  },
   "targets": {},
   "etags": {}
 }
