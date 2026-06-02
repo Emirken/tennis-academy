@@ -341,6 +341,7 @@ import {
   isLessonDoc,
   getReservationGroupId,
   isOrphanGroupReservation,
+  isSlotBlockingReservation,
   type RawReservationDoc
 } from '@/utils/dailyReservationLimit'
 
@@ -503,16 +504,17 @@ const loadCourtSchedule = async (date: string) => {
   try {
     setDefaultSchedule()
 
-    // Sadece aktif (pending/confirmed) rezervasyonlara göre dolu/müsait hesapla
-    const activeQ = query(
-      collection(db, 'reservations'),
-      where('status', 'in', ['pending', 'confirmed'])
-    )
-    const snapshot = await getDocs(activeQ)
+    // Slotu meşgul eden tüm rezervasyonları çek. Durum filtresini SERVER'da
+    // yapmıyoruz: 'active' veya status alanı OLMAYAN (legacy/elle eklenen)
+    // dokümanlar 'in' sorgusunda kaybolur ve takvimde dolu görünen slot burada
+    // boş çıkardı. Bunun yerine TÜM modüllerle ortak isSlotBlockingReservation
+    // ölçütünü client-side uygula (bkz. dailyReservationLimit.ts).
+    const snapshot = await getDocs(collection(db, 'reservations'))
 
-    // Seçilen tarihe ait dokümanları topla
+    // Seçilen tarihe ait + slotu meşgul eden dokümanları topla
     const dayDocs = snapshot.docs.filter((docSnap) => {
       const data = docSnap.data()
+      if (!isSlotBlockingReservation(data as RawReservationDoc)) return false
       let docDateStr: string
       if (typeof data.date === 'string') {
         docDateStr = data.date
@@ -758,7 +760,9 @@ const submitReservation = async () => {
     conflictSnapshots.forEach((conflictSnapshot) => {
       conflictSnapshot.forEach((docSnap) => {
         const docData = docSnap.data()
-        if (!['pending', 'confirmed'].includes(docData.status)) return
+        // Ortak ölçüt: pending/confirmed/active ve status'suz dokümanlar çakışır;
+        // cancelled/completed/no_show çakışmaz (bkz. isSlotBlockingReservation).
+        if (!isSlotBlockingReservation(docData as RawReservationDoc)) return
 
         // date alanı Timestamp veya Date olabilir, string karşılaştırması için normalize et
         let docDateStr: string

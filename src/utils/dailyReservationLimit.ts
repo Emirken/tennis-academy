@@ -27,6 +27,40 @@ export interface RawReservationDoc {
 // Günde-bir limitinde sayılan durumlar. İptal/no_show gibi durumlar sayılmaz.
 export const ACTIVE_RESERVATION_STATUSES = ['pending', 'confirmed'] as const
 
+// Bir slotu DOLU kabul eden durumlar — TÜM modüller (AdminCalendar takvimi,
+// /courts kort durumu, Reservations.vue rezervasyon formu) için TEK doğru
+// kaynak. Bu küme tutarsız olduğunda "takvimde dolu ama rezervasyonda boş"
+// hatası oluşur (ör. AdminCalendar yalnızca 'cancelled'ı eler, /courts ise
+// 'pending'i de eler → pending bir ders takvimde görünür ama slot rezervasyona
+// açık kalır).
+//
+// Bir slotu MEŞGUL eden durumlar: pending, confirmed, active. Geçmiş/sonuçlanmış
+// durumlar (cancelled, completed, no_show) slotu bloke ETMEZ.
+const SLOT_BLOCKING_STATUSES = new Set(['pending', 'confirmed', 'active'])
+
+// Slotu boşaltan (doluluk hesabına KATILMAYAN) durumlar.
+const NON_BLOCKING_STATUSES = new Set(['cancelled', 'completed', 'no_show'])
+
+/**
+ * Bir rezervasyonun slotu DOLU tutup tutmadığını döndürür. Tüm doluluk/çakışma
+ * kontrollerinin (takvim, kort durumu, rezervasyon formu) ortak ölçütü.
+ *
+ * Kural:
+ *  - status yoksa (legacy/elle eklenmiş doküman) → DOLU say (güvenli taraf).
+ *  - status pending/confirmed/active → DOLU.
+ *  - status cancelled/completed/no_show → BOŞ.
+ *  - bilinmeyen başka bir status → DOLU say (güvenli taraf; takvimde görünür).
+ */
+export function isSlotBlockingReservation(doc: RawReservationDoc): boolean {
+  const status = doc.status
+  if (status == null || status === '') return true
+  if (NON_BLOCKING_STATUSES.has(status)) return false
+  if (SLOT_BLOCKING_STATUSES.has(status)) return true
+  // Bilinmeyen durum: takvim 'cancelled' dışındaki her şeyi gösterdiği için
+  // tutarlılık adına burada da DOLU sayılır.
+  return true
+}
+
 // Bir dokümanı "ders" yapan işaretler. type veya reservationType bu
 // değerlerden biriyse ya da grup alanlarından biri doluysa, bu bir derstir.
 const LESSON_TYPE_VALUES = ['group-lesson', 'private-lesson', 'lesson'] as const

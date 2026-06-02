@@ -16,6 +16,7 @@
 import {
   isOrphanGroupReservation,
   getReservationGroupId,
+  isSlotBlockingReservation,
   type RawReservationDoc,
 } from './dailyReservationLimit'
 
@@ -97,8 +98,6 @@ const isGroupLessonDoc = (doc: RawReservationDoc): boolean => {
   )
 }
 
-const ACTIVE_STATUSES = new Set(['confirmed', 'active'])
-
 /**
  * Kort programını canlı rezervasyonları doğru kaynak alarak oluşturur.
  *
@@ -126,7 +125,10 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
 
   // 2) Canlı rezervasyonları işle — doluluğun tek doğru kaynağı.
   for (const res of reservations) {
-    if (res.status && !ACTIVE_STATUSES.has(res.status)) continue
+    // Slotu meşgul etmeyen (cancelled/completed/no_show) kayıtları atla.
+    // Tüm modüllerle ORTAK ölçüt (bkz. isSlotBlockingReservation): böylece
+    // takvimde dolu görünen bir slot burada da dolu sayılır.
+    if (!isSlotBlockingReservation(res)) continue
     // Grubu silinmiş hayalet/yetim rezervasyonları yok say (AdminCalendar gibi).
     if (isOrphanGroupReservation(res, existingGroupIds)) continue
 
