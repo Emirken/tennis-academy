@@ -208,7 +208,7 @@ import {
   getReservationGroupId,
   type RawReservationDoc
 } from '@/utils/dailyReservationLimit'
-import { buildCourtSchedule, type CourtScheduleMap } from '@/utils/courtScheduleBuild'
+import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
 import { buildBusyFreeGrid, type BusyFree, countBusyCells } from '@/utils/studentBusyFree'
 import { useGroupsStore } from '@/store/modules/groups'
 
@@ -448,7 +448,10 @@ const fetchSchedule = async (force = false) => {
       ;(byDate[key] ||= []).push(r)
     }
 
-    // Aralıktaki her gün için: snapshot (bakım/kapalı) + canlı → dolu/boş ızgarası.
+    // Aralıktaki her gün için: YALNIZCA canlı rezervasyon → dolu/boş ızgarası.
+    // adminParity=true → AdminCalendar ile birebir: courtSchedule snapshot'ı
+    // (bakım/kapalı, grup yedeği) hiç okunmaz, iptal olmayan her rezervasyon
+    // dolu sayılır. Böylece öğrenci takvimi admin takvimiyle aynı doluluğu verir.
     const grids: Record<string, Record<string, Record<string, BusyFree>>> = {}
     const cursor = new Date(start)
     cursor.setHours(0, 0, 0, 0)
@@ -458,21 +461,14 @@ const fetchSchedule = async (force = false) => {
       const key = dateKey(cursor)
       const dayReservations = byDate[key] || []
 
-      let storedSchedule: CourtScheduleMap = {}
-      try {
-        const scheduleDoc = await getDoc(doc(db, 'courtSchedule', key))
-        storedSchedule = scheduleDoc.exists() ? (scheduleDoc.data().schedule || {}) : {}
-      } catch {
-        storedSchedule = {}
-      }
-
       const built = buildCourtSchedule({
         courtIds,
         timeSlots,
-        storedSchedule,
+        storedSchedule: {},
         reservations: dayReservations,
         existingGroupIds,
         mapCourtId,
+        adminParity: true,
       })
 
       grids[key] = buildBusyFreeGrid(built, courtIds, timeSlots)

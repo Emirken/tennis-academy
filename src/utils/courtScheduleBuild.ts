@@ -66,6 +66,26 @@ export interface BuildCourtScheduleInput {
   mapCourtId: (courtId: string) => string
   /** groupId -> grup adı (etiket için; yoksa boş bırakılır). */
   groupNames?: Record<string, string>
+  /**
+   * "Birebir admin takvimi" modu. AdminCalendar doluluğu YALNIZCA canlı
+   * `reservations`'tan kurar; `courtSchedule` snapshot'ını (maintenance/closed
+   * ve grup yedeği) HİÇ okumaz ve iptal olmayan her rezervasyonu dolu sayar.
+   * Bu bayrak açıkken build da aynısını yapar:
+   *   - snapshot tamamen yok sayılır (admin/maintenance/closed taşınmaz, grup
+   *     yedeği uygulanmaz),
+   *   - bloke kriteri AdminCalendar ile aynıdır: `cancelled` dışındaki her
+   *     rezervasyon DOLU (completed/no_show dahil).
+   * Öğrenci takvimi bunu kullanır; /courts ve rezervasyon formu KULLANMAZ
+   * (onlar isSlotBlockingReservation + snapshot davranışını korur).
+   */
+  adminParity?: boolean
+}
+
+// AdminCalendar'ın slot bloke kriteri: iptal edilen rezervasyonlar gizlenir,
+// geri kalan her rezervasyon (completed/no_show dahil) takvimde görünür → dolu.
+// isSlotBlockingReservation'dan farkı: completed/no_show'u da DOLU sayar.
+const isAdminVisibleReservation = (doc: RawReservationDoc): boolean => {
+  return doc.status !== 'cancelled'
 }
 
 const getSlotStatusValue = (slotData: SlotValue | undefined): string => {
@@ -118,14 +138,21 @@ const isGroupLessonDoc = (doc: RawReservationDoc): boolean => {
 export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtScheduleMap {
   const { courtIds, timeSlots, storedSchedule, reservations, existingGroupIds, mapCourtId } = input
   const groupNames = input.groupNames || {}
+  const adminParity = input.adminParity === true
 
   // 1) Tabanı kur: her slot 'available'. Snapshot'tan SADECE admin durumlarını
   //    (maintenance/closed) taşı — bayat 'occupied' asla taşınmaz.
+  //    adminParity modunda snapshot HİÇ okunmaz (AdminCalendar gibi yalnızca
+  //    canlı rezervasyonlar): taban tamamen 'available' olur.
   const result: CourtScheduleMap = {}
   for (const courtId of courtIds) {
     result[courtId] = {}
     const stored = storedSchedule[courtId] || {}
     for (const time of timeSlots) {
+      if (adminParity) {
+        result[courtId][time] = 'available'
+        continue
+      }
       const status = getSlotStatusValue(stored[time])
       result[courtId][time] = ADMIN_SLOT_STATES.has(status) ? status : 'available'
     }
@@ -133,10 +160,12 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
 
   // 2) Canlı rezervasyonları işle — doluluğun tek doğru kaynağı.
   for (const res of reservations) {
-    // Slotu meşgul etmeyen (cancelled/completed/no_show) kayıtları atla.
-    // Tüm modüllerle ORTAK ölçüt (bkz. isSlotBlockingReservation): böylece
-    // takvimde dolu görünen bir slot burada da dolu sayılır.
-    if (!isSlotBlockingReservation(res)) continue
+    // Slotu meşgul etmeyen kayıtları atla. Varsayılan kriter tüm modüllerle
+    // ORTAK (isSlotBlockingReservation: cancelled/completed/no_show boş).
+    // adminParity modunda ise AdminCalendar ile birebir: yalnızca 'cancelled'
+    // gizlenir, completed/no_show dahil her şey DOLU sayılır.
+    const blocks = adminParity ? isAdminVisibleReservation(res) : isSlotBlockingReservation(res)
+    if (!blocks) continue
     // Grubu silinmiş hayalet/yetim rezervasyonları yok say (AdminCalendar gibi).
     if (isOrphanGroupReservation(res, existingGroupIds)) continue
 
@@ -178,6 +207,8 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
   // 3) Snapshot grup dersi yedeği: canlı rezervasyonun bırakmadığı (hâlâ
   //    available) slotlarda, snapshot bir grup dersi tutuyorsa onu göster.
   //    Yetim grupları burada da ele.
+  //    adminParity modunda snapshot tamamen yok sayıldığı için bu adım atlanır.
+  if (adminParity) return result
   for (const courtId of courtIds) {
     const stored = storedSchedule[courtId]
     if (!stored) continue
