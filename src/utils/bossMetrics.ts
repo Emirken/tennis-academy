@@ -127,6 +127,15 @@ export interface MonthlyRevenue {
   byPackage: PackageRevenueRow[]
 }
 
+// Rezervasyon cirosu için sabit birim fiyat (TL). Rezervasyon paketlerinin
+// gerçek fiyatı bilinmediğinden patron panelinde her kort rezervasyonu bu sabit
+// fiyatla ciroya yansır.
+export const RESERVATION_UNIT_PRICE = 1000
+
+// Ciro dağılımına DAHİL EDİLMEYEN paket key'leri. "Temel Üyelik" (basic)
+// öğrencileri patron ciro tablosuna ve toplam ciroya girmez.
+const REVENUE_EXCLUDED_MEMBERSHIP_KEYS = new Set(['basic'])
+
 /**
  * Öğrenci ciro hesabına dahil mi? AKTİF tanımı admin paneliyle (StudentManagement
  * ve studentCounts) BİREBİR aynıdır: status === 'active' || 'approved'. Böylece
@@ -158,13 +167,17 @@ export function countActiveStudents(students: RevenueStudentLike[]): number {
  *
  *   ciro(paket) = AKTİF öğrenci sayısı(paket) × paket.monthlyPrice
  *
+ * - "Temel Üyelik" (basic) öğrencileri ciroya GİRMEZ (REVENUE_EXCLUDED_MEMBERSHIP_KEYS).
  * - typesMap'te olmayan / fiyatı tanımsız paket 0 fiyatla ele alınır
  *   (sayım yine yapılır, ara toplam 0 olur).
+ * - `reservationCount` verilirse, ciroya ayrı bir "Kort Rezervasyonu" satırı
+ *   eklenir: adet × RESERVATION_UNIT_PRICE (1000 TL).
  * - Sonuç byPackage ara toplamına göre azalan sıralanır.
  */
 export function computeMonthlyRevenue(
   students: RevenueStudentLike[],
   typesMap: Record<string, PackagePriceInfo>,
+  reservationCount = 0,
 ): MonthlyRevenue {
   const rows = new Map<string, PackageRevenueRow>()
 
@@ -172,6 +185,9 @@ export function computeMonthlyRevenue(
     if (!isActiveStudent(student)) continue
 
     const key = student.membershipType || 'basic'
+    // "Temel Üyelik" öğrencileri ciro dağılımına ve toplamına dahil edilmez.
+    if (REVENUE_EXCLUDED_MEMBERSHIP_KEYS.has(key)) continue
+
     const info = typesMap[key]
     const unitPrice = info?.monthlyPrice ?? 0
     const name = info?.name ?? key
@@ -186,6 +202,18 @@ export function computeMonthlyRevenue(
   }
 
   const byPackage = Array.from(rows.values()).sort((a, b) => b.subtotal - a.subtotal)
+
+  // Kort rezervasyonları: fiyatı bilinmediğinden sabit 1000 TL ile ayrı satır.
+  if (reservationCount > 0) {
+    byPackage.push({
+      key: '__reservations__',
+      name: 'Kort Rezervasyonu',
+      count: reservationCount,
+      unitPrice: RESERVATION_UNIT_PRICE,
+      subtotal: reservationCount * RESERVATION_UNIT_PRICE,
+    })
+  }
+
   const total = byPackage.reduce((sum, row) => sum + row.subtotal, 0)
 
   return { total, byPackage }

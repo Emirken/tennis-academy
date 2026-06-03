@@ -117,7 +117,12 @@
                   <h3 class="stat-number success--text">{{ formatCurrency(revenue.total) }}</h3>
                   <p class="stat-label">Toplam Aylık Ciro</p>
                   <div class="stat-trend">
-                    <span class="trend-text">{{ activeStudentCount }} aktif öğrenci × paket fiyatı</span>
+                    <span class="trend-text">
+                      {{ activeStudentCount }} aktif öğrenci × paket fiyatı
+                      <template v-if="reservationCounts.monthly > 0">
+                        + {{ reservationCounts.monthly }} rezervasyon
+                      </template>
+                    </span>
                   </div>
                 </div>
               </v-card-text>
@@ -259,8 +264,9 @@ async function loadReservations(): Promise<void> {
 }
 
 // Öğrencileri (role==student, deleted!=true) ve paket fiyat tablosunu kullanarak
-// tahmini aylık ciroyu hesaplar.
-async function loadRevenue(): Promise<void> {
+// tahmini aylık ciroyu hesaplar. Bu ayki kort rezervasyonları (monthlyReservations)
+// ciroya ayrı bir satır olarak (adet × 1000 TL) eklenir.
+async function loadRevenue(monthlyReservations: number): Promise<void> {
   const snapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')))
 
   // Ham doküman sayısı (silinmiş/pasif filtresinden ÖNCE) — "sorgu hiç öğrenci
@@ -289,7 +295,7 @@ async function loadRevenue(): Promise<void> {
   // computeMonthlyRevenue ile AYNI ölçütten (countActiveStudents) alıyoruz.
   const activeCount = countActiveStudents(students)
   activeStudentCount.value = activeCount
-  revenue.value = computeMonthlyRevenue(students, typesMap)
+  revenue.value = computeMonthlyRevenue(students, typesMap, monthlyReservations)
 
   // Teşhis: ciro 0 ise NEDEN 0 olduğunu hem konsola hem (gerekirse) ekrana yaz.
   console.log(
@@ -317,7 +323,10 @@ onMounted(async () => {
   infoMessage.value = ''
   try {
     await membershipTypesStore.initialize()
-    await Promise.all([loadReservations(), loadRevenue()])
+    // Ciro, bu ayki kort rezervasyon sayısına bağlı olduğundan önce rezervasyonlar
+    // yüklenir, sonra o sayı ciro hesabına geçirilir.
+    await loadReservations()
+    await loadRevenue(reservationCounts.value.monthly)
   } catch (error) {
     const err = error as { code?: string; message?: string }
     console.error('❌ Patron paneli verisi yüklenemedi:', error)

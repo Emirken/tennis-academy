@@ -122,15 +122,15 @@ describe('bossMetrics — computeMonthlyRevenue', () => {
     basic: { name: 'Temel Üyelik', monthlyPrice: 6000 },
   }
 
-  it('pakete göre aktif öğrenci × fiyat toplar ve ara toplama göre sıralar', () => {
+  it('pakete göre aktif öğrenci × fiyat toplar ve ara toplama göre sıralar (basic hariç)', () => {
     const students: RevenueStudentLike[] = [
       { membershipType: 'premium', status: 'active' },
       { membershipType: 'premium', status: 'active' },
       { membershipType: 'vip', status: 'active' },
-      { membershipType: 'basic', status: 'active' },
+      { membershipType: 'basic', status: 'active' }, // Temel Üyelik → ciroya GİRMEZ
     ]
     const result = computeMonthlyRevenue(students, typesMap)
-    expect(result.total).toBe(10000 * 2 + 15000 + 6000) // 41000
+    expect(result.total).toBe(10000 * 2 + 15000) // 35000 (basic 6000 dahil DEĞİL)
     // En yüksek ara toplam (premium 20000) ilk sırada
     expect(result.byPackage[0]).toEqual({
       key: 'premium',
@@ -139,6 +139,47 @@ describe('bossMetrics — computeMonthlyRevenue', () => {
       unitPrice: 10000,
       subtotal: 20000,
     })
+    // basic satırı tabloda görünmemeli
+    expect(result.byPackage.some((r) => r.key === 'basic')).toBe(false)
+  })
+
+  it("'Temel Üyelik' (basic) öğrencilerini ciro dağılımından tamamen hariç tutar", () => {
+    const students: RevenueStudentLike[] = [
+      { membershipType: 'basic', status: 'active' },
+      { membershipType: 'basic', status: 'approved' },
+    ]
+    const result = computeMonthlyRevenue(students, typesMap)
+    expect(result.total).toBe(0)
+    expect(result.byPackage).toHaveLength(0)
+  })
+
+  it('rezervasyon sayısını 1000 TL birim fiyatla ayrı satır olarak ekler', () => {
+    const students: RevenueStudentLike[] = [{ membershipType: 'vip', status: 'active' }]
+    const result = computeMonthlyRevenue(students, typesMap, 3)
+    // vip 15000 + rezervasyon 3 × 1000
+    expect(result.total).toBe(15000 + 3000)
+    const resvRow = result.byPackage.find((r) => r.key === '__reservations__')
+    expect(resvRow).toEqual({
+      key: '__reservations__',
+      name: 'Kort Rezervasyonu',
+      count: 3,
+      unitPrice: 1000,
+      subtotal: 3000,
+    })
+  })
+
+  it('rezervasyon sayısı 0 ise rezervasyon satırı eklemez', () => {
+    const students: RevenueStudentLike[] = [{ membershipType: 'vip', status: 'active' }]
+    const result = computeMonthlyRevenue(students, typesMap, 0)
+    expect(result.byPackage.some((r) => r.key === '__reservations__')).toBe(false)
+    expect(result.total).toBe(15000)
+  })
+
+  it('hiç öğrenci olmasa da rezervasyon cirosu tek başına yansır', () => {
+    const result = computeMonthlyRevenue([], typesMap, 5)
+    expect(result.total).toBe(5000)
+    expect(result.byPackage).toHaveLength(1)
+    expect(result.byPackage[0].key).toBe('__reservations__')
   })
 
   it("yalnızca 'active'/'approved' öğrencileri sayar; diğerlerini hariç tutar", () => {
@@ -217,22 +258,24 @@ describe('bossMetrics — countActiveStudents', () => {
     expect(countActiveStudents([])).toBe(0)
   })
 
-  it('ciro hesabıyla AYNI aktif kümeyi sayar (etiket ↔ ciro tutarlılığı)', () => {
-    // Patron panelindeki "N aktif öğrenci × paket fiyatı" etiketi ile ciroya
-    // giren öğrenci sayısı birebir aynı olmalı. byPackage[].count toplamı,
-    // computeMonthlyRevenue'nun kullandığı aktif öğrenci sayısıdır.
+  it("aktif öğrenci sayısı 'basic' öğrencileri de kapsar (ciroya girmeseler de)", () => {
+    // Aktif öğrenci sayısı admin paritesiyle hesaplanır: basic dahil tüm
+    // active/approved öğrenciler aktiftir. ANCAK ciro tablosu basic'i hariç
+    // tuttuğu için byPackage[].count toplamı aktif sayıdan AZ olabilir.
     const students: RevenueStudentLike[] = [
       { membershipType: 'vip', status: 'active' },
-      { membershipType: 'basic', status: 'approved' },
+      { membershipType: 'basic', status: 'approved' }, // aktif ama ciroya girmez
       { membershipType: 'vip', status: 'pending' }, // onaysız → hariç
       { membershipType: 'vip', deleted: true }, // hariç
       { membershipType: 'basic', status: 'suspended' }, // hariç
     ]
+    // 2 aktif öğrenci (vip-active + basic-approved)
+    expect(countActiveStudents(students)).toBe(2)
+    // Ciro tablosunda yalnızca vip öğrencisi var (basic hariç)
     const revenueActiveCount = computeMonthlyRevenue(students, typesMap).byPackage.reduce(
       (sum, row) => sum + row.count,
       0,
     )
-    expect(countActiveStudents(students)).toBe(revenueActiveCount)
-    expect(countActiveStudents(students)).toBe(2)
+    expect(revenueActiveCount).toBe(1)
   })
 })
