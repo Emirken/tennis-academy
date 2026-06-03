@@ -108,6 +108,13 @@ export function classifyReservationKind(
 
   // 1) membershipType bilindiğinde KARAR ONUNDUR (grup/groupId heuristiğini ezer).
   if (membershipType) {
+    // 1a) RESOLVER (membershipTypes store) GRUP diyorsa, anahtar adı ne olursa
+    //     olsun (court_rental_* dahil) bu bir GRUP dersidir. Admin bir anahtarı
+    //     (ör. court_rental_10h) "Tenis Okulu 13-16 Yaş" gibi isGroupType=true bir
+    //     gruba yeniden tanımlayabilir; o durumda anahtarın metnine GÜVENİLMEZ,
+    //     store'un isGroupType bayrağı esastır. Statik metin tahmininden ÖNCE gelir.
+    if (isGroupMembership && isGroupMembership(membershipType)) return 'group-lesson'
+
     if (isLessonMembership(membershipType)) {
       // Resolver (store) varsa ona güven; ANCAK store bu anahtarı tanımayıp false
       // dönerse (boş/eksik tablo, legacy key) statik heuristik grup tespitiyle
@@ -118,7 +125,7 @@ export function classifyReservationKind(
         : staticIsGroupMembership(membershipType)
       return isGroup ? 'group-lesson' : 'private-lesson'
     }
-    // Bilinen kort-kiralama üyeliği → rezervasyon.
+    // Bilinen kort-kiralama üyeliği → rezervasyon (resolver grup demediyse).
     if (membershipType.toLowerCase().startsWith('court_rental')) return 'reservation'
     // Tanınmayan membershipType: aşağıdaki alan-işareti mantığına düş.
   }

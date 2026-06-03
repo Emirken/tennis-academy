@@ -87,4 +87,39 @@ describe('reservationTypeColor — tür bazlı takvim renkleri', () => {
       )
     })
   })
+
+  // Kullanıcı hata raporu: "13-16 Yaş Grup A" (üye Kaya Sonersan) takvimde MOR
+  // (rezervasyon) görünüyordu. Kök neden: admin, court_rental_10h anahtarını
+  // "Tenis Okulu 13-16 Yaş" olarak isGroupType=true ile YENİDEN TANIMLAMIŞ. Anahtar
+  // adı "court_rental" ile başladığı için sınıflandırıcı resolver'a sormadan
+  // "rezervasyon" (mor) diyordu. Resolver grup dediğinde anahtar adı EZİLMELİ ve
+  // grup dersi (turuncu) dönmeli.
+  describe('admin court_rental anahtarını gruba yeniden tanımlarsa turuncu olur (kullanıcı bug raporu)', () => {
+    // Store: court_rental_10h artık bir GRUP üyeliği (isGroupType=true).
+    const isGroup = (k: string) => k === 'court_rental_10h'
+
+    const groupStampedAsCourtRental = {
+      membershipType: 'court_rental_10h',
+      reservationType: 'group-lesson',
+      groupAssignment: 'Q8HYAEqzel4gLaZF67dB',
+      groupName: '13-16 Yaş Grup A',
+      groupSchedule: true,
+    }
+
+    it('resolver grup dediğinde court_rental anahtarı grup dersi (turuncu) döner', () => {
+      expect(classifyReservationKind(groupStampedAsCourtRental, isGroup)).toBe('group-lesson')
+      expect(getReservationTypeColor(groupStampedAsCourtRental, isGroup)).toBe('#E65100')
+    })
+
+    it('resolver grup DEMEZSE court_rental yine de rezervasyon (mor) kalır', () => {
+      // Gerçek kort kiralama: store isGroupType=false → mor korunur.
+      const realRental = { membershipType: 'court_rental_1h' }
+      expect(classifyReservationKind(realRental, isGroup)).toBe('reservation')
+      expect(getReservationTypeColor(realRental, isGroup)).toBe('#7B1FA2')
+    })
+
+    it('resolver yoksa (statik) court_rental yine rezervasyon kalır — eski davranış korunur', () => {
+      expect(classifyReservationKind({ membershipType: 'court_rental_10h' })).toBe('reservation')
+    })
+  })
 })
