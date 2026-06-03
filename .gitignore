@@ -26,3 +26,8 @@ pnpm-debug.log*
 /playwright-report/
 /test-results/
 /coverage/
+
+# Tooling / nested repos (kaynak kodu DEĞİL)
+.commandcode/
+# Tennis-App/ kendi .git'i olan ayrı bir repo (nested) — bu repoya dahil edilmez
+Tennis-App/
