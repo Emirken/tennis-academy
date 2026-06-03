@@ -38,6 +38,8 @@ vi.mock('@/services/notificationService', () => ({
 }))
 
 import { useAuthStore } from '@/store/modules/auth'
+import { setDoc } from 'firebase/firestore'
+import { auth } from '@/services/firebase'
 
 function makeSnapshot(data: any | null) {
   return {
@@ -52,6 +54,8 @@ describe('Auth store — canlı kullanıcı dokümanı dinleyicisi', () => {
     capturedOnNext = null
     capturedOnError = null
     unsubscribeCallCount = 0
+    vi.mocked(setDoc).mockClear()
+    ;(auth as any).currentUser = null
   })
 
   it('fetchUserData çağrıldığında onSnapshot ile listener kurar ve ilk snapshot\'ta resolve olur', async () => {
@@ -132,5 +136,52 @@ describe('Auth store — canlı kullanıcı dokümanı dinleyicisi', () => {
     await p2
 
     expect(store.user?.firstName).toBe('B')
+  })
+
+  // REGRESYON: Eskiden doküman "yok" göründüğünde otomatik student profili
+  // YAZILIYORDU; bu, geçici bir okuma hatasında boss/admin dokümanını ezip
+  // 'Kullanıcı'/student'a çeviriyordu. Artık asla otomatik yazma yapılmamalı.
+  describe('doküman bulunamadığında veri ezilmez (regresyon: boss hesabı kaybı)', () => {
+    it('snapshot exists()=false iken setDoc ÇAĞRILMAZ ve oturum açılmaz', async () => {
+      ;(auth as any).currentUser = { uid: 'boss-uid', email: '05426908768@tennis.local' }
+      const store = useAuthStore()
+      const promise = store.fetchUserData('boss-uid')
+
+      // Firestore anlık olarak "doküman yok" döndürüyor (geçici hata/kural gecikmesi)
+      capturedOnNext!(makeSnapshot(null))
+      await promise
+
+      // Kritik: hiçbir şekilde yeni doküman yazılmamalı
+      expect(setDoc).not.toHaveBeenCalled()
+      // Ve gerçek veriyi bilmeden oturum açılmamalı
+      expect(store.user).toBeNull()
+      expect(store.isAuthenticated).toBe(false)
+      expect(store.error).toBeTruthy()
+    })
+
+    it('boş snapshot sonrası gerçek doküman gelirse (kendine gelir) kullanıcı doğru yüklenir', async () => {
+      ;(auth as any).currentUser = { uid: 'boss-uid', email: '05426908768@tennis.local' }
+      const store = useAuthStore()
+      const promise = store.fetchUserData('boss-uid')
+
+      // 1. snapshot boş geldi
+      capturedOnNext!(makeSnapshot(null))
+      await promise
+      expect(setDoc).not.toHaveBeenCalled()
+
+      // 2. snapshot gerçek boss dokümanını getirdi → doğru role yüklenmeli, ezilmeden
+      capturedOnNext!(makeSnapshot({
+        id: 'boss-uid',
+        firstName: 'Emircan',
+        lastName: 'Adak',
+        role: 'boss',
+        status: 'approved',
+      }))
+
+      expect(setDoc).not.toHaveBeenCalled()
+      expect(store.user?.role).toBe('boss')
+      expect(store.user?.firstName).toBe('Emircan')
+      expect(store.isAuthenticated).toBe(true)
+    })
   })
 })

@@ -322,28 +322,21 @@ export const useAuthStore = defineStore('auth', {
                                 }
                                 this.isAuthenticated = true
                             } else {
-                                console.error('❌ Firestore\'da kullanıcı verisi bulunamadı, UID:', uid)
-                                const currentUser = auth.currentUser
-                                if (currentUser && !resolved) {
-                                    console.log('🔧 Temel kullanıcı profili oluşturuluyor...')
-                                    const phoneFromEmail = currentUser.email?.replace('@tennis.local', '') || ''
-                                    const basicUser: User = {
-                                        id: uid,
-                                        phone_number: phoneFromEmail,
-                                        firstName: 'Kullanıcı',
-                                        lastName: '',
-                                        role: 'student',
-                                        createdAt: new Date(),
-                                        updatedAt: new Date()
-                                    }
-
-                                    await setDoc(doc(db, 'users', uid), basicUser)
-                                    // setDoc sonrası snapshot tekrar tetiklenip this.user'ı güncelleyecek
-                                    console.log('✅ Temel kullanıcı profili oluşturuldu')
-                                } else if (!currentUser) {
-                                    this.user = null
-                                    this.isAuthenticated = false
-                                }
+                                // Doküman "yok" görünüyor. ESKİDEN burada otomatik olarak
+                                // role='student'/'Kullanıcı' bir doküman YAZILIYORDU. Bu çok
+                                // tehlikeliydi: geçici bir okuma hatası ya da kural gecikmesi
+                                // anlık "yok" döndürdüğünde, GERÇEK bir kullanıcının (örn.
+                                // boss/admin) dokümanını üzerine yazıp student'a çeviriyordu.
+                                // Bir kez boss hesabını bu şekilde yok etti.
+                                //
+                                // Doğrusu: kayıt (register) zaten kendi dokümanını oluşturur;
+                                // giriş yapan birinin dokümanı yoksa, sessizce yeni doküman
+                                // YAZMA — oturumu açma ve net bir hata bildir. Asla mevcut
+                                // veriyi ezme.
+                                console.error('❌ Firestore\'da kullanıcı dokümanı bulunamadı (otomatik oluşturma DEVRE DIŞI), UID:', uid)
+                                this.user = null
+                                this.isAuthenticated = false
+                                this.error = 'Hesap kaydınız bulunamadı. Lütfen yöneticiyle iletişime geçin.'
                             }
                         } catch (error: any) {
                             console.error('❌ Kullanıcı snapshot işleme hatası:', error)
