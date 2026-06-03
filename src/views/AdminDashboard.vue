@@ -50,12 +50,21 @@
                   <v-icon icon="mdi-account-group" size="32" color="white" />
                 </div>
                 <div class="stat-details">
-                  <h3 class="stat-number primary--text">{{ totalStudents }}</h3>
-                  <p class="stat-label">Toplam Öğrenci</p>
-                  <div class="stat-trend">
-                    <v-icon size="16" color="primary">mdi-trending-up</v-icon>
-                    <span class="trend-text">Aktif Üyeler</span>
-                  </div>
+                  <h3 class="stat-number primary--text">{{ displayedStudentCount }}</h3>
+                  <p class="stat-label">
+                    {{ studentCountMode === 'active' ? 'Aktif Öğrenci' : 'Toplam Öğrenci' }}
+                  </p>
+                  <v-btn-toggle
+                    v-model="studentCountMode"
+                    density="compact"
+                    variant="outlined"
+                    color="primary"
+                    mandatory
+                    class="student-count-toggle mt-1"
+                  >
+                    <v-btn value="active" size="x-small">Aktif</v-btn>
+                    <v-btn value="all" size="x-small">Tümü</v-btn>
+                  </v-btn-toggle>
                 </div>
               </v-card-text>
             </v-card>
@@ -320,7 +329,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
 import { collection, getDocs, doc, getDoc, deleteDoc, query, where, updateDoc, serverTimestamp } from 'firebase/firestore'
@@ -333,12 +342,19 @@ import {
   getAllArchives
 } from '@/services/attendanceArchive'
 import type { PendingArchiveNotification, AttendanceArchive } from '@/types/attendanceArchive'
+import { computeStudentCounts } from '@/utils/studentCounts'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 // Reaktif veriler
 const totalStudents = ref(0)
+const activeStudents = ref(0)
+// Öğrenci kartı görünümü: 'active' = sadece aktif/onaylı, 'all' = tüm öğrenciler
+const studentCountMode = ref<'active' | 'all'>('active')
+const displayedStudentCount = computed(() =>
+  studentCountMode.value === 'active' ? activeStudents.value : totalStudents.value
+)
 const todayReservations = ref(0)
 
 // Temizleme
@@ -415,6 +431,7 @@ const deleteAllStudents = async () => {
     cleanupLog.value += `\n✅ ${groupCount} grup güncellendi.`
     cleanupLog.value += '\n\n🎉 Tüm işlemler tamamlandı!'
     totalStudents.value = 0
+    activeStudents.value = 0
   } catch (e: any) {
     cleanupLog.value += `\n❌ Hata: ${e.message}`
   } finally {
@@ -501,17 +518,15 @@ const fetchTotalStudents = async () => {
     const usersSnapshot = await getDocs(
       query(collection(db, 'users'), where('role', '==', 'student'))
     )
-    let studentCount = 0
+    // Aktif tanımı StudentManagement ile birebir; deleted filtresi bellekte
+    // yapılır (bkz. computeStudentCounts).
+    const { total, active } = computeStudentCounts(
+      usersSnapshot.docs.map((doc) => doc.data())
+    )
 
-    usersSnapshot.forEach((doc) => {
-      const userData = doc.data()
-      if (userData.deleted !== true) {
-        studentCount++
-      }
-    })
-
-    totalStudents.value = studentCount
-    console.log('✅ Toplam öğrenci sayısı:', studentCount)
+    totalStudents.value = total
+    activeStudents.value = active
+    console.log('✅ Toplam öğrenci sayısı:', total, '| Aktif:', active)
   } catch (error) {
     console.error('❌ Öğrenci sayısı alınırken hata:', error)
   }
@@ -658,6 +673,18 @@ onMounted(async () => {
 /* Archive notification styles */
 .archive-notification {
   border-radius: 12px;
+}
+
+/* Öğrenci sayısı aktif/tümü geçişi */
+.student-count-toggle {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.student-count-toggle :deep(.v-btn) {
+  font-size: 0.7rem;
+  letter-spacing: 0;
+  min-width: 48px;
+  height: 24px;
 }
 
 .archive-list {
