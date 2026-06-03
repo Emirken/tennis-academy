@@ -332,7 +332,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import { collection, getDocs, doc, getDoc, deleteDoc, query, where, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, doc, deleteDoc, query, where, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import {
   getPendingArchives,
@@ -343,6 +343,8 @@ import {
 } from '@/services/attendanceArchive'
 import type { PendingArchiveNotification, AttendanceArchive } from '@/types/attendanceArchive'
 import { computeStudentCounts } from '@/utils/studentCounts'
+import { countCourtReservationsByPeriod } from '@/utils/bossMetrics'
+import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -532,42 +534,25 @@ const fetchTotalStudents = async () => {
   }
 }
 
-// Firebase'den bugünkü rezervasyon sayısını al
+// Firebase'den bugünkü rezervasyon sayısını al.
+//
+// ÖNEMLİ: Eskiden `courtSchedule/{tarih}` snapshot dokümanından 'occupied'
+// slotları sayıyordu. Snapshot bayatlayabildiği için yanlış (genelde 0)
+// sonuç veriyordu. Doğru kaynak canlı `reservations` koleksiyonudur; sayım
+// AdminCalendar/Boss paneliyle aynı `countCourtReservationsByPeriod` motoruyla
+// yapılır (dersleri ve iptal/no_show'u eler, yerel tarih kullanır).
+// Bkz. memory: courtschedule-snapshot-vs-live, slot-blocking-status.
 const fetchTodayReservations = async () => {
   try {
-    const today = new Date()
-    const dateString = today.toISOString().split('T')[0] // YYYY-MM-DD formatı
+    // String tarihli legacy kayıtlar Timestamp aralık sorgusuna takılmadığı
+    // için tüm koleksiyonu çekip bellekte ayıklamak en güvenli yoldur
+    // (BossDashboard ile aynı yaklaşım).
+    const snapshot = await getDocs(collection(db, 'reservations'))
+    const docs: RawReservationDoc[] = snapshot.docs.map((d) => d.data() as RawReservationDoc)
 
-    let totalOccupied = 0
-
-    // K1, K2, K3 kortları için kontrol et
-    const courts = ['K1', 'K2', 'K3']
-
-    for (const court of courts) {
-      try {
-        const docRef = doc(db, 'courtSchedule', dateString)
-        const docSnap = await getDoc(docRef)
-
-        if (docSnap.exists()) {
-          const data = docSnap.data()
-          if (data.schedule && data.schedule[court]) {
-            const courtSchedule = data.schedule[court]
-
-            // Occupied olan time slotları say
-            Object.values(courtSchedule).forEach((status) => {
-              if (status === 'occupied') {
-                totalOccupied++
-              }
-            })
-          }
-        }
-      } catch (error) {
-        console.error(`❌ ${court} için rezervasyon verisi alınırken hata:`, error)
-      }
-    }
-
-    todayReservations.value = totalOccupied
-    console.log('✅ Bugünkü rezervasyon sayısı:', totalOccupied)
+    const { daily } = countCourtReservationsByPeriod(docs, new Date())
+    todayReservations.value = daily
+    console.log('✅ Bugünkü rezervasyon sayısı:', daily)
   } catch (error) {
     console.error('❌ Rezervasyon sayısı alınırken hata:', error)
   }
