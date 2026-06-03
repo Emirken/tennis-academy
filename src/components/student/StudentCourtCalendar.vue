@@ -503,6 +503,8 @@ const fetchSchedule = async (force = false) => {
         existingGroupIds,
         mapCourtId,
         adminParity: true,
+        // Tarihi geçmiş kort rezervasyonları (dersler hariç) boş görünsün.
+        now: new Date(),
       })
 
       grids[key] = buildBusyFreeGrid(built, courtIds, timeSlots)

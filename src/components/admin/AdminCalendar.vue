@@ -615,6 +615,7 @@ import { useAuthStore } from '@/store/modules/auth'
 import { notificationService } from '@/services/notificationService'
 import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
 import { getReservationTypeColor } from '@/utils/reservationTypeColor'
+import { isPastReservationDoc, type RawReservationDoc } from '@/utils/dailyReservationLimit'
 
 interface CalendarEvent {
   id: string
@@ -1094,6 +1095,11 @@ const fetchReservations = async (force = false) => {
 
       // İptal edilen rezervasyonları gösterme
       if (data.status === 'cancelled') continue
+
+      // Tarihi geçmiş KORT REZERVASYONLARI (dersler hariç) iptal edilmiş gibi
+      // gizle → slot boşalır. Dersler (grup/özel) isPastReservationDoc tarafından
+      // korunur ve geçmişte de görünmeye devam eder.
+      if (isPastReservationDoc(data as RawReservationDoc, new Date())) continue
 
       // Parse start and end times
       const [startHour, startMinute] = (data.startTime || '09:00').split(':').map(Number)

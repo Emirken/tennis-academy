@@ -17,6 +17,7 @@ import {
   isOrphanGroupReservation,
   getReservationGroupId,
   isSlotBlockingReservation,
+  isPastReservationDoc,
   type RawReservationDoc,
 } from './dailyReservationLimit'
 
@@ -79,6 +80,13 @@ export interface BuildCourtScheduleInput {
    * (onlar isSlotBlockingReservation + snapshot davranışını korur).
    */
   adminParity?: boolean
+  /**
+   * Referans an (genellikle `new Date()`). Verilirse, tarihi BUGÜNDEN ÖNCEKİ
+   * günlere ait KORT REZERVASYONLARI (dersler hariç) iptal edilmiş gibi gizlenir
+   * → slot 'available' görünür. Verilmezse geçmiş elemesi YAPILMAZ (geriye
+   * uyumlu). Dersler (grup/özel) her durumda korunur. (Bkz. isPastReservationDoc)
+   */
+  now?: Date
 }
 
 // AdminCalendar'ın slot bloke kriteri: iptal edilen rezervasyonlar gizlenir,
@@ -166,6 +174,10 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
     // gizlenir, completed/no_show dahil her şey DOLU sayılır.
     const blocks = adminParity ? isAdminVisibleReservation(res) : isSlotBlockingReservation(res)
     if (!blocks) continue
+    // Geçmiş kort rezervasyonu: tarihi geçtiyse iptal edilmiş gibi gizle (slot
+    // boşalır). Dersler (grup/özel) isPastReservationDoc tarafından korunur.
+    // now verilmezse geçmiş elemesi yapılmaz (geriye uyumlu).
+    if (input.now && isPastReservationDoc(res, input.now)) continue
     // Grubu silinmiş hayalet/yetim rezervasyonları yok say (AdminCalendar gibi).
     if (isOrphanGroupReservation(res, existingGroupIds)) continue
 

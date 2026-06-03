@@ -344,4 +344,97 @@ describe('buildCourtSchedule — canlı rezervasyon doğru kaynak', () => {
     // Ham (Firestore) kort id'si korunmalı — ekran id'si K2 değil.
     expect(slot.rawCourtId).toBe('court-2')
   })
+
+  // Tarihi geçmiş kort rezervasyonları (dersler hariç) takvimde boş görünür.
+  // now verildiğinde devreye girer; verilmezse eski davranış (geriye uyumlu).
+  describe('geçmiş rezervasyon elemesi (now alanı)', () => {
+    // Sabit referans an: 3 Haziran 2026 öğlen (yerel).
+    const now = new Date(2026, 5, 3, 12, 0, 0)
+
+    it('now VERİLMEDEN geçmiş rezervasyon hâlâ DOLU (geriye uyumlu)', () => {
+      const reservations: RawReservationDoc[] = [
+        { courtId: 'K1', startTime: '18:00', endTime: '19:00', status: 'confirmed', reservationType: 'court-rental', date: '2026-06-02', studentName: 'Dün' },
+      ]
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule: emptyStored(),
+        reservations,
+        existingGroupIds: new Set(),
+        mapCourtId,
+        // now YOK
+      })
+      expect((result.K1['18:00'] as any).status).toBe('occupied')
+    })
+
+    it('now VERİLİNCE dün tarihli kort rezervasyonu boşalır (slot available)', () => {
+      const reservations: RawReservationDoc[] = [
+        { courtId: 'K1', startTime: '18:00', endTime: '19:00', status: 'confirmed', reservationType: 'court-rental', date: '2026-06-02', studentName: 'Dün' },
+      ]
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule: emptyStored(),
+        reservations,
+        existingGroupIds: new Set(),
+        mapCourtId,
+        now,
+      })
+      expect(result.K1['18:00']).toBe('available')
+    })
+
+    it('now VERİLİNCE bugünün rezervasyonu DOLU kalır (gün granülerliği)', () => {
+      const reservations: RawReservationDoc[] = [
+        { courtId: 'K1', startTime: '18:00', endTime: '19:00', status: 'confirmed', reservationType: 'court-rental', date: '2026-06-03', studentName: 'Bugün' },
+      ]
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule: emptyStored(),
+        reservations,
+        existingGroupIds: new Set(),
+        mapCourtId,
+        now,
+      })
+      expect((result.K1['18:00'] as any).status).toBe('occupied')
+    })
+
+    it('now VERİLSE bile dün tarihli GRUP DERSİ DOLU kalır (dersler korunur)', () => {
+      const reservations: RawReservationDoc[] = [
+        { courtId: 'K2', startTime: '18:00', endTime: '19:00', status: 'confirmed', reservationType: 'group-lesson', groupId: 'GRUP_A', date: '2026-06-02', studentName: 'Geçmiş Grup' },
+      ]
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule: emptyStored(),
+        reservations,
+        existingGroupIds: new Set(['GRUP_A']),
+        mapCourtId,
+        groupNames: { GRUP_A: 'Sabah Grubu' },
+        now,
+      })
+      const slot = result.K2['18:00'] as any
+      expect(slot.status).toBe('occupied')
+      expect(slot.groupName).toBe('Sabah Grubu')
+    })
+
+    it('adminParity (öğrenci takvimi yolu): dün rezervasyon boşalır, dün ders DOLU kalır', () => {
+      const reservations: RawReservationDoc[] = [
+        { courtId: 'K1', startTime: '18:00', endTime: '19:00', status: 'confirmed', reservationType: 'court-rental', date: '2026-06-02', studentName: 'Dün Rez' },
+        { courtId: 'K2', startTime: '18:00', endTime: '19:00', status: 'confirmed', reservationType: 'group-lesson', groupId: 'GRUP_A', date: '2026-06-02', studentName: 'Dün Ders' },
+      ]
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule: {},
+        reservations,
+        existingGroupIds: new Set(['GRUP_A']),
+        mapCourtId,
+        adminParity: true,
+        now,
+      })
+      expect(result.K1['18:00']).toBe('available')
+      expect((result.K2['18:00'] as any).status).toBe('occupied')
+    })
+  })
 })

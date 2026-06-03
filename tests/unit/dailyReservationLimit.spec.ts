@@ -4,6 +4,7 @@ import {
   normalizeReservationDate,
   isLessonDoc,
   isSlotBlockingReservation,
+  isPastReservationDoc,
   ACTIVE_RESERVATION_STATUSES,
   type RawReservationDoc,
 } from '../../src/utils/dailyReservationLimit'
@@ -224,6 +225,51 @@ describe('dailyReservationLimit — günde en fazla bir rezervasyon', () => {
           groupId: 'grp_1',
         }),
       ).toBe(true)
+    })
+  })
+
+  // Takvim/kort durumu görünümünde geçmiş kort rezervasyonlarını (dersler hariç)
+  // iptal edilmiş gibi gizlemek için kullanılan ölçüt. Boss izleme paneli sayımı
+  // bunu KULLANMAZ; geçmişi saymaya devam eder.
+  describe('isPastReservationDoc — geçmiş kort rezervasyonu (dersler hariç)', () => {
+    // Sabit referans an: 3 Haziran 2026 öğlen (yerel).
+    const now = new Date(2026, 5, 3, 12, 0, 0)
+
+    it('DÜN tarihli kort rezervasyonu geçmiştir (true)', () => {
+      expect(isPastReservationDoc({ type: 'court-rental', status: 'confirmed', date: '2026-06-02' }, now)).toBe(true)
+    })
+
+    it('daha eski tarihli kort rezervasyonu geçmiştir (true)', () => {
+      expect(isPastReservationDoc({ type: 'court-rental', status: 'pending', date: '2026-05-20' }, now)).toBe(true)
+    })
+
+    it('BUGÜNÜN rezervasyonu geçmiş SAYILMAZ — saati geçmiş olsa bile (false, gün granülerliği)', () => {
+      expect(isPastReservationDoc({ type: 'court-rental', status: 'confirmed', date: '2026-06-03' }, now)).toBe(false)
+    })
+
+    it('GELECEK tarihli rezervasyon geçmiş değildir (false)', () => {
+      expect(isPastReservationDoc({ type: 'court-rental', status: 'confirmed', date: '2026-06-10' }, now)).toBe(false)
+    })
+
+    it('DÜN tarihli GRUP DERSİ geçmiş sayılmaz — dersler korunur (false)', () => {
+      expect(isPastReservationDoc({ reservationType: 'group-lesson', groupId: 'grp_1', status: 'confirmed', date: '2026-06-02' }, now)).toBe(false)
+    })
+
+    it('DÜN tarihli ÖZEL DERS (private-lesson) geçmiş sayılmaz (false)', () => {
+      expect(isPastReservationDoc({ type: 'private-lesson', status: 'confirmed', date: '2026-06-02' }, now)).toBe(false)
+    })
+
+    it('groupSchedule işaretli geçmiş ders korunur (false)', () => {
+      expect(isPastReservationDoc({ groupSchedule: true, status: 'confirmed', date: '2026-06-01' }, now)).toBe(false)
+    })
+
+    it('Firestore Timestamp tarihli geçmiş rezervasyon de geçmiştir (true)', () => {
+      expect(isPastReservationDoc({ type: 'court-rental', status: 'confirmed', date: fakeTimestamp(new Date(2026, 5, 2, 9, 0)) }, now)).toBe(true)
+    })
+
+    it('tarihi çözülemeyen kayıt güvenli tarafta geçmiş sayılmaz (false)', () => {
+      expect(isPastReservationDoc({ type: 'court-rental', status: 'confirmed', date: 'not-a-date' }, now)).toBe(false)
+      expect(isPastReservationDoc({ type: 'court-rental', status: 'confirmed', date: null }, now)).toBe(false)
     })
   })
 })

@@ -641,7 +641,9 @@ const fetchCourtSchedule = async (date: Date) => {
       reservations,
       existingGroupIds,
       mapCourtId,
-      groupNames
+      groupNames,
+      // Tarihi geçmiş kort rezervasyonları (dersler hariç) boş görünsün.
+      now: new Date()
     })
 
     updateCourtStats()

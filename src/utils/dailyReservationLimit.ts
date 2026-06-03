@@ -175,6 +175,27 @@ export function hasActiveReservationOnDate(
   })
 }
 
+/**
+ * Bir KORT REZERVASYONU geçmişte mi kaldı? "Geçmiş" = rezervasyonun tarihi,
+ * referans günden (yerel, gece yarısı) ÖNCEKİ bir gün. Bugünün rezervasyonları
+ * (saati geçmiş olsa bile) gün sonuna kadar geçmiş SAYILMAZ (gün granülerliği).
+ *
+ * Dersler (grup/özel) bu kurala TABİ DEĞİLDİR — geçmişte de görünmeye devam
+ * ederler, bu yüzden ders dokümanları için her zaman false döner. Tarihi
+ * çözülemeyen kayıt da güvenli tarafta false döner.
+ *
+ * Takvim/kort durumu GÖRÜNÜMÜNDE geçmiş rezervasyonu iptal edilmiş gibi gizlemek
+ * için kullanılır. Boss izleme paneli sayımı (countCourtReservationsByPeriod)
+ * bunu KULLANMAZ; geçmiş rezervasyonları saymaya devam eder.
+ */
+export function isPastReservationDoc(doc: RawReservationDoc, now: Date): boolean {
+  if (isLessonDoc(doc)) return false
+  const dateStr = normalizeReservationDate(doc.date)
+  if (!dateStr) return false
+  // Yerel YYYY-MM-DD string karşılaştırması: aynı formatta sözlüksel kıyas güvenli.
+  return dateStr < toLocalDateString(now)
+}
+
 function toLocalDateString(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
