@@ -198,6 +198,7 @@ import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import {
   countCourtReservationsByPeriod,
   computeMonthlyRevenue,
+  countActiveStudents,
   getWeekRange,
   type ReservationCounts,
   type MonthlyRevenue,
@@ -282,25 +283,30 @@ async function loadRevenue(): Promise<void> {
     typesMap[t.key] = { name: t.name, monthlyPrice: t.monthlyPrice }
   }
 
-  activeStudentCount.value = students.length
+  // AKTİF öğrenci = ciro hesabına giren küme (pasif/askıda hariç). `students`
+  // dizisi yalnızca deleted!=true filtresinden geçtiği için TOPLAM sayıdır;
+  // etiketteki "× paket fiyatı" ciroyla tutarlı olsun diye aktif sayıyı
+  // computeMonthlyRevenue ile AYNI ölçütten (countActiveStudents) alıyoruz.
+  const activeCount = countActiveStudents(students)
+  activeStudentCount.value = activeCount
   revenue.value = computeMonthlyRevenue(students, typesMap)
 
   // Teşhis: ciro 0 ise NEDEN 0 olduğunu hem konsola hem (gerekirse) ekrana yaz.
   console.log(
     `📊 Patron ciro: role==student sorgusu ${rawCount} doküman döndürdü, ` +
-      `${students.length} aktif öğrenci, ${membershipTypesStore.allTypes.length} paket türü, ` +
-      `toplam ciro ${revenue.value.total}`,
+      `${students.length} silinmemiş öğrenci (${activeCount} aktif), ` +
+      `${membershipTypesStore.allTypes.length} paket türü, toplam ciro ${revenue.value.total}`,
   )
   if (rawCount === 0) {
     infoMessage.value =
       'Bu projede "role == student" olan kullanıcı bulunamadı, bu yüzden ciro ₺0. ' +
       'Öğrenci kayıtlarının bulunduğu Firebase projesine (urla-tenis) bağlı olduğunuzdan emin olun.'
-  } else if (students.length === 0) {
+  } else if (activeCount === 0) {
     infoMessage.value =
       `${rawCount} öğrenci bulundu ancak hepsi silinmiş/pasif olarak işaretli; aktif öğrenci yok.`
   } else if (revenue.value.total === 0) {
     infoMessage.value =
-      `${students.length} aktif öğrenci var ancak paketlerinin aylık fiyatı tanımsız (₺0). ` +
+      `${activeCount} aktif öğrenci var ancak paketlerinin aylık fiyatı tanımsız (₺0). ` +
       'Fiyatlandırma tablosundan paket fiyatlarını kontrol edin.'
   }
 }

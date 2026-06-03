@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   countCourtReservationsByPeriod,
   computeMonthlyRevenue,
+  countActiveStudents,
   getWeekRange,
   type RevenueStudentLike,
   type PackagePriceInfo,
@@ -140,28 +141,32 @@ describe('bossMetrics — computeMonthlyRevenue', () => {
     })
   })
 
-  it('silinmiş ve pasif/askıda öğrencileri hariç tutar', () => {
+  it("yalnızca 'active'/'approved' öğrencileri sayar; diğerlerini hariç tutar", () => {
+    // Aktif tanımı admin paneliyle birebir: active/approved aktif; deleted,
+    // inactive, suspended, pending ve status'suz öğrenciler ciroya GİRMEZ.
     const students: RevenueStudentLike[] = [
-      { membershipType: 'vip', status: 'active' },
+      { membershipType: 'vip', status: 'active' }, // aktif
+      { membershipType: 'vip', status: 'approved' }, // aktif
       { membershipType: 'vip', deleted: true }, // silinmiş → hariç
       { membershipType: 'vip', status: 'inactive' }, // pasif → hariç
       { membershipType: 'vip', status: 'suspended' }, // askıda → hariç
+      { membershipType: 'vip', status: 'pending' }, // onaysız → hariç
     ]
     const result = computeMonthlyRevenue(students, typesMap)
-    expect(result.total).toBe(15000)
+    expect(result.total).toBe(15000 * 2)
     expect(result.byPackage).toHaveLength(1)
-    expect(result.byPackage[0].count).toBe(1)
+    expect(result.byPackage[0].count).toBe(2)
   })
 
-  it('status\'u olmayan öğrenciyi aktif sayar ve membershipType yoksa basic varsayar', () => {
+  it("status'u olmayan/onaysız öğrenciyi aktif SAYMAZ (admin paritesi)", () => {
     const students: RevenueStudentLike[] = [
-      { status: undefined }, // membershipType yok → basic
-      {}, // hiç alan yok → basic, aktif
+      { status: undefined }, // status yok → aktif değil
+      {}, // hiç alan yok → aktif değil
+      { status: 'pending' }, // onaysız → aktif değil
     ]
     const result = computeMonthlyRevenue(students, typesMap)
-    expect(result.byPackage).toHaveLength(1)
-    expect(result.byPackage[0]).toMatchObject({ key: 'basic', count: 2, unitPrice: 6000 })
-    expect(result.total).toBe(12000)
+    expect(result.byPackage).toHaveLength(0)
+    expect(result.total).toBe(0)
   })
 
   it('bilinmeyen / fiyatsız paketi 0 fiyatla ele alır (yine sayar)', () => {
@@ -181,5 +186,53 @@ describe('bossMetrics — computeMonthlyRevenue', () => {
 
   it('boş öğrenci listesi için sıfır döner', () => {
     expect(computeMonthlyRevenue([], typesMap)).toEqual({ total: 0, byPackage: [] })
+  })
+})
+
+describe('bossMetrics — countActiveStudents', () => {
+  const typesMap: Record<string, PackagePriceInfo> = {
+    vip: { name: 'VIP Üyelik', monthlyPrice: 15000 },
+    basic: { name: 'Temel Üyelik', monthlyPrice: 6000 },
+  }
+
+  it("yalnızca 'active'/'approved' öğrencileri sayar (admin paritesi)", () => {
+    const students: RevenueStudentLike[] = [
+      { status: 'active' },
+      { status: 'approved' },
+      { deleted: true }, // silinmiş → hariç
+      { status: 'inactive' }, // hariç
+      { status: 'suspended' }, // hariç
+      { status: 'expired' }, // hariç
+      { status: 'pending' }, // onaysız → hariç
+    ]
+    expect(countActiveStudents(students)).toBe(2)
+  })
+
+  it("status'u olmayan/boş öğrenciyi aktif SAYMAZ", () => {
+    const students: RevenueStudentLike[] = [{ status: undefined }, {}]
+    expect(countActiveStudents(students)).toBe(0)
+  })
+
+  it('boş liste için 0 döner', () => {
+    expect(countActiveStudents([])).toBe(0)
+  })
+
+  it('ciro hesabıyla AYNI aktif kümeyi sayar (etiket ↔ ciro tutarlılığı)', () => {
+    // Patron panelindeki "N aktif öğrenci × paket fiyatı" etiketi ile ciroya
+    // giren öğrenci sayısı birebir aynı olmalı. byPackage[].count toplamı,
+    // computeMonthlyRevenue'nun kullandığı aktif öğrenci sayısıdır.
+    const students: RevenueStudentLike[] = [
+      { membershipType: 'vip', status: 'active' },
+      { membershipType: 'basic', status: 'approved' },
+      { membershipType: 'vip', status: 'pending' }, // onaysız → hariç
+      { membershipType: 'vip', deleted: true }, // hariç
+      { membershipType: 'basic', status: 'suspended' }, // hariç
+    ]
+    const revenueActiveCount = computeMonthlyRevenue(students, typesMap).byPackage.reduce(
+      (sum, row) => sum + row.count,
+      0,
+    )
+    expect(countActiveStudents(students)).toBe(revenueActiveCount)
+    expect(countActiveStudents(students)).toBe(2)
   })
 })

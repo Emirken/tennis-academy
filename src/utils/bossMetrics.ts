@@ -17,6 +17,7 @@ import {
   normalizeReservationDate,
   type RawReservationDoc,
 } from './dailyReservationLimit'
+import { isActiveStudent as isApprovedActiveStudent } from './studentCounts'
 
 // ---------------------------------------------------------------------------
 // Tarih yardımcıları (yerel saat; UTC kayması yaşatmamak için string bazlı)
@@ -126,15 +127,30 @@ export interface MonthlyRevenue {
   byPackage: PackageRevenueRow[]
 }
 
-// Ciroya dahil EDİLMEYEN öğrenci durumları. Bilinmeyen/boş status dahil edilir
-// (güvenli taraf: aktif kabul). deleted === true her zaman elenir.
-const INACTIVE_STUDENT_STATUSES = new Set(['inactive', 'suspended', 'expired'])
-
-/** Öğrenci ciro hesabına dahil mi? (silinmemiş ve pasif/askıda değil) */
+/**
+ * Öğrenci ciro hesabına dahil mi? AKTİF tanımı admin paneliyle (StudentManagement
+ * ve studentCounts) BİREBİR aynıdır: status === 'active' || 'approved'. Böylece
+ * "/boss/dashboard" aktif öğrenci sayısı admin panelindeki sayıyla eşleşir ve
+ * yalnızca onaylı öğrencilerden gelir beklenir (pending/onaysız/status'suz
+ * öğrenciler aktif sayılmaz ve ciroya GİRMEZ). deleted === true her zaman elenir.
+ */
 function isActiveStudent(student: RevenueStudentLike): boolean {
   if (student.deleted === true) return false
-  if (student.status && INACTIVE_STUDENT_STATUSES.has(student.status)) return false
-  return true
+  return isApprovedActiveStudent({ status: student.status })
+}
+
+/**
+ * AKTİF öğrenci sayısı — ciro hesabına dahil edilen öğrenci sayısıyla BİREBİR
+ * aynı küme (isActiveStudent). Patron panelinde "N aktif öğrenci × paket fiyatı"
+ * etiketinin ciroyla tutarlı olması için tek kaynak. Toplam (silinmemiş tüm)
+ * öğrenci sayısıyla KARIŞTIRILMAMALI; pasif/askıda öğrenciler buraya dahil değil.
+ */
+export function countActiveStudents(students: RevenueStudentLike[]): number {
+  let count = 0
+  for (const student of students) {
+    if (isActiveStudent(student)) count++
+  }
+  return count
 }
 
 /**
