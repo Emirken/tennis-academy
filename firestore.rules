@@ -7,9 +7,10 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Helper function to check if user is boss (patron). Boss has read-only
-    // access to monitoring data (öğrenciler, rezervasyonlar, paketler) but
-    // does NOT get write privileges.
+    // Helper function to check if user is boss (patron). Boss artık admin-eşi
+    // tam yetkiye sahiptir: monitoring verisini okur VE admin'in yazabildiği
+    // her koleksiyona yazabilir (kullanıcı kararı — eski salt-okunur tasarım
+    // bilinçli olarak terk edildi).
     function isBoss() {
       return request.auth != null &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'boss';
@@ -31,13 +32,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow read: if isAdminOrBoss();
-      allow write: if isAdmin();
+      allow write: if isAdminOrBoss();
     }
-    
+
     // Courts collection - allow authenticated users to read
     match /courts/{courtId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow write: if isAdminOrBoss();
     }
     
     // Court Schedule collection
@@ -49,56 +50,57 @@ service cloud.firestore {
     // Reservations collection
     match /reservations/{reservationId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-        (resource == null || 
-         resource.data.userId == request.auth.uid || 
+      allow write: if request.auth != null &&
+        (resource == null ||
+         resource.data.userId == request.auth.uid ||
          resource.data.studentId == request.auth.uid ||
-         isAdmin());
+         isAdminOrBoss());
     }
     
     // Students collection - admin can read/write, students can read their own
     match /students/{studentId} {
-      allow read: if isAuthenticated() && 
-        (studentId == request.auth.uid || isAdmin());
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() &&
+        (studentId == request.auth.uid || isAdminOrBoss());
+      allow write: if isAdminOrBoss();
     }
-    
+
     // Attendance collection - Monthly aggregated docs
     match /attendance/{attendanceId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isAdminOrBoss();
     }
 
     // Attendance Archive collection
     match /attendanceArchive/{archiveId} {
-      allow read: if isAuthenticated() && 
-        (resource.data.studentId == request.auth.uid || isAdmin());
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() &&
+        (resource.data.studentId == request.auth.uid || isAdminOrBoss());
+      allow write: if isAdminOrBoss();
     }
-    
-    // Dues collection - admin can read/write, students can read their own
+
+    // Dues collection - admin/boss can read/write, students can read their own
     match /dues/{dueId} {
-      allow read: if isAuthenticated() && 
-        (resource.data.studentId == request.auth.uid || isAdmin());
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() &&
+        (resource.data.studentId == request.auth.uid || isAdminOrBoss());
+      allow write: if isAdminOrBoss();
     }
-    
+
     // Groups collection
     match /groups/{groupId} {
-      allow read: if isAuthenticated(); 
-      allow write: if isAdmin(); 
+      allow read: if isAuthenticated();
+      allow write: if isAdminOrBoss();
     }
-    
+
     // Settings collection
     match /settings/{settingId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow write: if isAdminOrBoss();
     }
 
-    // Membership Types collection - all authenticated users can read, only admins can write
+    // Membership Types collection - all authenticated users can read,
+    // admin/boss can write.
     match /membershipTypes/{typeId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isAdminOrBoss();
     }
 
     // Notifications collection - all authenticated users can read and write for the time being

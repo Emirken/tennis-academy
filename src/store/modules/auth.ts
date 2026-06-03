@@ -312,6 +312,21 @@ export const useAuthStore = defineStore('auth', {
                                     groupAssignment: (userData as any).groupAssignment
                                 })
 
+                                // Silinmiş hesap savunması: öğrenci silindiğinde Firestore
+                                // dokümanı kalır (soft delete) ama deleted=true / status='deleted'
+                                // olur. Auth kaydı Cloud Function ile silinse bile, açık bir oturum
+                                // ya da eski cihaz buraya düşebilir. Bu canlı snapshot guard'ı
+                                // oturumu anında kapatıp girişi engeller (ikinci savunma katmanı).
+                                if (userData.deleted === true || userData.status === 'deleted') {
+                                    console.warn('⛔ Silinmiş hesap girişi engellendi:', uid)
+                                    stopUserDocListener()
+                                    await signOut(auth)
+                                    this.user = null
+                                    this.isAuthenticated = false
+                                    this.error = 'Bu hesap silinmiş. Lütfen yöneticiyle iletişime geçin.'
+                                    return
+                                }
+
                                 if (userData.role === 'student' && userData.status === 'pending') {
                                     console.log('⚠️ Kullanıcı onay bekliyor, ancak sisteme girişine izin veriliyor (dashboard kilitli).', uid)
                                 }

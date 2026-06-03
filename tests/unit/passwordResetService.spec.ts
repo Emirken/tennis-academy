@@ -23,6 +23,8 @@ import {
   assignTempPassword,
   clearMustResetPassword,
   generateTempPassword,
+  updateStudentPhone,
+  deleteStudentAuth,
 } from '@/services/passwordResetService'
 
 describe('passwordResetService', () => {
@@ -73,6 +75,55 @@ describe('passwordResetService', () => {
       await expect(assignTempPassword('uid-1', '05551112233', 'Gecici12')).rejects.toThrow(
         'Bu işlemi yalnızca yönetici yapabilir.'
       )
+    })
+  })
+
+  describe('updateStudentPhone', () => {
+    it('updateUserPhone callable\'ını userId + newPhone ile çağırır', async () => {
+      await updateStudentPhone('uid-1', '05559876543')
+
+      expect(httpsCallableMock).toHaveBeenCalledTimes(1)
+      expect(httpsCallableMock.mock.calls[0][1]).toBe('updateUserPhone')
+      expect(callableMock).toHaveBeenCalledWith({ userId: 'uid-1', newPhone: '05559876543' })
+    })
+
+    it('geçersiz numarayı (callable\'a gitmeden) reddeder', async () => {
+      await expect(updateStudentPhone('uid-1', '123')).rejects.toThrow()
+      await expect(updateStudentPhone('uid-1', '5559876543')).rejects.toThrow() // 0 ile başlamıyor
+      await expect(updateStudentPhone('uid-1', '055598765431')).rejects.toThrow() // 12 hane
+      expect(callableMock).not.toHaveBeenCalled()
+    })
+
+    it('userId yoksa reddeder', async () => {
+      await expect(updateStudentPhone('', '05559876543')).rejects.toThrow()
+      expect(callableMock).not.toHaveBeenCalled()
+    })
+
+    it('numara çakışması hatasını anlamlı mesajla fırlatır', async () => {
+      callableMock.mockRejectedValueOnce(new Error('Bu telefon numarası başka bir kullanıcıya ait.'))
+      await expect(updateStudentPhone('uid-1', '05559876543')).rejects.toThrow(
+        'Bu telefon numarası başka bir kullanıcıya ait.'
+      )
+    })
+  })
+
+  describe('deleteStudentAuth', () => {
+    it('deleteUserAccount callable\'ını userId ile çağırır', async () => {
+      await deleteStudentAuth('uid-1')
+
+      expect(httpsCallableMock).toHaveBeenCalledTimes(1)
+      expect(httpsCallableMock.mock.calls[0][1]).toBe('deleteUserAccount')
+      expect(callableMock).toHaveBeenCalledWith({ userId: 'uid-1' })
+    })
+
+    it('userId yoksa reddeder', async () => {
+      await expect(deleteStudentAuth('')).rejects.toThrow()
+      expect(callableMock).not.toHaveBeenCalled()
+    })
+
+    it('callable hatasını anlamlı mesajla fırlatır', async () => {
+      callableMock.mockRejectedValueOnce(new Error('Auth kaydı silinemedi: boom'))
+      await expect(deleteStudentAuth('uid-1')).rejects.toThrow('Auth kaydı silinemedi: boom')
     })
   })
 

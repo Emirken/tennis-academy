@@ -956,6 +956,13 @@ const getCourtName = (courtId: string): string => {
   return court?.name || normalized
 }
 
+// Kort görüntüleme sırası için tek kaynak: courts ref (K1→K2→K3). Aynı saatte
+// yan yana dolu kortların takvimde K1, K2, K3 sırasıyla görünmesini sağlar.
+const courtSortIndex = (courtId: string): number => {
+  const i = courts.value.findIndex(c => c.id === normalizeCourtId(courtId))
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i
+}
+
 // Tür bazlı takvim rengi (TEK kaynak: reservationTypeColor). Grup dersi turuncu,
 // özel ders yeşil, kort rezervasyonu mor.
 //
@@ -1258,7 +1265,10 @@ const getDayEvents = (date: Date) => {
   return calendarEvents.value.filter(event => {
     const eventDate = new Date(event.start)
     return eventDate.toDateString() === date.toDateString()
-  }).sort((a, b) => a.start.getTime() - b.start.getTime())
+  }).sort((a, b) =>
+    a.start.getTime() - b.start.getTime() ||
+    courtSortIndex(a.courtId) - courtSortIndex(b.courtId)
+  )
 }
 
 const getHourEvents = (date: Date, hour: number) => {
@@ -1267,7 +1277,10 @@ const getHourEvents = (date: Date, hour: number) => {
     const eventHour = eventDate.getHours()
     return eventDate.toDateString() === date.toDateString() &&
       eventHour === hour
-  })
+  }).sort((a, b) =>
+    courtSortIndex(a.courtId) - courtSortIndex(b.courtId) ||
+    a.start.getTime() - b.start.getTime()
+  )
 }
 
 const eventParticipants = ref<Array<{ id?: string; name: string; phone?: string; email?: string }>>([])

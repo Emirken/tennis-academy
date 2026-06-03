@@ -39,6 +39,7 @@ vi.mock('@/services/notificationService', () => ({
 
 import { useAuthStore } from '@/store/modules/auth'
 import { setDoc } from 'firebase/firestore'
+import { signOut } from 'firebase/auth'
 import { auth } from '@/services/firebase'
 
 function makeSnapshot(data: any | null) {
@@ -55,6 +56,7 @@ describe('Auth store — canlı kullanıcı dokümanı dinleyicisi', () => {
     capturedOnError = null
     unsubscribeCallCount = 0
     vi.mocked(setDoc).mockClear()
+    vi.mocked(signOut).mockClear()
     ;(auth as any).currentUser = null
   })
 
@@ -182,6 +184,85 @@ describe('Auth store — canlı kullanıcı dokümanı dinleyicisi', () => {
       expect(store.user?.role).toBe('boss')
       expect(store.user?.firstName).toBe('Emircan')
       expect(store.isAuthenticated).toBe(true)
+    })
+  })
+
+  // Silinmiş hesap savunması: öğrenci silindiğinde doküman kalır (soft delete) ama
+  // deleted=true / status='deleted' olur. Login akışı bunu görünce oturumu kapatmalı,
+  // böylece Auth kaydı (henüz) silinmemiş olsa bile giriş engellenir.
+  describe('silinmiş hesap girişi engellenir', () => {
+    it('deleted=true snapshot\'ında signOut çağrılır ve oturum açılmaz', async () => {
+      const store = useAuthStore()
+      const promise = store.fetchUserData('deleted-uid')
+
+      capturedOnNext!(makeSnapshot({
+        id: 'deleted-uid',
+        firstName: '',
+        lastName: '',
+        role: 'student',
+        deleted: true,
+        status: 'deleted',
+      }))
+      await promise
+
+      expect(signOut).toHaveBeenCalledTimes(1)
+      expect(store.user).toBeNull()
+      expect(store.isAuthenticated).toBe(false)
+      expect(store.error).toBeTruthy()
+    })
+
+    it('deleted alanı yok ama status=\'deleted\' ise de giriş engellenir', async () => {
+      const store = useAuthStore()
+      const promise = store.fetchUserData('deleted-uid-2')
+
+      capturedOnNext!(makeSnapshot({
+        id: 'deleted-uid-2',
+        firstName: 'X',
+        role: 'student',
+        status: 'deleted',
+      }))
+      await promise
+
+      expect(signOut).toHaveBeenCalledTimes(1)
+      expect(store.user).toBeNull()
+      expect(store.isAuthenticated).toBe(false)
+    })
+
+    it('aktif öğrenci (deleted=false) normal giriş yapar, signOut çağrılmaz', async () => {
+      const store = useAuthStore()
+      const promise = store.fetchUserData('active-uid')
+
+      capturedOnNext!(makeSnapshot({
+        id: 'active-uid',
+        firstName: 'Ali',
+        role: 'student',
+        deleted: false,
+        status: 'approved',
+      }))
+      await promise
+
+      expect(signOut).not.toHaveBeenCalled()
+      expect(store.user?.firstName).toBe('Ali')
+      expect(store.isAuthenticated).toBe(true)
+    })
+
+    it('açık oturumdayken doküman deleted=true olursa canlı snapshot oturumu düşürür', async () => {
+      const store = useAuthStore()
+      const promise = store.fetchUserData('live-uid')
+
+      // Önce normal giriş
+      capturedOnNext!(makeSnapshot({ id: 'live-uid', firstName: 'Ali', role: 'student', status: 'approved' }))
+      await promise
+      expect(store.isAuthenticated).toBe(true)
+
+      // Admin öğrenciyi siliyor → canlı snapshot deleted=true getiriyor.
+      // Guard içindeki signOut asenkron olduğundan, temizleme microtask kuyruğunda
+      // tamamlanır; bekleyip sonra doğruluyoruz (gerçek davranışla aynı).
+      capturedOnNext!(makeSnapshot({ id: 'live-uid', firstName: '', role: 'student', deleted: true, status: 'deleted' }))
+      await vi.waitFor(() => expect(store.isAuthenticated).toBe(false))
+
+      expect(signOut).toHaveBeenCalledTimes(1)
+      expect(store.user).toBeNull()
     })
   })
 })

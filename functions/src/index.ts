@@ -5,6 +5,21 @@ admin.initializeApp()
 
 const db = admin.firestore()
 
+// Telefon numarasından dummy email üret (client'taki phoneToEmail ile birebir aynı
+// olmalı — giriş bu email üzerinden yapılıyor). bkz. src/store/modules/auth.ts
+function phoneToEmail(phone: string): string {
+    return `${phone}@tennis.local`
+}
+
+// Çağıran kullanıcı admin VEYA boss mu? (boss, isAdmin getter'ında admin sayılır.)
+async function assertAdminOrBoss(uid: string): Promise<void> {
+    const snap = await db.collection('users').doc(uid).get()
+    const role = snap.data()?.role
+    if (!snap.exists || (role !== 'admin' && role !== 'boss')) {
+        throw new HttpsError('permission-denied', 'Bu işlemi yalnızca yönetici yapabilir.')
+    }
+}
+
 interface SetTempPasswordData {
     userId?: string
     tempPassword?: string
@@ -62,6 +77,97 @@ export const setTempPassword = onCall(async (request) => {
         mustResetPassword: true,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     })
+
+    return { success: true }
+})
+
+interface UpdateUserPhoneData {
+    userId?: string
+    newPhone?: string
+}
+
+/**
+ * ADMIN/BOSS: Bir kullanıcının telefon numarasını değiştirir.
+ *
+ * Giriş, telefondan türetilen dummy email ({phone}@tennis.local) üzerinden yapıldığı
+ * için, sadece Firestore'daki phone_number'ı güncellemek YETMEZ — kullanıcı eski
+ * numarayla giriş yapmaya devam eder. Bu fonksiyon Admin SDK ile Auth email'ini de
+ * yeni numaraya eşitler ve Firestore phone_number'ı günceller (tek atomik akış).
+ */
+export const updateUserPhone = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Bu işlem için giriş yapmış olmalısınız.')
+    }
+    await assertAdminOrBoss(request.auth.uid)
+
+    const { userId, newPhone } = (request.data || {}) as UpdateUserPhoneData
+    if (!userId || typeof userId !== 'string') {
+        throw new HttpsError('invalid-argument', 'Geçerli bir kullanıcı kimliği (userId) gerekli.')
+    }
+    // Login.vue phoneRules ile aynı: 11 haneli, sadece rakam, 0 ile başlar
+    if (!newPhone || typeof newPhone !== 'string' || !/^0\d{10}$/.test(newPhone)) {
+        throw new HttpsError('invalid-argument', 'Telefon numarası 0 ile başlayan 11 haneli rakam olmalı.')
+    }
+
+    const targetSnap = await db.collection('users').doc(userId).get()
+    if (!targetSnap.exists) {
+        throw new HttpsError('not-found', 'Hedef kullanıcı bulunamadı.')
+    }
+
+    // 1) Auth email'ini yeni numaraya eşitle (Auth başarısızsa Firestore'a hiç dokunma)
+    try {
+        await admin.auth().updateUser(userId, { email: phoneToEmail(newPhone) })
+    } catch (err: any) {
+        if (err?.code === 'auth/email-already-exists') {
+            throw new HttpsError('already-exists', 'Bu telefon numarası başka bir kullanıcıya ait.')
+        }
+        if (err?.code === 'auth/user-not-found') {
+            throw new HttpsError('not-found', 'Bu kullanıcının Firebase Auth kaydı bulunamadı.')
+        }
+        throw new HttpsError('internal', 'Telefon güncellenemedi: ' + (err?.message || 'bilinmeyen hata'))
+    }
+
+    // 2) Auth başarılı — Firestore phone_number'ı da güncelle
+    await db.collection('users').doc(userId).update({
+        phone_number: newPhone,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+
+    return { success: true }
+})
+
+interface DeleteUserAccountData {
+    userId?: string
+}
+
+/**
+ * ADMIN/BOSS: Bir kullanıcının Firebase Auth kaydını siler.
+ *
+ * Client SDK başka kullanıcının Auth kaydını silemez; bu yüzden soft-delete sonrası
+ * Auth kaydı kalıyor ve silinen kullanıcı eski şifresiyle giriş yapabiliyordu. Bu
+ * fonksiyon sadece Auth kaydını siler — Firestore soft-delete'i (anonimleştirme, grup
+ * çıkarma, local state) client tarafında performStudentDelete'te yapılmaya devam eder.
+ */
+export const deleteUserAccount = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Bu işlem için giriş yapmış olmalısınız.')
+    }
+    await assertAdminOrBoss(request.auth.uid)
+
+    const { userId } = (request.data || {}) as DeleteUserAccountData
+    if (!userId || typeof userId !== 'string') {
+        throw new HttpsError('invalid-argument', 'Geçerli bir kullanıcı kimliği (userId) gerekli.')
+    }
+
+    try {
+        await admin.auth().deleteUser(userId)
+    } catch (err: any) {
+        // Auth kaydı zaten yoksa silme başarılı sayılır (idempotent)
+        if (err?.code === 'auth/user-not-found') {
+            return { success: true, alreadyDeleted: true }
+        }
+        throw new HttpsError('internal', 'Auth kaydı silinemedi: ' + (err?.message || 'bilinmeyen hata'))
+    }
 
     return { success: true }
 })

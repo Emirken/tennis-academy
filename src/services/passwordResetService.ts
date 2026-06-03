@@ -64,6 +64,47 @@ export async function assignTempPassword(
     }
 }
 
+// ADMIN/BOSS: Bir kullanıcının telefon numarasını değiştir.
+// Giriş telefondan türetilen dummy email ile yapıldığından, numarayı sadece Firestore'da
+// güncellemek yetmez — updateUserPhone Cloud Function Auth email'ini de yeni numaraya
+// eşitler ve Firestore phone_number'ı günceller. (Numara çakışması net hatayla döner.)
+export async function updateStudentPhone(userId: string, newPhone: string): Promise<void> {
+    if (!userId) throw new Error('Telefon güncellemek için kullanıcı kimliği gerekli')
+    if (!newPhone || !/^0\d{10}$/.test(newPhone)) {
+        throw new Error('Telefon numarası 0 ile başlayan 11 haneli rakam olmalı')
+    }
+
+    const callable = httpsCallable<{ userId: string; newPhone: string }, { success: boolean }>(
+        functions,
+        'updateUserPhone'
+    )
+
+    try {
+        await callable({ userId, newPhone })
+    } catch (err: any) {
+        throw new Error(err?.message || 'Telefon numarası güncellenirken bir hata oluştu')
+    }
+}
+
+// ADMIN/BOSS: Bir kullanıcının Firebase Auth kaydını sil.
+// Soft-delete sonrası Auth kaydı silinmezse kullanıcı eski şifresiyle giriş yapabiliyordu;
+// deleteUserAccount Cloud Function bunu engeller. Firestore soft-delete'i çağıran tarafta
+// (performStudentDelete) ayrıca yapılır. Auth kaydı zaten yoksa hata atmaz (idempotent).
+export async function deleteStudentAuth(userId: string): Promise<void> {
+    if (!userId) throw new Error('Auth kaydı silmek için kullanıcı kimliği gerekli')
+
+    const callable = httpsCallable<{ userId: string }, { success: boolean }>(
+        functions,
+        'deleteUserAccount'
+    )
+
+    try {
+        await callable({ userId })
+    } catch (err: any) {
+        throw new Error(err?.message || 'Kullanıcının Auth kaydı silinirken bir hata oluştu')
+    }
+}
+
 // LOGIN sonrası: mustResetPassword bayrağını kaldır.
 // (öğrenci kalıcı şifresini belirledikten sonra çağrılır)
 export async function clearMustResetPassword(userId: string): Promise<void> {

@@ -1185,7 +1185,7 @@ import {
   type OccupiedSlot 
 } from '@/services/courtAvailability'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
-import { assignTempPassword, generateTempPassword } from '@/services/passwordResetService'
+import { assignTempPassword, generateTempPassword, updateStudentPhone, deleteStudentAuth } from '@/services/passwordResetService'
 
 interface WeeklyPlan {
   day: string
@@ -2780,11 +2780,19 @@ const saveStudentChanges = async (): Promise<void> => {
     const isPrivateLesson = !isGroup && !isBasicMembership(editForm.value.membershipType)
     const privateLessonWeeklyPlan = isPrivateLesson ? validWeeklyPlan : null
 
+    // Telefon numarası değiştiyse: Auth email'i de güncellenmeli (giriş dummy email
+    // üzerinden yapılıyor). updateUserPhone Cloud Function Auth + Firestore phone_number'ı
+    // birlikte günceller; bu yüzden phone_number'ı aşağıdaki updateDoc'a DAHİL ETMİYORUZ
+    // (çift kaynak yarışını önlemek için). Numara çakışırsa Function hata atar, kayıt durur.
+    const phoneChanged = (editForm.value.phone_number || '') !== (oldStudent.phone_number || '')
+    if (phoneChanged) {
+      await updateStudentPhone(studentId, editForm.value.phone_number)
+    }
+
     const userDocRef = doc(db, 'users', studentId)
     await updateDoc(userDocRef, {
       firstName: editForm.value.firstName,
       lastName: editForm.value.lastName,
-      phone_number: editForm.value.phone_number,
       email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
@@ -2988,8 +2996,8 @@ const deleteStudent = async (student: Student): Promise<void> => {
   // Yoklama geçmişi yoksa direkt silme işlemine devam et
   if (!confirm(
     `${student.firstName} ${student.lastName} adlı öğrenciyi silmek istediğinizden emin misiniz?\n\n` +
-    `Öğrencinin tüm kişisel bilgileri sistemden temizlenecek.\n\n` +
-    `ÖNEMLİ: Aynı telefon numarasıyla yeniden kayıt yapılamaz; gerekirse Firebase Console üzerinden Auth kaydını da silmeniz gerekir.`
+    `Öğrencinin giriş hesabı (Auth kaydı) ve tüm kişisel bilgileri sistemden silinecek.\n` +
+    `Öğrenci artık giriş yapamayacak. Aynı telefon numarasıyla yeniden kayıt yapılabilir.`
   )) {
     return
   }
@@ -3002,11 +3010,16 @@ const performStudentDelete = async (student: Student): Promise<void> => {
   savingChanges.value = true
 
   try {
-    console.log('🗑️ Öğrenci siliniyor (soft delete + alanları anonimleştir):', student.id)
+    console.log('🗑️ Öğrenci siliniyor (Auth kaydı + soft delete):', student.id)
 
-    // Firebase Auth kaydı client SDK ile silinemediği için soft delete yapıyoruz:
-    // kişisel alanları anonimleştirip deleted=true işaretliyoruz. phone_number,
-    // yeniden kayıt akışında "bu numara daha önce kayıtlıydı" kontrolü için kalır.
+    // 1) Firebase Auth kaydını sil (Admin SDK / Cloud Function ile). Bu yapılmazsa
+    // kullanıcı eski şifresiyle giriş yapmaya devam ederdi. Auth kaydı zaten yoksa
+    // Function idempotent davranır (hata atmaz).
+    await deleteStudentAuth(student.id)
+
+    // 2) Firestore soft delete: kişisel alanları anonimleştirip deleted=true işaretle.
+    // phone_number'ı da temizliyoruz ki aynı numarayla YENİDEN KAYIT mümkün olsun
+    // (Auth kaydı silindi; register'daki "bu numara silinmişti" engeli artık gereksiz).
     const userDocRef = doc(db, 'users', student.id)
     await updateDoc(userDocRef, {
       deleted: true,
@@ -3015,6 +3028,7 @@ const performStudentDelete = async (student: Student): Promise<void> => {
       firstName: '',
       lastName: '',
       email: '',
+      phone_number: '',
       birthDate: '',
       address: '',
       emergencyContact: '',
@@ -3024,7 +3038,7 @@ const performStudentDelete = async (student: Student): Promise<void> => {
       status: 'deleted',
     })
 
-    console.log('✅ Öğrenci silindi (soft delete)')
+    console.log('✅ Öğrenci silindi (Auth kaydı + soft delete)')
 
     // Öğrenciyi gruplardan çıkar
     const groupsRef = collection(db, 'groups')

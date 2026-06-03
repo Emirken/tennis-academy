@@ -10,7 +10,12 @@ export interface User {
     firstName: string
     lastName: string
     role: UserRole
-    status?: 'pending' | 'approved'
+    // 'deleted': öğrenci silindiğinde soft-delete ile yazılır (alanlar anonimleştirilir).
+    // Login akışı bu durumda girişi engeller (bkz. auth.ts fetchUserData guard'ı).
+    status?: 'pending' | 'approved' | 'deleted'
+    // Soft-delete bayrağı: doküman silinmiş sayılır ama kayıt fiziksel olarak durur.
+    deleted?: boolean
+    deletedAt?: Date
     phone?: string
     email?: string
     birthDate?: string
