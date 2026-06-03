@@ -7,6 +7,17 @@
           <v-col cols="12" md="4">
             <h2 class="calendar-title">Ders Takvimi</h2>
             <p class="calendar-subtitle">Tüm ders programlarını görüntüleyin</p>
+            <div class="type-legend">
+              <span class="type-legend-item">
+                <span class="type-legend-dot" style="background:#E65100"></span> Grup Dersi
+              </span>
+              <span class="type-legend-item">
+                <span class="type-legend-dot" style="background:#388E3C"></span> Özel Ders
+              </span>
+              <span class="type-legend-item">
+                <span class="type-legend-dot" style="background:#7B1FA2"></span> Rezervasyon
+              </span>
+            </div>
           </v-col>
           <v-col cols="12" md="8" class="text-md-right">
             <v-btn
@@ -117,7 +128,7 @@
                       v-for="event in getCourtEvents(court.id, selectedDate)"
                       :key="event.id"
                       class="event-item"
-                      :style="{ backgroundColor: getCourtColor(event.courtId), borderLeftColor: event.color, color: '#fff' }"
+                      :style="{ backgroundColor: getEventTypeColor(event), borderLeftColor: event.color, color: '#fff' }"
                       @click="showEventDetails(event)"
                     >
                       <div class="event-time">
@@ -186,7 +197,7 @@
                             class="week-event"
                             :class="{ 'week-event-single': getHourEvents(day.date, hour).length === 1 }"
                             v-bind="tooltipProps"
-                            :style="{ backgroundColor: getCourtColor(event.courtId), borderLeftColor: event.color }"
+                            :style="{ backgroundColor: getEventTypeColor(event), borderLeftColor: event.color }"
                             @click="showEventDetails(event)"
                           >
                             <div class="week-event-court-badge">{{ event.courtId }}</div>
@@ -196,7 +207,7 @@
                         </template>
                         <div class="week-event-tooltip">
                           <div class="week-event-tooltip-court">
-                            <span class="week-event-tooltip-dot" :style="{ backgroundColor: getCourtColor(event.courtId) }"></span>
+                            <span class="week-event-tooltip-dot" :style="{ backgroundColor: getEventTypeColor(event) }"></span>
                             {{ event.courtName || event.courtId }}
                           </div>
                           <div class="week-event-tooltip-title">{{ event.title }}</div>
@@ -260,7 +271,7 @@
                             v-for="event in getDayEvents(day.date).slice(0, 3)"
                             :key="event.id"
                             class="month-event"
-                            :style="{ backgroundColor: getCourtColor(event.courtId), borderLeftColor: event.color }"
+                            :style="{ backgroundColor: getEventTypeColor(event), borderLeftColor: event.color }"
                             @click.stop="showEventDetails(event)"
                           >
                             <span class="month-event-badge">{{ event.courtId }}</span>
@@ -603,6 +614,7 @@ import { useGroupsStore } from '@/store/modules/groups'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService } from '@/services/notificationService'
 import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
+import { getReservationTypeColor } from '@/utils/reservationTypeColor'
 
 interface CalendarEvent {
   id: string
@@ -614,6 +626,7 @@ interface CalendarEvent {
   studentName: string
   groupName?: string
   groupId?: string
+  membershipType?: string
   type: string
   status: string
   color: string
@@ -942,15 +955,24 @@ const getCourtName = (courtId: string): string => {
   return court?.name || normalized
 }
 
-// Court-based color palette for consistent visual distinction (K1: turuncu, K2: mor, K3: yeşil)
-const getCourtColor = (courtId: string): string => {
-  const courtColors: Record<string, string> = {
-    'K1': '#E65100',
-    'K2': '#7B1FA2',
-    'K3': '#388E3C'
-  }
-  const normalized = normalizeCourtId(courtId)
-  return courtColors[normalized] || '#757575'
+// Tür bazlı takvim rengi (TEK kaynak: reservationTypeColor). Grup dersi turuncu,
+// özel ders yeşil, kort rezervasyonu mor.
+//
+// ÖNEMLİ: event.isGroup'a GÜVENME — o da 'group-lesson' damgasından türediği
+// için 1/2 kişilik özel paketleri yanlışlıkla grup sayar. Sınıflandırıcıya HAM
+// alanları (membershipType dahil) ve store'un isGroupType resolver'ını veririz;
+// karar membershipType'a göre verilir (grup üyeliği değilse → özel ders/yeşil).
+const getEventTypeColor = (event: CalendarEvent): string => {
+  return getReservationTypeColor(
+    {
+      type: event.type,
+      reservationType: event.isGroup ? 'group-lesson' : event.type,
+      membershipType: event.membershipType,
+      groupId: event.groupId,
+      groupAssignment: event.groupId,
+    },
+    membershipTypesStore.isGroupType,
+  )
 }
 
 const getMembershipDisplayName = (type: string) => {
@@ -1162,6 +1184,7 @@ const fetchReservations = async (force = false) => {
         studentName: data.studentName || data.studentFullName || '',
         groupName: actualGroupName || data.groupName,
         groupId: data.groupId || data.groupAssignment,
+        membershipType: data.membershipType || '',
         type: data.type || 'lesson',
         status: data.status || 'confirmed',
         color: getEventColor(data.status, data.type, isGroupLesson),
@@ -1672,6 +1695,28 @@ watch([currentView, selectedDate], async () => {
 .calendar-subtitle {
   color: #666;
   margin-top: 4px;
+}
+
+.type-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.type-legend-item {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: #555;
+}
+
+.type-legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 5px;
 }
 
 .view-toggle {

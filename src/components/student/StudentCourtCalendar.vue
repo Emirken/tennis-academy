@@ -81,22 +81,37 @@
                 <td v-for="court in courts" :key="court.id" class="court-cell">
                   <div
                       class="slot-status"
-                      :class="cellClass(dayGrid[court.id]?.[time])"
+                      :class="cellClass(cellKind(court.id, time))"
+                      :style="cellStyle(cellKind(court.id, time))"
                   >
                     <v-icon
-                        :icon="cellIcon(dayGrid[court.id]?.[time])"
-                        :color="cellIconColor(dayGrid[court.id]?.[time])"
+                        :icon="cellIcon(cellKind(court.id, time))"
+                        :color="cellIconColor(cellKind(court.id, time))"
                         size="20"
                         class="mb-1"
                     />
                     <div class="slot-text">
-                      <div class="status-line">{{ cellLabel(dayGrid[court.id]?.[time]) }}</div>
+                      <div class="status-line">{{ cellLabel(cellKind(court.id, time)) }}</div>
                     </div>
                   </div>
                 </td>
               </tr>
               </tbody>
             </v-table>
+          </div>
+          <div class="type-legend mt-3">
+            <span class="type-legend-item">
+              <span class="type-legend-dot" style="background:#E65100"></span> Grup Dersi
+            </span>
+            <span class="type-legend-item">
+              <span class="type-legend-dot" style="background:#388E3C"></span> Özel Ders
+            </span>
+            <span class="type-legend-item">
+              <span class="type-legend-dot" style="background:#7B1FA2"></span> Rezervasyon
+            </span>
+            <span class="type-legend-item">
+              <span class="type-legend-dot type-legend-dot-free"></span> Müsait
+            </span>
           </div>
         </div>
 
@@ -209,10 +224,19 @@ import {
   type RawReservationDoc
 } from '@/utils/dailyReservationLimit'
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
-import { buildBusyFreeGrid, type BusyFree, countBusyCells } from '@/utils/studentBusyFree'
+import {
+  buildBusyFreeGrid,
+  buildCellKindGrid,
+  type BusyFree,
+  type CellKind,
+  countBusyCells,
+} from '@/utils/studentBusyFree'
+import { RESERVATION_TYPE_COLORS } from '@/utils/reservationTypeColor'
 import { useGroupsStore } from '@/store/modules/groups'
+import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 
 const groupsStore = useGroupsStore()
+const membershipTypesStore = useMembershipTypesStore()
 
 // State
 const currentView = ref<'day' | 'week' | 'month'>('week')
@@ -233,10 +257,18 @@ const monthDayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 // Tarih (YYYY-MM-DD) -> dolu/boş ızgarası. Görünür aralığın her günü için dolu.
 const gridByDate = ref<Record<string, Record<string, Record<string, BusyFree>>>>({})
 
+// Tarih (YYYY-MM-DD) -> tür ızgarası (grup/özel/rezervasyon/boş). Günlük görünüm
+// hücrelerini TÜRE göre renklendirmek için (busy/free ızgarasına paralel).
+const kindByDate = ref<Record<string, Record<string, Record<string, CellKind>>>>({})
+
 // Okuma optimizasyonu: ileri/geri gezinirken aynı aralığı yeniden okumamak için
 // kısa ömürlü bellek-içi önbellek (AdminCalendar paterni). refresh() bypass eder.
 const CACHE_TTL_MS = 15_000
-const cache = new Map<string, { grids: Record<string, Record<string, Record<string, BusyFree>>>; ts: number }>()
+const cache = new Map<string, {
+  grids: Record<string, Record<string, Record<string, BusyFree>>>
+  kinds: Record<string, Record<string, Record<string, CellKind>>>
+  ts: number
+}>()
 
 // ---- Tarih yardımcıları (AdminCalendar ile aynı) ----
 const dateKey = (date: Date): string => {
@@ -417,6 +449,7 @@ const fetchSchedule = async (force = false) => {
     const cached = cache.get(cacheKey)
     if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
       gridByDate.value = cached.grids
+      kindByDate.value = cached.kinds
       return
     }
   } else {
@@ -453,6 +486,7 @@ const fetchSchedule = async (force = false) => {
     // (bakım/kapalı, grup yedeği) hiç okunmaz, iptal olmayan her rezervasyon
     // dolu sayılır. Böylece öğrenci takvimi admin takvimiyle aynı doluluğu verir.
     const grids: Record<string, Record<string, Record<string, BusyFree>>> = {}
+    const kinds: Record<string, Record<string, Record<string, CellKind>>> = {}
     const cursor = new Date(start)
     cursor.setHours(0, 0, 0, 0)
     const endDay = new Date(end); endDay.setHours(0, 0, 0, 0)
@@ -472,12 +506,14 @@ const fetchSchedule = async (force = false) => {
       })
 
       grids[key] = buildBusyFreeGrid(built, courtIds, timeSlots)
+      kinds[key] = buildCellKindGrid(built, courtIds, timeSlots, membershipTypesStore.isGroupType)
       cursor.setDate(cursor.getDate() + 1)
     }
 
     gridByDate.value = grids
+    kindByDate.value = kinds
 
-    cache.set(cacheKey, { grids, ts: Date.now() })
+    cache.set(cacheKey, { grids, kinds, ts: Date.now() })
     if (cache.size > 6) {
       const oldestKey = cache.keys().next().value
       if (oldestKey) cache.delete(oldestKey)
@@ -485,13 +521,15 @@ const fetchSchedule = async (force = false) => {
   } catch (error) {
     console.error('Öğrenci takvimi yükleme hatası:', error)
     gridByDate.value = {}
+    kindByDate.value = {}
   } finally {
     loading.value = false
   }
 }
 
-// ---- Hücre yardımcıları (yalnız dolu/boş; isim/grup YOK) ----
-const dayGrid = computed(() => gridByDate.value[dateKey(selectedDate.value)] || {})
+// ---- Hücre yardımcıları (dolu/boş + tür; isim/grup YOK) ----
+// Günlük görünüm için tür ızgarası (renklendirme): courtId -> time -> CellKind.
+const dayKindGrid = computed(() => kindByDate.value[dateKey(selectedDate.value)] || {})
 
 const weekCellBusy = (date: Date, hour: number, courtId: string): boolean => {
   const grid = gridByDate.value[dateKey(date)]
@@ -505,20 +543,50 @@ const monthBusyCount = (date: Date): number => {
   return countBusyCells(grid)
 }
 
-const cellClass = (value: BusyFree | undefined) =>
-  value === 'busy' ? 'status-occupied' : 'status-available'
-const cellIcon = (value: BusyFree | undefined) =>
-  value === 'busy' ? 'mdi-account' : 'mdi-check-circle'
-const cellIconColor = (value: BusyFree | undefined) =>
-  value === 'busy' ? 'error' : 'success'
-const cellLabel = (value: BusyFree | undefined) =>
-  value === 'busy' ? 'Dolu' : 'Müsait'
+// Günlük görünüm hücreleri artık TÜRE göre renklenir:
+//   grup dersi → turuncu, özel ders → yeşil, rezervasyon → mor, boş → yeşil/müsait.
+const KIND_LABELS: Record<CellKind, string> = {
+  free: 'Müsait',
+  'group-lesson': 'Grup Dersi',
+  'private-lesson': 'Özel Ders',
+  reservation: 'Rezervasyon',
+}
+const KIND_ICONS: Record<CellKind, string> = {
+  free: 'mdi-check-circle',
+  'group-lesson': 'mdi-account-group',
+  'private-lesson': 'mdi-account',
+  reservation: 'mdi-tennis',
+}
+
+const cellKind = (court: string, time: string): CellKind =>
+  dayKindGrid.value[court]?.[time] || 'free'
+
+const cellClass = (kind: CellKind) =>
+  kind === 'free' ? 'status-available' : 'status-occupied'
+const cellIcon = (kind: CellKind) => KIND_ICONS[kind]
+// Boş hücre Vuetify yeşili; dolu hücreler türe özgü hex rengiyle.
+const cellIconColor = (kind: CellKind) =>
+  kind === 'free' ? 'success' : RESERVATION_TYPE_COLORS[kind]
+const cellLabel = (kind: CellKind) => KIND_LABELS[kind]
+// Dolu hücre arka planı: tür renginin hafif tonu (boşta CSS varsayılanı kalır).
+const cellStyle = (kind: CellKind) => {
+  if (kind === 'free') return {}
+  const color = RESERVATION_TYPE_COLORS[kind]
+  return {
+    background: `${color}1A`, // ~%10 opaklık (hex alpha)
+    border: `2px solid ${color}59`, // ~%35 opaklık
+    color,
+  }
+}
 
 // Görünüm/tarih değişince yeniden yükle.
 watch([currentView, selectedDate], () => { fetchSchedule() })
 
-onMounted(() => {
+onMounted(async () => {
   groupsStore.initialize()
+  // Üyelik türleri yüklenmeden isGroupType herkesi "özel" sanar (boş dizi);
+  // bu yüzden grup/özel rengini doğru basmak için fetch'ten ÖNCE bekleriz.
+  await membershipTypesStore.initialize()
   fetchSchedule()
 })
 
@@ -578,16 +646,42 @@ defineExpose({ refresh })
   font-weight: 600;
 }
 
-/* Dolu/boş renkleri (Courts.vue / main.css ile aynı) */
+/* Boş hücre (müsait): nötr yeşil tonu. Dolu hücrelerin arka planı artık türe
+   göre inline style ile gelir (grup=turuncu, özel=yeşil, rezervasyon=mor). */
 .status-available {
   background: rgba(76, 175, 80, 0.1);
   border: 2px solid rgba(76, 175, 80, 0.3);
   color: #2e7d32;
 }
+/* Dolu hücrelerin renkleri inline cellStyle'dan gelir; bu yalnızca yedek. */
 .status-occupied {
-  background: rgba(244, 67, 54, 0.1);
-  border: 2px solid rgba(244, 67, 54, 0.3);
-  color: #c62828;
+  background: rgba(123, 31, 162, 0.1);
+  border: 2px solid rgba(123, 31, 162, 0.3);
+  color: #6a1b9a;
+}
+
+/* Tür açıklaması (legend) */
+.type-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+  color: #555;
+}
+.type-legend-item {
+  display: inline-flex;
+  align-items: center;
+}
+.type-legend-dot {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  margin-right: 6px;
+}
+.type-legend-dot-free {
+  background: rgba(76, 175, 80, 0.15);
+  border: 2px solid rgba(76, 175, 80, 0.4);
 }
 
 /* Haftalık grid (AdminCalendar iskeleti) */
