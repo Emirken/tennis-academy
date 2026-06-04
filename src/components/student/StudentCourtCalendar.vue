@@ -831,4 +831,53 @@ defineExpose({ refresh })
   display: flex;
   justify-content: center;
 }
+
+/* --- Mobil: takvim ızgaraları (AdminCalendar ile parite) --- */
+@media (max-width: 960px) {
+  .week-header,
+  .hour-row {
+    grid-template-columns: 60px repeat(7, 100px);
+  }
+}
+
+@media (max-width: 600px) {
+  /* Hafta görünümü: SADECE dış sarmalayıcı kaydırılsın (header+body birlikte) */
+  .week-grid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Izgara container'larını içeriğe kadar genişlet; aksi halde gri arka plandan
+     gelen ayırıcı çizgiler taşan günlerde (Perşembe ötesi) kaybolur. */
+  .week-header,
+  .week-body {
+    width: max-content;
+    min-width: 100%;
+  }
+  .week-header .time-column,
+  .hour-row .time-column {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: white;
+  }
+
+  /* Ay görünümü: 7 gün için yatay kaydırılabilir min genişlik */
+  .month-grid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .month-header,
+  .month-week {
+    grid-template-columns: repeat(7, minmax(48px, 1fr));
+    min-width: 360px;
+  }
+  .month-day {
+    min-height: 64px;
+    padding: 4px;
+  }
+  .month-day-header {
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+}
 </style>

@@ -4194,3 +4194,158 @@
     border-radius: 12px !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
 }
+
+/* ============================================================================
+   MOBİL UYUMLULUK (Responsive) — Taban hedef: 375px
+   Bu bölüm tüm uygulamayı telefonda kullanılabilir kılmak için eklendi.
+   Kural: Sadece küçük ekranlarda etkili olur (max-width media query),
+   masaüstü görünümü değişmez. Yeni breakpoint icat edilmez; mevcut
+   768 / 600 / 480 eşikleri kullanılır.
+   ============================================================================ */
+
+/* --- Yoğun tablolar: dokunmatik kaydırma + sticky ilk sütun ---
+   Sarmalayıcılar zaten overflow-x:auto. iOS momentum kaydırma ekle ve
+   kaydırılabilir olduğunu göstermek için ipucu uygula. */
+.schedule-table-container,
+.attendance-table-wrapper {
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Kort takvimi: saat sütununu sabitle (kaydırırken saat görünür kalsın) */
+.schedule-table .time-column,
+.schedule-table .time-cell {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #ffffff;
+}
+.schedule-table .time-cell {
+    background: rgba(102, 126, 234, 0.06);
+}
+
+/* Yoklama tablosu: öğrenci adı başlığını da sticky yap (.student-name-cell zaten sticky) */
+.student-name-header {
+    position: sticky;
+    left: 0;
+    z-index: 11;
+}
+
+/* ----------------------------- TABLET / TELEFON ----------------------------- */
+@media (max-width: 768px) {
+    /* NOT: .v-container yatay padding'ini DEĞİŞTİRME. Birçok "welcome-section"
+       full-bleed için margin:0 -16px kullanıyor; padding 16px kalmalı yoksa
+       4px taşma olur. */
+
+    /* Yoğun tablolarda kaydırma ipucu: sağ kenarda yumuşak gölge */
+    .schedule-table-container,
+    .attendance-table-wrapper {
+        position: relative;
+        background-image: linear-gradient(to left, rgba(0,0,0,0.06), rgba(0,0,0,0));
+        background-position: right center;
+        background-repeat: no-repeat;
+        background-size: 24px 100%;
+    }
+
+    /* Kort takvimi sütunlarını küçült */
+    .schedule-table {
+        min-width: 480px;
+    }
+    .time-column,
+    .time-cell {
+        width: 64px;
+        min-width: 64px;
+    }
+    .court-column {
+        width: 110px;
+        min-width: 110px;
+    }
+    .time-display {
+        font-size: 0.8rem;
+    }
+    .slot-text {
+        font-size: 0.65rem;
+        letter-spacing: 0.3px;
+    }
+
+    /* Yoklama tablosu sütunlarını küçült */
+    .student-name-header,
+    .student-name-cell {
+        min-width: 140px;
+    }
+    .lesson-header-cell {
+        min-width: 64px;
+    }
+    .attendance-cell {
+        min-width: 64px;
+    }
+    .stats-header,
+    .stats-cell {
+        min-width: 132px;
+    }
+    /* Tablonun sabit 900px min genişliğini gevşet (1200px kuralının üstüne yaz);
+       içerik kadar genişlesin, dar hücrelerle daha az kaydırma gereksin. */
+    .attendance-table {
+        min-width: 0;
+    }
+}
+
+/* -------------------------------- TELEFON ---------------------------------- */
+@media (max-width: 600px) {
+    /* Büyük başlıkları telefon için küçült */
+    .welcome-title {
+        font-size: 1.6rem;
+        line-height: 1.25;
+    }
+    .welcome-subtitle {
+        font-size: 0.9rem;
+    }
+
+    /* NOT: .welcome-section'ın margin:0 -16px full-bleed'i 16px konteyner
+       padding'iyle eşleştiği için taşma yapmaz; dokunulmadı. */
+
+    /* Auth kartını kahraman bölümüne biraz daha yakın getir (taşma yok) */
+    .auth-container {
+        margin-top: -32px;
+    }
+
+    /* Auth kartı: logo ve iç boşlukları küçült */
+    .auth-logo-wrapper {
+        width: 88px;
+        height: 88px;
+    }
+    .auth-welcome-title {
+        font-size: 1.8rem;
+    }
+    .auth-welcome-subtitle {
+        font-size: 1rem;
+    }
+
+    /* Diyaloglar telefonda viewport'u taşmasın, içerik kaydırılsın */
+    .v-dialog > .v-overlay__content {
+        max-width: 94vw !important;
+        margin: 12px !important;
+    }
+    .v-dialog > .v-overlay__content > .v-card {
+        max-height: 88vh;
+        overflow-y: auto;
+    }
+
+    /* Dokunma hedefi: butonlar yeterince yüksek olsun */
+    .v-btn:not(.v-btn--icon):not(.v-btn--size-x-small):not(.v-btn--size-small) {
+        min-height: 40px;
+    }
+
+    /* Header'ı telefonda biraz alçalt (Vuetify height prop'u responsive değil) */
+    .modern-header.v-app-bar {
+        height: 64px !important;
+    }
+    .modern-header .brand-logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Drawer küçük telefonlarda ekranı taşmasın (width="320" → 88vw) */
+    .mobile-drawer {
+        max-width: 88vw;
+    }
+}

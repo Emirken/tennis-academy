@@ -2163,4 +2163,52 @@ watch([currentView, selectedDate], async () => {
     padding: 4px;
   }
 }
+
+/* --- Telefon: takvim ızgaralarını dokunmatik kaydırılabilir yap --- */
+@media (max-width: 600px) {
+  /* Hafta görünümü: SADECE dış sarmalayıcı (.week-grid) kaydırılsın; header ve
+     body birlikte kaysın. .week-body'ye ayrı overflow VERME — yoksa header ile
+     body bağımsız kayar. */
+  .week-grid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Izgara container'larını içeriğe kadar genişlet. Aksi halde blok elemanın
+     kutusu yalnızca viewport kadar olur; gri arka plandan gelen ayırıcı çizgiler
+     ve kenarlık Perşembeden sonra (taşan kısımda) kaybolur. */
+  .week-header,
+  .week-body {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* Saat sütununu (her satırın ilk hücresi) kaydırırken sabit tut */
+  .week-header .time-column,
+  .hour-row .time-column {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: white;
+  }
+
+  /* Ay görünümü: 7 gün 375px'te çok dar — yatay kaydırılabilir min genişlik ver */
+  .month-grid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .month-header,
+  .month-week {
+    grid-template-columns: repeat(7, minmax(48px, 1fr));
+    min-width: 360px;
+  }
+  .month-day {
+    min-height: 64px;
+    padding: 3px;
+  }
+  .month-day-header {
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+}
 </style>
