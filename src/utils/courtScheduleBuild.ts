@@ -81,6 +81,20 @@ export interface BuildCourtScheduleInput {
    */
   adminParity?: boolean
   /**
+   * Snapshot grup dersi yedeğini (aşağıdaki 3. adım) DEVRE DIŞI bırakır.
+   * `adminParity`'den FARKLI ve ondan bağımsızdır:
+   *   - adminParity: snapshot'ı TAMAMEN yok sayar (maintenance/closed dahil).
+   *   - ignoreSnapshotGroupFallback: yalnızca bayat 'group-lesson' yedeğini
+   *     atlar; admin'in elle koyduğu maintenance/closed durumları KORUNUR.
+   *
+   * /courts bunu KULLANIR: doluluğun tek doğru kaynağı canlı `reservations`'tır
+   * (AdminCalendar ile birebir). Snapshot bir grup dersi kort değiştirip eski
+   * kort anahtarında (ör. K1) bayat kalabildiğinden, bu yedek o slotu YANLIŞ
+   * "dolu" gösterirdi (takvimde boş, /courts'ta dolu). Bayrak açıkken bu olmaz.
+   * (Bkz. memory: courtschedule-snapshot-vs-live)
+   */
+  ignoreSnapshotGroupFallback?: boolean
+  /**
    * Referans an (genellikle `new Date()`). Verilirse, tarihi BUGÜNDEN ÖNCEKİ
    * günlere ait KORT REZERVASYONLARI (dersler hariç) iptal edilmiş gibi gizlenir
    * → slot 'available' görünür. Verilmezse geçmiş elemesi YAPILMAZ (geriye
@@ -147,6 +161,7 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
   const { courtIds, timeSlots, storedSchedule, reservations, existingGroupIds, mapCourtId } = input
   const groupNames = input.groupNames || {}
   const adminParity = input.adminParity === true
+  const ignoreSnapshotGroupFallback = input.ignoreSnapshotGroupFallback === true
 
   // 1) Tabanı kur: her slot 'available'. Snapshot'tan SADECE admin durumlarını
   //    (maintenance/closed) taşı — bayat 'occupied' asla taşınmaz.
@@ -220,7 +235,9 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
   //    available) slotlarda, snapshot bir grup dersi tutuyorsa onu göster.
   //    Yetim grupları burada da ele.
   //    adminParity modunda snapshot tamamen yok sayıldığı için bu adım atlanır.
-  if (adminParity) return result
+  //    ignoreSnapshotGroupFallback modunda da yalnızca bu yedek atlanır (1.
+  //    adımdaki maintenance/closed taşıması yukarıda zaten yapıldı, korunur).
+  if (adminParity || ignoreSnapshotGroupFallback) return result
   for (const courtId of courtIds) {
     const stored = storedSchedule[courtId]
     if (!stored) continue

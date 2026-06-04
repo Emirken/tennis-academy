@@ -437,4 +437,118 @@ describe('buildCourtSchedule — canlı rezervasyon doğru kaynak', () => {
       expect((result.K2['18:00'] as any).status).toBe('occupied')
     })
   })
+
+  // /courts (Courts.vue) bu bayrağı KULLANIR. Bir grup dersi kort değiştirince
+  // (ör. K1 -> K2) eski kort anahtarındaki snapshot girdisi bayat kalabiliyor;
+  // grup hâlâ var olduğundan yedek onu YANLIŞ "dolu" gösterirdi (AdminCalendar
+  // canlıdan okuduğu için K1'i boş gösterir → tutarsızlık). Bayrak bu yedeği
+  // atlar AMA maintenance/closed admin durumlarını korur.
+  describe('ignoreSnapshotGroupFallback (Courts.vue tek-canlı-kaynak)', () => {
+    it('gerçek hata (7 Haziran 11:00 sınıfı): bayat K1 snapshot grup yedeği DİRİLMEZ', () => {
+      // Snapshot K1@10:00'de hâlâ var olan bir grubun bayat girdisi; canlı
+      // rezervasyonlar ise K2/K3'te (grup kort değiştirmiş).
+      const storedSchedule = emptyStored()
+      storedSchedule.K1['10:00'] = {
+        status: 'occupied',
+        reservationType: 'group-lesson',
+        groupAssignment: 'TASINMIS_GRUP',
+        groupName: 'Eski Kort Grubu',
+      }
+      const reservations: RawReservationDoc[] = [
+        { courtId: 'K2', startTime: '10:00', endTime: '11:00', status: 'confirmed', reservationType: 'group-lesson', groupId: 'BASKA_GRUP', studentName: 'Canlı K2' },
+        { courtId: 'K3', startTime: '10:00', endTime: '11:00', status: 'confirmed', reservationType: 'group-lesson', groupId: 'BASKA_GRUP_2', studentName: 'Canlı K3' },
+      ]
+
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule,
+        reservations,
+        // Grup hâlâ var — eski davranışta yedek dirilirdi.
+        existingGroupIds: new Set(['TASINMIS_GRUP', 'BASKA_GRUP', 'BASKA_GRUP_2']),
+        mapCourtId,
+        ignoreSnapshotGroupFallback: true,
+      })
+
+      // Düzeltme: K1 boş (AdminCalendar ile birebir), K2/K3 dolu.
+      expect(result.K1['10:00']).toBe('available')
+      expect((result.K2['10:00'] as any).status).toBe('occupied')
+      expect((result.K3['10:00'] as any).status).toBe('occupied')
+    })
+
+    it('regresyon: bayrak YOKKEN eski yedek davranışı korunur (K1 dolu kalır)', () => {
+      const storedSchedule = emptyStored()
+      storedSchedule.K1['10:00'] = {
+        status: 'occupied',
+        reservationType: 'group-lesson',
+        groupAssignment: 'TASINMIS_GRUP',
+        groupName: 'Eski Kort Grubu',
+      }
+
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule,
+        reservations: [],
+        existingGroupIds: new Set(['TASINMIS_GRUP']),
+        mapCourtId,
+        // ignoreSnapshotGroupFallback YOK
+      })
+
+      const slot = result.K1['10:00'] as any
+      expect(slot.status).toBe('occupied')
+      expect(slot.groupName).toBe('Eski Kort Grubu')
+    })
+
+    it('bayrak açıkken bile maintenance/closed admin durumları KORUNUR', () => {
+      const storedSchedule = emptyStored()
+      storedSchedule.K1['10:00'] = 'maintenance'
+      storedSchedule.K1['11:00'] = 'closed'
+      // Bu da atlanmalı (grup yedeği):
+      storedSchedule.K2['10:00'] = {
+        status: 'occupied',
+        reservationType: 'group-lesson',
+        groupAssignment: 'VAR_GRUP',
+        groupName: 'Yedek Grup',
+      }
+
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule,
+        reservations: [],
+        existingGroupIds: new Set(['VAR_GRUP']),
+        mapCourtId,
+        ignoreSnapshotGroupFallback: true,
+      })
+
+      expect(result.K1['10:00']).toBe('maintenance')
+      expect(result.K1['11:00']).toBe('closed')
+      // Grup yedeği atlandığı için K2 boş.
+      expect(result.K2['10:00']).toBe('available')
+    })
+
+    it('bayrak açıkken canlı rezervasyon yine doğru doldurur', () => {
+      const reservations: RawReservationDoc[] = [
+        { courtId: 'K2', startTime: '11:00', endTime: '12:30', status: 'confirmed', reservationType: 'group-lesson', groupId: 'CANLI_GRUP', studentName: 'Canlı Üye' },
+      ]
+
+      const result = buildCourtSchedule({
+        courtIds: COURT_IDS,
+        timeSlots: TIME_SLOTS,
+        storedSchedule: emptyStored(),
+        reservations,
+        existingGroupIds: new Set(['CANLI_GRUP']),
+        mapCourtId,
+        groupNames: { CANLI_GRUP: 'Canlı Grup' },
+        ignoreSnapshotGroupFallback: true,
+      })
+
+      expect((result.K2['11:00'] as any).status).toBe('occupied')
+      // slotsInRange saat granülerdir: endTime 12:30 -> endH=12, yani 11:00 slotu
+      // dolu, 12:00 slotu hariçtir (slotH < 12).
+      expect(result.K2['12:00']).toBe('available')
+      expect((result.K2['11:00'] as any).groupName).toBe('Canlı Grup')
+    })
+  })
 })

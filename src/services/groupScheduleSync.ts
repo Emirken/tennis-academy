@@ -44,6 +44,36 @@ export interface SyncGroupScheduleOptions {
 }
 
 /**
+ * Bir courtSchedule snapshot'ından verilen gruba ait TÜM occupied girdileri
+ * 'available' yapar (yerinde mutasyon + aynı referansı döndürür). Saf/test
+ * edilebilir; Firestore'a dokunmaz.
+ *
+ * NEDEN: Bir grup dersi kort değiştirdiğinde (ör. K1 -> K2) eski kort
+ * anahtarındaki ('K1') snapshot girdisi `{ merge: true }` ile silinmediği için
+ * bayat kalır; /courts (Courts.vue) o slotu yanlışlıkla "dolu" gösterirdi
+ * (AdminCalendar canlıdan okuduğu için boş gösterir → tutarsızlık). Yeni grup
+ * slotları hemen ardından doğru kort/saate yazıldığından, aynı grubun tüm eski
+ * girdilerini temizlemek güvenlidir. (Bkz. memory: courtschedule-snapshot-vs-live)
+ */
+export function clearGroupSlotsInSchedule(
+  scheduleData: Record<string, any>,
+  groupId: string,
+): Record<string, any> {
+  if (!scheduleData || !groupId) return scheduleData || {}
+  for (const courtId of Object.keys(scheduleData)) {
+    const courtSlots = scheduleData[courtId]
+    if (!courtSlots || typeof courtSlots !== 'object') continue
+    for (const time of Object.keys(courtSlots)) {
+      const slot = courtSlots[time]
+      if (slot && typeof slot === 'object' && slot.groupAssignment === groupId) {
+        courtSlots[time] = 'available'
+      }
+    }
+  }
+  return scheduleData
+}
+
+/**
  * Normalize schedule to Group format (Turkish day, K1/K2/K3 court)
  */
 function toGroupFormat(slots: ScheduleSlotBase[]): GroupScheduleSlot[] {
@@ -322,6 +352,12 @@ export async function createFutureGroupReservations(
   // Phase 3: Apply all slot updates in memory (one merge per date)
   for (const [dateString, courts] of courtUpdates) {
     const scheduleData = existingSchedules.get(dateString) || {}
+
+    // 3a) Bu grubun ESKİ snapshot girdilerini temizle (kort değişiminde bayat
+    //     eski kort anahtarı kalmasın). Bkz. clearGroupSlotsInSchedule.
+    clearGroupSlotsInSchedule(scheduleData, groupId)
+
+    // 3b) Yeni slotları yaz.
     for (const [courtId, times] of courts) {
       if (!scheduleData[courtId]) scheduleData[courtId] = {}
       for (const [time, slotData] of times) {

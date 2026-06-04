@@ -642,6 +642,12 @@ const fetchCourtSchedule = async (date: Date) => {
       existingGroupIds,
       mapCourtId,
       groupNames,
+      // Bayat snapshot grup yedeğini DİRİLTME: doluluğun tek doğru kaynağı
+      // canlı `reservations` (AdminCalendar ile birebir). Bir grup dersi kort
+      // değiştirdiğinde eski kort anahtarında (ör. K1) snapshot bayat kalabiliyor;
+      // bu yedek o slotu yanlışlıkla "dolu" gösterirdi (takvimde boş, /courts'ta
+      // dolu). maintenance/closed admin durumları yine korunur.
+      ignoreSnapshotGroupFallback: true,
       // Tarihi geçmiş kort rezervasyonları (dersler hariç) boş görünsün.
       now: new Date()
     })
