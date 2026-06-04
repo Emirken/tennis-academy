@@ -1177,6 +1177,7 @@ import {
 } from '@/services/attendanceArchive'
 import { syncGroupSchedule } from '@/services/groupScheduleSync'
 import { normalizeForComparison, groupToStudentFormat } from '@/utils/scheduleFormats'
+import { resolveGroupExitOnSave } from '@/utils/studentGroupExit'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 import { 
   loadOccupiedSlots, 
@@ -2697,8 +2698,21 @@ const saveStudentChanges = async (): Promise<void> => {
     }
   }
 
-  const isGroup = isGroupMembership(editForm.value.membershipType)
-  const groupAssignment:any = isGroup ? editForm.value.groupAssignment : null
+  // Gruba dahil bir öğrenci pasife (inactive) alınıyorsa: gruptan otomatik çıkar
+  // (basic'e çek, grup atamasını/programını temizle). Böylece aşağıdaki gruptan-çıkarma
+  // dalları (yoklama arşivi, kendi gelecek rezervasyonlarını silme, members[] çıkarma)
+  // doğal olarak çalışır. Pasif + yeni grup seçimi aynı kayıttaysa pasif kazanır.
+  const groupExit = resolveGroupExitOnSave({
+    oldMembershipType: oldStudent.membershipType,
+    oldGroupAssignment: oldStudent.groupAssignment,
+    formMembershipType: editForm.value.membershipType,
+    formGroupAssignment: editForm.value.groupAssignment,
+    newStatus: editForm.value.status,
+  }, isGroupMembership)
+
+  const effectiveMembershipType = groupExit.effectiveMembershipType
+  const isGroup = isGroupMembership(effectiveMembershipType)
+  const groupAssignment:any = groupExit.effectiveGroupAssignment
   const hadGroup = oldStudent.groupAssignment
   const hasGroup = groupAssignment
 
@@ -2777,7 +2791,7 @@ const saveStudentChanges = async (): Promise<void> => {
 
     // 2. Öğrenci bilgilerini güncelle
     // Özel ders (group olmayan, basic olmayan) için weeklyPlan direkt kaydedilir
-    const isPrivateLesson = !isGroup && !isBasicMembership(editForm.value.membershipType)
+    const isPrivateLesson = !isGroup && !isBasicMembership(effectiveMembershipType)
     const privateLessonWeeklyPlan = isPrivateLesson ? validWeeklyPlan : null
 
     // Telefon numarası değiştiyse: Auth email'i de güncellenmeli (giriş dummy email
@@ -2796,7 +2810,7 @@ const saveStudentChanges = async (): Promise<void> => {
       email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
-      membershipType: editForm.value.membershipType,
+      membershipType: effectiveMembershipType,
       groupAssignment,
       groupSchedule,
       weeklyPlan: privateLessonWeeklyPlan,
@@ -2882,7 +2896,7 @@ const saveStudentChanges = async (): Promise<void> => {
       email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
-      membershipType: editForm.value.membershipType,
+      membershipType: effectiveMembershipType,
       groupAssignment,
       groupSchedule,
       weeklyPlan: privateLessonWeeklyPlan || undefined,
@@ -2900,6 +2914,14 @@ const saveStudentChanges = async (): Promise<void> => {
     // Detay kartı (Kişisel Bilgiler vb.) selectedStudent'a bağlı olduğu için
     // sayfa yenilemeden güncellensin diye selectedStudent'ı da güncelle
     selectedStudent.value = updatedStudent
+
+    // Pasife alınan grup öğrencisinin formu da temizlensin ki panel açık kalırsa
+    // bayat grup/üyelik bilgisi görünmesin.
+    if (groupExit.goingPassiveFromGroup) {
+      editForm.value.membershipType = 'basic'
+      editForm.value.groupAssignment = ''
+      editForm.value.weeklyPlan = []
+    }
 
     successMessage.value = willRunSync
       ? 'Öğrenci ve grup programı güncellendi! Tüm grup üyelerinin profilleri yenilendi.'
