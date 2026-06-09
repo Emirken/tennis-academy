@@ -616,6 +616,7 @@ import { notificationService } from '@/services/notificationService'
 import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
 import { getReservationTypeColor } from '@/utils/reservationTypeColor'
 import { isPastReservationDoc, type RawReservationDoc } from '@/utils/dailyReservationLimit'
+import { resolveStudentDisplay } from '@/utils/reservationDisplayName'
 
 interface CalendarEvent {
   id: string
@@ -661,6 +662,10 @@ const loading = ref(false)
 const CALENDAR_CACHE_TTL_MS = 15_000
 const CALENDAR_CACHE_MAX_ENTRIES = 6
 const reservationsCache = new Map<string, { events: CalendarEvent[]; ts: number }>()
+
+// Okuma optimizasyonu: takvimde grup/öğrenci dokümanları sıralı getDoc yerine
+// chunked Promise.all ile çekilir (bkz. groupScheduleSync.ts). Aynı değer.
+const READ_CONCURRENCY = 50
 
 const clearReservationsCache = () => reservationsCache.clear()
 
@@ -1060,16 +1065,21 @@ const fetchReservations = async (force = false) => {
         }
       }
     } else {
-      for (const groupId of groupIds) {
-        try {
-          const groupDoc = await getDoc(doc(db, 'groups', groupId))
-          if (groupDoc.exists()) {
-            groupNames[groupId] = groupDoc.data().name || groupId
-            existingGroupIds.add(groupId)
+      // Okuma optimizasyonu: sıralı getDoc yerine chunked Promise.all
+      // (bkz. groupScheduleSync.ts READ_CONCURRENCY deseni). Aynı okuma sayısı,
+      // sadece paralel. Bireysel doküman hatası tüm batch'i reddetmez.
+      const groupIdList = Array.from(groupIds)
+      for (let i = 0; i < groupIdList.length; i += READ_CONCURRENCY) {
+        const chunk = groupIdList.slice(i, i + READ_CONCURRENCY)
+        const snaps = await Promise.all(
+          chunk.map(id => getDoc(doc(db, 'groups', id)).catch(() => null))
+        )
+        snaps.forEach((snap, idx) => {
+          if (snap && snap.exists()) {
+            groupNames[chunk[idx]] = snap.data().name || chunk[idx]
+            existingGroupIds.add(chunk[idx])
           }
-        } catch (error) {
-          console.error(`Error fetching group ${groupId}:`, error)
-        }
+        })
       }
     }
 
@@ -1082,15 +1092,21 @@ const fetchReservations = async (force = false) => {
 
     const studentNames: Record<string, string> = {}
     const studentPhones: Record<string, string> = {}
-    for (const studentId of studentIds) {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', studentId))
-        if (userDoc.exists()) {
-          const u = userDoc.data()
-          studentNames[studentId] = `${u.firstName || ''} ${u.lastName || ''}`.trim()
-          studentPhones[studentId] = u.phone_number || u.phone || ''
+    // Okuma optimizasyonu: sıralı getDoc yerine chunked Promise.all (groupScheduleSync deseni).
+    // İsimler/telefonlar TAZE kalır (denorm alanlara kaçış yok). Bireysel hata yutulur.
+    const studentIdList = Array.from(studentIds)
+    for (let i = 0; i < studentIdList.length; i += READ_CONCURRENCY) {
+      const chunk = studentIdList.slice(i, i + READ_CONCURRENCY)
+      const snaps = await Promise.all(
+        chunk.map(id => getDoc(doc(db, 'users', id)).catch(() => null))
+      )
+      snaps.forEach((snap, idx) => {
+        if (snap && snap.exists()) {
+          const u = snap.data()
+          studentNames[chunk[idx]] = `${u.firstName || ''} ${u.lastName || ''}`.trim()
+          studentPhones[chunk[idx]] = u.phone_number || u.phone || ''
         }
-      } catch (e) { /* ignore */ }
+      })
     }
 
     const events: CalendarEvent[] = []
@@ -1170,20 +1186,13 @@ const fetchReservations = async (force = false) => {
         }
         title = displayName
       } else {
-        // For private lessons, show student name + phone
-        if (data.studentId && studentNames[data.studentId]) {
-          displayName = studentNames[data.studentId]
-        } else if (data.studentFirstName && data.studentLastName) {
-          displayName = `${data.studentFirstName} ${data.studentLastName}`
-        } else if (data.studentFullName) {
-          displayName = data.studentFullName
-        } else if (data.studentName) {
-          displayName = data.studentName
-        } else {
-          displayName = 'Bilinmiyor'
-        }
-        const phone = (data.studentId && studentPhones[data.studentId])
-          || data.contactPhone || ''
+        // Private ders: öğrenci adı + telefon (saf util — bkz. reservationDisplayName.ts)
+        const { displayName: resolvedName, phone } = resolveStudentDisplay(
+          data as any,
+          studentNames,
+          studentPhones,
+        )
+        displayName = resolvedName
         title = phone ? `${displayName} (${phone})` : displayName
       }
 
