@@ -31,3 +31,6 @@ pnpm-debug.log*
 .commandcode/
 # Tennis-App/ kendi .git'i olan ayrı bir repo (nested) — bu repoya dahil edilmez
 Tennis-App/
+
+# Feature pipeline handoff klasörü (planner→coder→tester→reviewer çıktıları, runtime artefaktı)
+.pipeline/
