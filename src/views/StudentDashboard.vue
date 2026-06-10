@@ -87,7 +87,7 @@
                     <v-icon icon="mdi-calendar-clock" size="32" color="white" />
                   </div>
                   <div class="stat-details">
-                    <h3 class="stat-number primary--text">{{ upcomingReservations }}</h3>
+                    <h3 class="stat-number primary--text">{{ upcomingLessons }}</h3>
                     <p class="stat-label">Yaklaşan Dersler</p>
                     <div class="stat-trend">
                       <v-icon size="16" color="success">mdi-trending-up</v-icon>
@@ -408,16 +408,103 @@
             </v-col>
           </v-row>
 
-          <!-- Enhanced Recent Activity -->
+          <!-- Yaklaşan Derslerim (SADECE dersler — grup/özel; ayrım isLessonDoc) -->
           <v-row>
             <v-col cols="12">
               <v-card class="activity-card modern-card" elevation="0">
                 <div class="activity-header">
                   <div class="activity-header-content">
-                    <v-icon icon="mdi-history" class="header-icon" />
+                    <v-icon icon="mdi-school" class="header-icon" />
                     <div class="header-text">
-                      <h3 class="header-title">Yaklaşan Dersler</h3>
-                      <p class="header-subtitle">Gelecek derslerin ve programların</p>
+                      <h3 class="header-title">Yaklaşan Derslerim</h3>
+                      <p class="header-subtitle">Grup ve özel ders programın</p>
+                    </div>
+                  </div>
+                </div>
+
+                <v-divider />
+
+                <v-card-text class="activity-content">
+                  <div v-if="loading" class="loading-state">
+                    <v-progress-circular indeterminate color="primary" size="48" />
+                    <p class="loading-text">Dersler yükleniyor...</p>
+                  </div>
+
+                  <div v-else-if="recentLessons.length === 0" class="empty-state">
+                    <v-icon icon="mdi-school-outline" size="64" color="grey" />
+                    <p class="empty-text">Yaklaşan dersiniz bulunmuyor</p>
+                  </div>
+
+                  <div v-else class="reservations-list">
+                    <div
+                        v-for="(lesson, index) in recentLessons"
+                        :key="lesson.id"
+                        class="reservation-item"
+                        :class="{ 'last-item': index === recentLessons.length - 1 }"
+                    >
+                      <div class="reservation-timeline">
+                        <div class="timeline-dot" :class="getReservationColor(lesson.status)"></div>
+                        <div v-if="index !== recentLessons.length - 1" class="timeline-line"></div>
+                      </div>
+
+                      <div class="reservation-content">
+                        <div class="reservation-main">
+                          <div class="reservation-info">
+                            <h4 class="reservation-title">
+                              {{ lesson.courtName || lesson.instructorName || 'Ders Programı' }}
+                            </h4>
+                            <div class="reservation-details">
+                              <div class="detail-item">
+                                <v-icon size="16" color="grey-darken-1">mdi-calendar</v-icon>
+                                <span>{{ formatDate(lesson.date) }}</span>
+                              </div>
+                              <div class="detail-item">
+                                <v-icon size="16" color="grey-darken-1">mdi-clock</v-icon>
+                                <span>{{ lesson.startTime }}</span>
+                              </div>
+                              <div v-if="lesson.duration" class="detail-item">
+                                <v-icon size="16" color="grey-darken-1">mdi-timer</v-icon>
+                                <span>{{ lesson.duration }} dakika</span>
+                              </div>
+                            </div>
+                            <p v-if="lesson.notes" class="reservation-notes">
+                              {{ lesson.notes }}
+                            </p>
+                          </div>
+
+                          <div class="reservation-meta">
+                            <v-chip
+                                :color="getReservationColor(lesson.status)"
+                                size="small"
+                                variant="flat"
+                                class="status-chip"
+                            >
+                              {{ getStatusText(lesson.status) }}
+                            </v-chip>
+                            <div v-if="lesson.instructorName" class="instructor-info">
+                              <v-icon size="16" color="grey">mdi-account</v-icon>
+                              <span>{{ lesson.instructorName }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+
+          <!-- Yaklaşan Rezervasyonlarım (SADECE öğrencinin kendi kort rezervasyonları) -->
+          <v-row>
+            <v-col cols="12">
+              <v-card class="activity-card modern-card" elevation="0">
+                <div class="activity-header">
+                  <div class="activity-header-content">
+                    <v-icon icon="mdi-calendar-check" class="header-icon" />
+                    <div class="header-text">
+                      <h3 class="header-title">Yaklaşan Rezervasyonlarım</h3>
+                      <p class="header-subtitle">Kendi yaptığın kort rezervasyonları</p>
                     </div>
                   </div>
                   <v-btn
@@ -463,7 +550,7 @@
                         <div class="reservation-main">
                           <div class="reservation-info">
                             <h4 class="reservation-title">
-                              {{ reservation.courtName || reservation.instructorName || 'Ders Programı' }}
+                              {{ reservation.courtName || 'Kort Rezervasyonu' }}
                             </h4>
                             <div class="reservation-details">
                               <div class="detail-item">
@@ -493,10 +580,6 @@
                             >
                               {{ getStatusText(reservation.status) }}
                             </v-chip>
-                            <div v-if="reservation.instructorName" class="instructor-info">
-                              <v-icon size="16" color="grey">mdi-account</v-icon>
-                              <span>{{ reservation.instructorName }}</span>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -520,6 +603,7 @@ import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { createFutureGroupReservations } from '@/services/groupScheduleSync'
+import { isLessonDoc, type RawReservationDoc } from '@/utils/dailyReservationLimit'
 import StudentCourtCalendar from '@/components/student/StudentCourtCalendar.vue'
 import ReservationForm from '@/components/reservations/ReservationForm.vue'
 
@@ -585,10 +669,13 @@ const onReservationSuccess = () => {
 }
 
 // Real data from Firebase
+// Ders ve kort rezervasyonu AYRI listelerde tutulur (ayrım: isLessonDoc, tek kaynak).
 const upcomingReservations = ref(0)
+const upcomingLessons = ref(0)
 const lessonsThisMonth = ref(0)
 const totalHours = ref(0)
 const recentReservations = ref<any[]>([])
+const recentLessons = ref<any[]>([])
 const loading = ref(true)
 
 // Attendance data
@@ -931,7 +1018,12 @@ const fetchUserReservations = () => {
 
     console.log('🚀 Future reservations count:', reservationRecords.length)
 
-    recentReservations.value = reservationRecords.map((reservation: any) => ({
+    // Ders (grup/özel) ile öğrencinin kendi kort rezervasyonunu ayır — ders
+    // "rezervasyon" olarak gösterilmesin (ayrım tek kaynaktan: isLessonDoc).
+    const lessonRecords = reservationRecords.filter((r: any) => isLessonDoc(r as RawReservationDoc))
+    const rentalRecords = reservationRecords.filter((r: any) => !isLessonDoc(r as RawReservationDoc))
+
+    const toDisplayItem = (reservation: any) => ({
       id: reservation.id,
       courtName: reservation.courtName || `Kort ${reservation.courtId}`,
       date: reservation.date,
@@ -943,9 +1035,13 @@ const fetchUserReservations = () => {
       instructorName: reservation.instructorName || null,
       totalCost: reservation.totalCost || 0,
       actualHours: reservation.calculatedHours
-    }))
+    })
 
-    upcomingReservations.value = reservationRecords.length
+    recentLessons.value = lessonRecords.map(toDisplayItem)
+    recentReservations.value = rentalRecords.map(toDisplayItem)
+
+    upcomingLessons.value = lessonRecords.length
+    upcomingReservations.value = rentalRecords.length
 
     const thisMonth = new Date().getMonth()
     const thisYear = new Date().getFullYear()
@@ -978,12 +1074,13 @@ const fetchUserReservations = () => {
               reservation.status === 'completed' ||
               reservation.status === 'pending'
 
-          return isThisMonth && isValidStatus
+          // "Bu Ayki Dersler" yalnızca dersleri sayar, kort kiralamayı değil.
+          return isThisMonth && isValidStatus && isLessonDoc(reservation as RawReservationDoc)
         })
 
     lessonsThisMonth.value = thisMonthReservations.length
 
-    totalHours.value = reservationRecords.reduce((total, reservation: any) => {
+    totalHours.value = lessonRecords.reduce((total: number, reservation: any) => {
       return total + (reservation.calculatedHours || 0)
     }, 0)
 
@@ -991,6 +1088,7 @@ const fetchUserReservations = () => {
 
     console.log('📈 Final stats:', {
       upcomingReservations: upcomingReservations.value,
+      upcomingLessons: upcomingLessons.value,
       lessonsThisMonth: lessonsThisMonth.value,
       totalHours: totalHours.value
     })
@@ -1000,7 +1098,9 @@ const fetchUserReservations = () => {
     console.error('❌ Error fetching reservations:', error)
     loading.value = false
     recentReservations.value = []
+    recentLessons.value = []
     upcomingReservations.value = 0
+    upcomingLessons.value = 0
     lessonsThisMonth.value = 0
     totalHours.value = 0
   })

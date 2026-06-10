@@ -30,11 +30,12 @@ describe('Saat aralığı 08:00 - 22:00 (son slot başlangıcı)', () => {
 })
 
 describe('Tüm yerlerde slot listesi tutarlılığı', () => {
-  it('Reservations.vue timeSlots — 08:00 ile 22:00 arasında değer içerir', async () => {
+  // Form mantığı (timeSlots dahil) Reservations.vue'dan ReservationForm bileşenine taşındı.
+  it('ReservationForm.vue timeSlots — 08:00 ile 22:00 arasında değer içerir', async () => {
     const fs = await import('node:fs')
     const path = await import('node:path')
     const content = fs.readFileSync(
-      path.resolve(__dirname, '../../src/views/Reservations.vue'),
+      path.resolve(__dirname, '../../src/components/reservations/ReservationForm.vue'),
       'utf-8',
     )
     expect(content).toMatch(/'08:00'/)
