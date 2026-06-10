@@ -1547,8 +1547,10 @@ const resetReservationForm = () => {
 const onStudentSelected = (studentId: string) => {
   if (studentId) {
     const student = studentsList.value.find(s => s.id === studentId)
-    if (student && student.phone) {
-      reservationForm.value.phone = student.phone
+    // Telefon asıl olarak phone_number alanında tutuluyor (girişler bu alanla yapılıyor)
+    const phone = student?.phone_number || student?.phone
+    if (phone) {
+      reservationForm.value.phone = phone
     }
     reservationForm.value.nonRegisteredName = ''
   }
