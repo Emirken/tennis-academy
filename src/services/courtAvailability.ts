@@ -266,6 +266,43 @@ export const getAvailableCourtOptions = (
 }
 
 /**
+ * Seçilebilir saat seçeneklerini döndürür: DOLU slotları LİSTEDEN TAMAMEN ÇIKARIR
+ * (AdminCalendar.vue `availableTimeSlots` davranışıyla aynı — orada da dolu saatler
+ * `filter` ile elenir, sadece soluklaştırılmaz). Böylece dolu saat dropdown'da hiç
+ * görünmez ve yanlışlıkla seçilemez.
+ *
+ * Not: `getAvailableTimeOptions` (disabled+etiketli liste) korunur; gerekirse görsel
+ * "DOLU (X)" gösterimi için hâlâ kullanılabilir. Form select'leri bu seçilebilir
+ * varyantı kullanmalıdır.
+ */
+export const getSelectableTimeOptions = (
+  occupiedSlots: OccupiedSlot[],
+  day: string,
+  court: string,
+  allTimeOptions: string[]
+): Array<{ title: string; value: string }> => {
+  return getAvailableTimeOptions(occupiedSlots, day, court, allTimeOptions)
+    .filter(opt => !opt.disabled)
+    .map(({ title, value }) => ({ title, value }))
+}
+
+/**
+ * Seçilebilir kort seçeneklerini döndürür: DOLU kortları LİSTEDEN TAMAMEN ÇIKARIR
+ * (AdminCalendar doluluk mantığıyla aynı). Dolu kort dropdown'da görünmez.
+ */
+export const getSelectableCourtOptions = (
+  occupiedSlots: OccupiedSlot[],
+  day: string,
+  time: string,
+  allCourtOptions: Array<{ title: string; value: string }>,
+  courtFormat: 'K' | 'court' = 'K'
+): Array<{ title: string; value: string }> => {
+  return getAvailableCourtOptions(occupiedSlots, day, time, allCourtOptions, courtFormat)
+    .filter(opt => !opt.disabled)
+    .map(({ title, value }) => ({ title, value }))
+}
+
+/**
  * Check if any slot in the schedule conflicts with occupied slots
  */
 export const getScheduleConflicts = (

@@ -262,7 +262,6 @@
                         :items="getTimeOptionsForSlot(idx)"
                         item-title="title"
                         item-value="value"
-                        :item-props="(item: any) => ({ disabled: item.disabled })"
                         label="Saat"
                         variant="outlined"
                         density="compact"
@@ -277,7 +276,6 @@
                         :items="getCourtOptionsForSlot(idx)"
                         item-title="title"
                         item-value="value"
-                        :item-props="(item: any) => ({ disabled: item.disabled })"
                         label="Kort"
                         variant="outlined"
                         density="compact"
@@ -469,11 +467,11 @@ import {
 import { syncGroupSchedule, createFutureGroupReservations } from '@/services/groupScheduleSync'
 import { groupToStudentFormat, courtToKFormat } from '@/utils/scheduleFormats'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
-import { 
-  loadOccupiedSlots, 
-  getAvailableTimeOptions, 
-  getAvailableCourtOptions,
-  type OccupiedSlot 
+import {
+  loadOccupiedSlots,
+  getSelectableTimeOptions,
+  getSelectableCourtOptions,
+  type OccupiedSlot
 } from '@/services/courtAvailability'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 
@@ -613,22 +611,23 @@ const isGroupFull = computed(() => {
   return selectedGroup.value.members.length >= selectedGroup.value.maxCapacity
 })
 
-// Get time options with availability info for a specific schedule slot
+// Bir program slotu için saat seçenekleri. DOLU saatler AdminCalendar mantığıyla
+// LİSTEDEN TAMAMEN ÇIKARILIR — dolu saat hiç görünmez ve seçilemez.
 const getTimeOptionsForSlot = (slotIndex: number) => {
   const slot = groupFormData.value.schedule[slotIndex]
   if (!slot?.day || !slot?.court) {
-    return timeOptions.map(t => ({ title: t, value: t, disabled: false }))
+    return timeOptions.map(t => ({ title: t, value: t }))
   }
-  return getAvailableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeOptions)
+  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeOptions)
 }
 
-// Get court options with availability info for a specific schedule slot
+// Bir program slotu için kort seçenekleri. DOLU kortlar listeden çıkarılır.
 const getCourtOptionsForSlot = (slotIndex: number) => {
   const slot = groupFormData.value.schedule[slotIndex]
   if (!slot?.day || !slot?.time) {
     return courtOptions
   }
-  return getAvailableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'K')
+  return getSelectableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'K')
 }
 
 // Load occupied slots when dialog opens

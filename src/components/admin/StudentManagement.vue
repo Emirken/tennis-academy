@@ -689,7 +689,6 @@
                                   :items="getTimeOptionsForDayPlan(index)"
                                   item-title="title"
                                   item-value="value"
-                                  :item-props="(item: any) => ({ disabled: item.disabled })"
                                   variant="outlined"
                                   density="compact"
                                   placeholder="Saat seçiniz"
@@ -710,7 +709,6 @@
                                   :items="getCourtOptionsForDayPlan(index)"
                                   item-title="title"
                                   item-value="value"
-                                  :item-props="(item: any) => ({ disabled: item.disabled })"
                                   variant="outlined"
                                   density="compact"
                                   placeholder="Kort seçiniz"
@@ -1179,11 +1177,11 @@ import { syncGroupSchedule } from '@/services/groupScheduleSync'
 import { normalizeForComparison, groupToStudentFormat } from '@/utils/scheduleFormats'
 import { resolveGroupExitOnSave } from '@/utils/studentGroupExit'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
-import { 
-  loadOccupiedSlots, 
-  getAvailableTimeOptions, 
-  getAvailableCourtOptions,
-  type OccupiedSlot 
+import {
+  loadOccupiedSlots,
+  getSelectableTimeOptions,
+  getSelectableCourtOptions,
+  type OccupiedSlot
 } from '@/services/courtAvailability'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { assignTempPassword, generateTempPassword, updateStudentPhone, deleteStudentAuth } from '@/services/passwordResetService'
@@ -1377,7 +1375,9 @@ const courtOptions = [
 const occupiedSlots = ref<OccupiedSlot[]>([])
 const loadingSlots = ref(false)
 
-// Get time options with availability info for a specific day plan slot
+// Bir gün-planı slotu için saat seçenekleri. DOLU saatler AdminCalendar mantığıyla
+// LİSTEDEN TAMAMEN ÇIKARILIR (disabled+gösterim yerine filtreleme) — dolu saat hiç
+// görünmez ve seçilemez.
 const getTimeOptionsForDayPlan = (slotIndex: number) => {
   const slot = editForm.value.weeklyPlan[slotIndex]
   if (!slot?.day || !slot?.court) {
@@ -1385,16 +1385,16 @@ const getTimeOptionsForDayPlan = (slotIndex: number) => {
   }
   // Convert time values for the service
   const timeValues = timeOptions.map(t => t.value)
-  return getAvailableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeValues)
+  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeValues)
 }
 
-// Get court options with availability info for a specific day plan slot
+// Bir gün-planı slotu için kort seçenekleri. DOLU kortlar listeden çıkarılır.
 const getCourtOptionsForDayPlan = (slotIndex: number) => {
   const slot = editForm.value.weeklyPlan[slotIndex]
   if (!slot?.day || !slot?.time) {
     return courtOptions
   }
-  return getAvailableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'court')
+  return getSelectableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'court')
 }
 
 // Load occupied slots
