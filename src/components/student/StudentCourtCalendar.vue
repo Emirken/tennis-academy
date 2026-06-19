@@ -234,6 +234,7 @@ import {
 import { RESERVATION_TYPE_COLORS } from '@/utils/reservationTypeColor'
 import { useGroupsStore } from '@/store/modules/groups'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 
 const groupsStore = useGroupsStore()
 const membershipTypesStore = useMembershipTypesStore()
@@ -250,8 +251,9 @@ const courts = [
 ]
 const courtIds = courts.map(c => c.id)
 
-const hours = Array.from({ length: 15 }, (_, i) => i + 8)
-const timeSlots = Array.from({ length: 15 }, (_, i) => `${(i + 8).toString().padStart(2, '0')}:00`)
+// Saatler ve saat dilimleri ders saatleri config'inden (settings/schedule).
+// firstHour dahil, lastHour HARİÇ. Admin değiştirince takvim canlı güncellenir.
+const { hours, timeSlots } = useScheduleSettings()
 const monthDayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 
 // Tarih (YYYY-MM-DD) -> dolu/boş ızgarası. Görünür aralığın her günü için dolu.
@@ -497,7 +499,7 @@ const fetchSchedule = async (force = false) => {
 
       const built = buildCourtSchedule({
         courtIds,
-        timeSlots,
+        timeSlots: timeSlots.value,
         storedSchedule: {},
         reservations: dayReservations,
         existingGroupIds,
@@ -507,8 +509,8 @@ const fetchSchedule = async (force = false) => {
         now: new Date(),
       })
 
-      grids[key] = buildBusyFreeGrid(built, courtIds, timeSlots)
-      kinds[key] = buildCellKindGrid(built, courtIds, timeSlots, membershipTypesStore.isGroupType)
+      grids[key] = buildBusyFreeGrid(built, courtIds, timeSlots.value)
+      kinds[key] = buildCellKindGrid(built, courtIds, timeSlots.value, membershipTypesStore.isGroupType)
       cursor.setDate(cursor.getDate() + 1)
     }
 

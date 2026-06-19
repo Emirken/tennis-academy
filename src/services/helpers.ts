@@ -105,8 +105,11 @@ export class DateHelpers {
         return result
     }
 
-    // Get time slots for a day
-    static getTimeSlots(startHour: number = 8, endHour: number = 23, intervalMinutes: number = 60): string[] {
+    // Get time slots for a day.
+    // Varsayılan ilk ders 07:00 (startHour=7); endHour EXCLUSIVE (son slot
+    // başlangıcı endHour-1). Ders saatleri artık settings/schedule'dan gelir —
+    // bkz. composables/useScheduleSettings.ts. Burada yalnızca varsayılanlar.
+    static getTimeSlots(startHour: number = 7, endHour: number = 23, intervalMinutes: number = 60): string[] {
         const slots: string[] = []
 
         for (let hour = startHour; hour < endHour; hour++) {
@@ -363,7 +366,10 @@ export class TennisHelpers {
     // Court time slot helpers
     static generateCourtSlots(date: Date, courtId: string): CourtSlot[] {
         const slots: CourtSlot[] = []
-        const timeSlots = DateHelpers.getTimeSlots(6, 24, 60)
+        // Ders saatleri config'inin varsayılanlarını kullan (07:00 - 23:00 exclusive).
+        // Bu üretici composable context'inde çağrılmadığı için varsayılanlara
+        // dayanır; gerçek aralık settings/schedule'dan useScheduleSettings ile gelir.
+        const timeSlots = DateHelpers.getTimeSlots()
 
         timeSlots.forEach((timeSlot) => {
             const [hour, minute] = timeSlot.split(':').map(Number)

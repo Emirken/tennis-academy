@@ -141,6 +141,7 @@ import {
 } from '@/utils/dailyReservationLimit'
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
 import { useGroupsStore } from '@/store/modules/groups'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 
 // Rezervasyon başarıyla oluşturulduğunda ebeveyne haber verir (sayfa kendi
 // başarı dialogunu açar; dashboard dialog'u kapatıp takvimi yeniler).
@@ -176,11 +177,8 @@ const availableCourts = ref([
   { id: 'court-3', name: 'Kort 3' }
 ])
 
-const timeSlots = [
-  '08:00', '09:00', '10:00', '11:00', '12:00',
-  '13:00', '14:00', '15:00', '16:00', '17:00',
-  '18:00', '19:00', '20:00', '21:00', '22:00'
-]
+// Saat dilimleri ders saatleri config'inden (settings/schedule) gelir.
+const { timeSlots } = useScheduleSettings()
 
 // Rezervasyon penceresi — her 30 sn tick edip 20:00'de açılan günü canlı yansıtır
 const now = ref(new Date())
@@ -213,7 +211,7 @@ const openReservationInfoText = computed(() => {
 const availableTimeSlots = computed(() => {
   if (!reservationData.date || !reservationData.courtId) return []
 
-  return timeSlots.map(time => ({
+  return timeSlots.value.map(time => ({
     title: time,
     value: time,
     available: courtSchedule[reservationData.courtId]?.[time] === 'available'
@@ -321,7 +319,7 @@ const loadCourtSchedule = async (date: string) => {
 
     const built = buildCourtSchedule({
       courtIds: ['court-1', 'court-2', 'court-3'],
-      timeSlots,
+      timeSlots: timeSlots.value,
       storedSchedule,
       reservations,
       existingGroupIds,
@@ -330,7 +328,7 @@ const loadCourtSchedule = async (date: string) => {
 
     Object.keys(courtSchedule).forEach((courtId) => {
       const builtCourt = built[courtId] || {}
-      timeSlots.forEach((time) => {
+      timeSlots.value.forEach((time) => {
         const slot = builtCourt[time]
         const status = getSlotStatusValue(slot)
         if (status === 'occupied') {
@@ -351,7 +349,7 @@ const loadCourtSchedule = async (date: string) => {
 
 const setDefaultSchedule = () => {
   Object.keys(courtSchedule).forEach(courtId => {
-    timeSlots.forEach(timeSlot => {
+    timeSlots.value.forEach(timeSlot => {
       courtSchedule[courtId][timeSlot] = 'available'
     })
   })
@@ -555,7 +553,7 @@ const getTimeSlotsInRange = (startTime: string, endTime: string): string[] => {
   const [startH] = startTime.split(':').map(Number)
   const [endH] = endTime.split(':').map(Number)
 
-  for (const slot of timeSlots) {
+  for (const slot of timeSlots.value) {
     const [slotH] = slot.split(':').map(Number)
     if (slotH >= startH && slotH < endH) {
       slots.push(slot)

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 
 // Enhanced Reservation interfaces
 export interface Reservation {
@@ -1061,8 +1062,10 @@ export const useReservationsStore = defineStore('reservations', () => {
             .filter(r => r.status !== 'cancelled')
 
         const slots = []
-        const startHour = 8
-        const endHour = 23
+        // Ders saatleri config'inden (settings/schedule). endHour EXCLUSIVE.
+        const { firstHour, lastHour } = useScheduleSettings()
+        const startHour = firstHour.value
+        const endHour = lastHour.value
 
         for (let hour = startHour; hour < endHour; hour++) {
             const slotStart = `${hour.toString().padStart(2, '0')}:00`

@@ -474,6 +474,7 @@ import {
   type OccupiedSlot
 } from '@/services/courtAvailability'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 
 const membershipTypesStore = useMembershipTypesStore()
 
@@ -571,10 +572,10 @@ const dayOptions = [
   { title: 'Pazar', value: 'Pazar' }
 ]
 
-const timeOptions = [
-  '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
-  '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
-]
+// Saat seçenekleri ders saatleri config'inden (settings/schedule). firstHour
+// dahil, lastHour HARİÇ (son seçenek lastHour-1).
+const { timeSlots: scheduleTimeSlots } = useScheduleSettings()
+const timeOptions = computed(() => scheduleTimeSlots.value)
 
 const courtOptions = [
   { title: 'Kort 1', value: 'K1' },
@@ -623,9 +624,9 @@ const isGroupFull = computed(() => {
 const getTimeOptionsForSlot = (slotIndex: number) => {
   const slot = groupFormData.value.schedule[slotIndex]
   if (!slot?.day || !slot?.court) {
-    return timeOptions.map(t => ({ title: t, value: t }))
+    return timeOptions.value.map(t => ({ title: t, value: t }))
   }
-  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeOptions)
+  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeOptions.value)
 }
 
 // Bir program slotu için kort seçenekleri. DOLU kortlar listeden çıkarılır.

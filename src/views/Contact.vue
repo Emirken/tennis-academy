@@ -78,7 +78,7 @@
                 </div>
                 <div class="stat-details">
                   <h3 class="contact-label">Çalışma Saatleri</h3>
-                  <p class="contact-value">Pazartesi - Pazar: 08:00 - 22:00</p>
+                  <p class="contact-value">{{ workingHoursText }}</p>
                 </div>
               </v-card-text>
             </v-card>
@@ -134,7 +134,17 @@
 </template>
 
 <script setup lang="ts">
-// No form functionality needed since contact form is removed
+import { computed } from 'vue'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
+
+// Çalışma saatleri metni ders saatleri config'inden (settings/schedule) gelir.
+// firstHour ilk ders başlangıcı; lastHour EXCLUSIVE olduğundan kapanış lastHour-1
+// olarak gösterilir (son ders saati). Örn. 7/23 → "07:00 - 22:00".
+const { firstHour, lastHour } = useScheduleSettings()
+const pad = (h: number) => h.toString().padStart(2, '0')
+const workingHoursText = computed(
+  () => `Pazartesi - Pazar: ${pad(firstHour.value)}:00 - ${pad(lastHour.value - 1)}:00`
+)
 </script>
 
 <style scoped>

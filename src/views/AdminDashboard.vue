@@ -502,6 +502,13 @@ const managementActions: ManagementAction[] = [
     route: { name: 'MembershipTypeManagement' }
   },
   {
+    title: 'Ders Saatleri',
+    description: 'İlk ve son ders saatini ayarla',
+    icon: 'mdi-clock-outline',
+    gradient: 'warning-gradient',
+    route: { name: 'ScheduleSettings' }
+  },
+  {
     title: 'Fiyat Yönetimi',
     description: 'Fiyatları ve paketleri güncelle',
     icon: 'mdi-currency-try',

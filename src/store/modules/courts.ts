@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Court, CourtReservation, TimeSlot } from '@/types/court'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 
 interface CourtsState {
     courts: Court[]
@@ -264,8 +265,10 @@ export const useCourtsStore = defineStore('courts', () => {
             r.status !== 'cancelled'
         )
 
-        // Generate time slots from 08:00 to 22:00 (last start)
-        for (let hour = 8; hour <= 22; hour++) {
+        // Ders saatleri config'inden (settings/schedule) üret. firstHour dahil,
+        // lastHour HARİÇ (lastHour son slot bitişi, son ders lastHour-1'de başlar).
+        const { firstHour, lastHour } = useScheduleSettings()
+        for (let hour = firstHour.value; hour < lastHour.value; hour++) {
             const timeString = `${hour.toString().padStart(2, '0')}:00`
             const slotStart = new Date(date)
             slotStart.setHours(hour, 0, 0, 0)
@@ -288,7 +291,10 @@ export const useCourtsStore = defineStore('courts', () => {
                     (slotStart <= reservationStart && slotEnd >= reservationEnd)
             })
 
-            // Determine if it's peak hour (5-8 PM)
+            // Akşam yoğun saat bandı (17:00-20:00). Bu, ders aralığından
+            // BAĞIMSIZ sabit bir ücret bandıdır; lastHour değişse bile (varsayılan
+            // 23) bu band geçerli kalır. lastHour 20'nin altına çekilirse band
+            // mantıken gözden geçirilmeli — şimdilik sabit.
             const isPeakHour = hour >= 17 && hour <= 20
             const price = isPeakHour ? court.peakHourRate : court.hourlyRate
 

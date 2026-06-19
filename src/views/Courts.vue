@@ -334,6 +334,7 @@ import { useGroupsStore } from '@/store/modules/groups'
 import { DEFAULT_MEMBERSHIP_TYPES } from '@/types/membershipType'
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
 import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import { notificationService } from '@/services/notificationService'
 import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
 
@@ -356,11 +357,9 @@ const dayReservations = ref<RawReservationDocWithId[]>([])
 const cancellingSlotKey = ref<string | null>(null)
 const snackbar = ref({ show: false, message: '', color: 'success' })
 
-// Time slots (08:00 - 22:00, son slot 22:00 - 23:00)
-const timeSlots = [
-  '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
-  '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
-]
+// Saat dilimleri ders saatleri config'inden (settings/schedule). firstHour dahil,
+// lastHour HARİÇ (son slot başlangıcı lastHour-1). Doluluk paydası timeSlots.length.
+const { timeSlots } = useScheduleSettings()
 
 // Courts data
 const courts = ref([
@@ -636,7 +635,7 @@ const fetchCourtSchedule = async (date: Date) => {
     // 4) Programı canlı veriyi taban alarak oluştur
     schedule.value = buildCourtSchedule({
       courtIds: courts.value.map(c => c.id),
-      timeSlots,
+      timeSlots: timeSlots.value,
       storedSchedule,
       reservations,
       existingGroupIds,
@@ -810,7 +809,7 @@ const updateCourtStats = () => {
     let occupied = 0
     let available = 0
 
-    timeSlots.forEach(time => {
+    timeSlots.value.forEach(time => {
       const slotData = courtSchedule[time]
       const status = getSlotStatusValue(slotData)
 
@@ -820,7 +819,7 @@ const updateCourtStats = () => {
 
     court.occupiedSlots = occupied
     court.availableSlots = available
-    court.occupancyRate = Math.round((occupied / timeSlots.length) * 100)
+    court.occupancyRate = Math.round((occupied / timeSlots.value.length) * 100)
   })
 }
 
@@ -841,7 +840,7 @@ const saveCourtSchedule = async () => {
     courts.value.forEach(court => {
       persistable[court.id] = {}
       const courtSchedule = schedule.value[court.id] || {}
-      timeSlots.forEach(time => {
+      timeSlots.value.forEach(time => {
         const status = getSlotStatusValue(courtSchedule[time])
         persistable[court.id][time] =
           status === 'maintenance' || status === 'closed' ? status : 'available'

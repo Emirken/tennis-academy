@@ -1176,6 +1176,7 @@ import {
 import { syncGroupSchedule } from '@/services/groupScheduleSync'
 import { normalizeForComparison, groupToStudentFormat } from '@/utils/scheduleFormats'
 import { resolveGroupExitOnSave } from '@/utils/studentGroupExit'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 import {
   loadOccupiedSlots,
@@ -1345,24 +1346,12 @@ const dayOptions = [
   { title: 'Pazar', value: 'sunday' }
 ]
 
-// Saat seçenekleri (08:00 - 22:00, son slot 22:00 - 23:00)
-const timeOptions = [
-  { title: '08:00', value: '08:00' },
-  { title: '09:00', value: '09:00' },
-  { title: '10:00', value: '10:00' },
-  { title: '11:00', value: '11:00' },
-  { title: '12:00', value: '12:00' },
-  { title: '13:00', value: '13:00' },
-  { title: '14:00', value: '14:00' },
-  { title: '15:00', value: '15:00' },
-  { title: '16:00', value: '16:00' },
-  { title: '17:00', value: '17:00' },
-  { title: '18:00', value: '18:00' },
-  { title: '19:00', value: '19:00' },
-  { title: '20:00', value: '20:00' },
-  { title: '21:00', value: '21:00' },
-  { title: '22:00', value: '22:00' }
-]
+// Saat seçenekleri ders saatleri config'inden (settings/schedule) üretilir.
+// firstHour dahil, lastHour HARİÇ (son seçenek lastHour-1).
+const { timeSlots: scheduleTimeSlots } = useScheduleSettings()
+const timeOptions = computed(() =>
+  scheduleTimeSlots.value.map(t => ({ title: t, value: t }))
+)
 
 // Kort seçenekleri
 const courtOptions = [
@@ -1381,10 +1370,10 @@ const loadingSlots = ref(false)
 const getTimeOptionsForDayPlan = (slotIndex: number) => {
   const slot = editForm.value.weeklyPlan[slotIndex]
   if (!slot?.day || !slot?.court) {
-    return timeOptions
+    return timeOptions.value
   }
   // Convert time values for the service
-  const timeValues = timeOptions.map(t => t.value)
+  const timeValues = timeOptions.value.map(t => t.value)
   return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeValues)
 }
 

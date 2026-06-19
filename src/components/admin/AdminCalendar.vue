@@ -617,6 +617,7 @@ import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils
 import { getReservationTypeColor } from '@/utils/reservationTypeColor'
 import { isPastReservationDoc, type RawReservationDoc } from '@/utils/dailyReservationLimit'
 import { resolveStudentDisplay } from '@/utils/reservationDisplayName'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 
 interface CalendarEvent {
   id: string
@@ -701,29 +702,25 @@ const courts = ref([
   { id: 'K3', name: 'Kort 3' }
 ])
 
-// Hours for week view (08:00 to 22:00)
-const hours = Array.from({ length: 15 }, (_, i) => i + 8)
+// Hafta görünümü saatleri ve form saat dilimleri ders saatleri config'inden
+// (settings/schedule) gelir. firstHour dahil, lastHour HARİÇ (son slot başlangıcı
+// lastHour-1). Admin değeri değiştirdiğinde takvim canlı güncellenir.
+const { hours, timeSlots } = useScheduleSettings()
 
 // Month day names
 const monthDayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 
-// Time slots for reservation form (08:00 - 22:00, son slot 22:00 - 23:00)
-const timeSlots = Array.from({ length: 15 }, (_, i) => {
-  const hour = i + 8
-  return `${hour.toString().padStart(2, '0')}:00`
-})
-
 // Computed
 const endTimeSlots = computed(() => {
-  if (!reservationForm.value.startTime) return timeSlots
-  const startIndex = timeSlots.indexOf(reservationForm.value.startTime)
-  return timeSlots.slice(startIndex + 1)
+  if (!reservationForm.value.startTime) return timeSlots.value
+  const startIndex = timeSlots.value.indexOf(reservationForm.value.startTime)
+  return timeSlots.value.slice(startIndex + 1)
 })
 
 // Get available time slots considering existing reservations
 const availableTimeSlots = computed(() => {
   if (!reservationForm.value.courtId || !reservationForm.value.date) {
-    return timeSlots
+    return timeSlots.value
   }
 
   // Get reservations for selected court and date
@@ -735,7 +732,7 @@ const availableTimeSlots = computed(() => {
   })
 
   // Filter out time slots that are already booked
-  return timeSlots.filter(timeSlot => {
+  return timeSlots.value.filter(timeSlot => {
     const [hour, minute] = timeSlot.split(':').map(Number)
     
     // Check if this time slot conflicts with any existing reservation

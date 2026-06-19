@@ -1,5 +1,6 @@
 import { computed, ref, reactive, watch, nextTick } from 'vue'
 import { useCourtsStore } from '@/store/modules/courts'
+import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import type {
     Court,
     CourtReservation,
@@ -59,6 +60,7 @@ export interface CourtAnalytics {
 
 export function useCourts() {
     const courtsStore = useCourtsStore()
+    const { hourCount } = useScheduleSettings()
 
     // Local reactive state
     const isCreatingCourt = ref(false)
@@ -163,7 +165,8 @@ export function useCourts() {
                 r.date.toISOString().split('T')[0] === dateStr && r.status !== 'cancelled'
             )
 
-            const totalSlots = courts.length * 14 // 14 hours per day (8am-10pm)
+            // Günlük slot sayısı = ders saati config'indeki saat adedi (lastHour - firstHour).
+            const totalSlots = courts.length * hourCount.value
             const bookedSlots = dayReservations.length
             const rate = totalSlots > 0 ? (bookedSlots / totalSlots) * 100 : 0
 

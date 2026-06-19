@@ -111,6 +111,12 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('@/components/admin/MembershipTypeManagement.vue')
       },
       {
+        path: 'settings',
+        name: 'ScheduleSettings',
+        component: () => import('@/views/ScheduleSettings.vue'),
+        meta: { role: 'admin' }
+      },
+      {
         path: 'notifications',
         name: 'Notifications',
         component: () => import('@/views/Notifications.vue')
