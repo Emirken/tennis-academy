@@ -173,10 +173,9 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresGuest && authStore.isAuthenticated) {
     console.log('❌ Guest rota ama kullanıcı giriş yapmış, home\'a yönlendiriliyor')
     // Kullanıcının rolüne göre yönlendir
-    if (authStore.user?.role === 'admin') {
+    // boss admin panelini varsayılan görür; izleme panelini menüden açar.
+    if (authStore.user?.role === 'admin' || authStore.user?.role === 'boss') {
       next('/admin/dashboard')
-    } else if (authStore.user?.role === 'boss') {
-      next('/boss/dashboard')
     } else if (authStore.user?.role === 'student') {
       next('/student/dashboard')
     } else {
@@ -207,10 +206,9 @@ router.beforeEach(async (to, from, next) => {
 
   // Kök path'e erişim - kullanıcının rolüne göre yönlendir
   if (to.path === '/' && authStore.isAuthenticated) {
-    if (authStore.user?.role === 'admin') {
+    // boss admin panelini varsayılan görür; izleme panelini menüden açar.
+    if (authStore.user?.role === 'admin' || authStore.user?.role === 'boss') {
       next('/admin/dashboard')
-    } else if (authStore.user?.role === 'boss') {
-      next('/boss/dashboard')
     } else if (authStore.user?.role === 'student') {
       next('/student/dashboard')
     } else {

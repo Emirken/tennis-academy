@@ -419,11 +419,9 @@ export function useAuth() {
 
     // Navigation helpers
     const redirectAfterLogin = async (): Promise<void> => {
-        // Boss isAdmin'e dahil olduğundan önce boss'u kontrol et: kendi izleme
-        // paneline gitsin, admin dashboard'a değil.
-        if (isBoss.value) {
-            await router.push({ name: 'BossDashboard' })
-        } else if (isAdmin.value) {
+        // Boss varsayılan olarak admin panelini görür (isAdmin boss'u kapsar);
+        // izleme panelini (BossDashboard) menüden açar.
+        if (isAdmin.value) {
             await router.push({ name: 'AdminDashboard' })
         } else if (isStudent.value) {
             await router.push({ name: 'StudentDashboard' })
