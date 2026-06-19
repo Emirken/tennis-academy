@@ -26,7 +26,7 @@
       <!-- Groups Grid -->
       <v-row>
         <v-col
-            v-for="group in groups"
+            v-for="group in sortedGroups"
             :key="group.id"
             cols="12"
             md="6"
@@ -591,6 +591,13 @@ const formatCourtLabel = (court: string): string => {
   if (m) return `Kort ${m[1]}`
   return court
 }
+
+// Gruplar grup adına göre alfabetik (Türkçe locale) sıralanır
+const sortedGroups = computed(() => {
+  return [...groups.value].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', 'tr', { sensitivity: 'base' })
+  )
+})
 
 // Computed
 const availableMembers = computed(() => {
