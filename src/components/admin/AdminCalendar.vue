@@ -537,27 +537,6 @@
                     </template>
                   </v-select>
                 </v-col>
-
-                <!-- Bitiş Saati -->
-                <v-col cols="12" md="6">
-                  <v-select
-                    v-model="reservationForm.endTime"
-                    :items="availableEndTimeSlots"
-                    label="Bitiş Saati"
-                    prepend-icon="mdi-clock-end"
-                    :rules="endTimeRules"
-                    required
-                    :disabled="!reservationForm.startTime"
-                    :hint="!reservationForm.startTime ? 'Önce başlangıç saati seçiniz' : ''"
-                    persistent-hint
-                  >
-                    <template v-slot:no-data>
-                      <v-list-item>
-                        <v-list-item-title>Müsait bitiş saati yok</v-list-item-title>
-                      </v-list-item>
-                    </template>
-                  </v-select>
-                </v-col>
               </v-row>
             </v-form>
           </v-card-text>
@@ -710,12 +689,13 @@ const { hours, timeSlots } = useScheduleSettings()
 // Month day names
 const monthDayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 
-// Computed
-const endTimeSlots = computed(() => {
-  if (!reservationForm.value.startTime) return timeSlots.value
-  const startIndex = timeSlots.value.indexOf(reservationForm.value.startTime)
-  return timeSlots.value.slice(startIndex + 1)
-})
+// Başlangıç saatine +1 saat ekler ("09:00" → "10:00"). Bitiş saati formdan
+// kaldırıldığı için rezervasyon süresi sabit 1 saat olarak türetilir.
+const addOneHour = (time: string): string => {
+  const [h, m] = time.split(':').map(Number)
+  const next = (h + 1) % 24
+  return `${String(next).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
 
 // Get available time slots considering existing reservations
 const availableTimeSlots = computed(() => {
@@ -746,39 +726,6 @@ const availableTimeSlots = computed(() => {
     
     return !hasConflict
   })
-})
-
-const availableEndTimeSlots = computed(() => {
-  if (!reservationForm.value.startTime || !reservationForm.value.courtId || !reservationForm.value.date) {
-    return endTimeSlots.value
-  }
-
-  const selectedDate = new Date(reservationForm.value.date)
-  const courtReservations = calendarEvents.value.filter(event => {
-    const eventDate = new Date(event.start)
-    return event.courtId === reservationForm.value.courtId &&
-           eventDate.toDateString() === selectedDate.toDateString()
-  })
-
-  const [startHour, startMinute] = reservationForm.value.startTime.split(':').map(Number)
-
-  // Find the earliest conflicting reservation after start time
-  let maxEndTime = '23:00' // Default max
-  courtReservations.forEach(reservation => {
-    const reservationStartHour = reservation.start.getHours()
-    const reservationStartMinute = reservation.start.getMinutes()
-    
-    if (reservationStartHour > startHour || 
-        (reservationStartHour === startHour && reservationStartMinute > startMinute)) {
-      const nextReservationTime = `${reservationStartHour.toString().padStart(2, '0')}:${reservationStartMinute.toString().padStart(2, '0')}`
-      if (nextReservationTime < maxEndTime) {
-        maxEndTime = nextReservationTime
-      }
-    }
-  })
-
-  // Filter end time slots
-  return endTimeSlots.value.filter(timeSlot => timeSlot <= maxEndTime)
 })
 
 const formattedDate = computed(() => {
@@ -872,14 +819,6 @@ const dateRules = [
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     return selectedDate >= today || 'Geçmiş tarih seçilemez'
-  }
-]
-
-const endTimeRules = [
-  (v: string) => !!v || 'Bitiş saati zorunludur',
-  (v: string) => {
-    if (!reservationForm.value.startTime) return true
-    return v > reservationForm.value.startTime || 'Bitiş saati başlangıç saatinden sonra olmalıdır'
   }
 ]
 
@@ -1590,6 +1529,9 @@ const saveReservation = async () => {
     showSnackbar('Lütfen tüm zorunlu alanları doldurun', 'error')
     return
   }
+
+  // Bitiş saati artık formda sorulmuyor — başlangıçtan +1 saat türetilir.
+  reservationForm.value.endTime = addOneHour(reservationForm.value.startTime)
 
   // Check for time conflicts before saving
   const hasConflict = checkTimeConflict(
