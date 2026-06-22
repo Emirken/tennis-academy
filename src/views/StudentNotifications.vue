@@ -4,13 +4,11 @@
       <!-- Page Header -->
       <v-row class="mb-6 mt-4">
         <v-col cols="12">
-          <div class="d-flex align-center justify-space-between">
-            <div>
-              <h1 class="text-h4 font-weight-bold mb-2">Bildirimler</h1>
-              <p class="text-subtitle-1 text-medium-emphasis">
-                Hesabınızla ilgili tüm duyuru ve bildirimleri buradan takip edebilirsiniz.
-              </p>
-            </div>
+          <div class="page-header">
+            <h1 class="page-title font-weight-bold mb-2">Bildirimler</h1>
+            <p class="text-subtitle-1 text-medium-emphasis mb-0">
+              Hesabınızla ilgili tüm duyuru ve bildirimleri buradan takip edebilirsiniz.
+            </p>
           </div>
         </v-col>
       </v-row>
@@ -42,7 +40,7 @@
                     :class="{ 'unread-item': !isReadByMe(notification) }"
                 >
                   <template v-slot:prepend>
-                    <v-avatar :color="getIconColor(notification.type)" size="56" class="mr-4 text-white">
+                    <v-avatar :color="getIconColor(notification.type)" size="56" class="notification-avatar mr-4 text-white">
                       <v-icon :icon="getIcon(notification.type)"></v-icon>
                     </v-avatar>
                   </template>
@@ -61,12 +59,13 @@
                   </div>
 
                   <template v-slot:append>
-                    <div class="d-flex flex-column gap-2 align-end h-100 mt-2">
+                    <div class="notification-actions d-flex flex-column gap-2 align-end mt-2">
                       <v-btn
                           v-if="!isReadByMe(notification)"
                           color="primary"
                           variant="tonal"
                           size="small"
+                          class="notification-actions__btn"
                           @click="markAsRead(notification)"
                       >
                         Okundu İşaretle
@@ -76,6 +75,7 @@
                           color="grey"
                           variant="text"
                           size="small"
+                          class="notification-actions__btn"
                           prepend-icon="mdi-eye-off-outline"
                           @click="markAsUnread(notification)"
                       >
@@ -85,6 +85,7 @@
                           color="error"
                           variant="text"
                           size="small"
+                          class="notification-actions__btn"
                           prepend-icon="mdi-delete-outline"
                           @click="deleteNotification(notification)"
                       >
@@ -262,5 +263,58 @@ onUnmounted(() => {
 }
 .gap-2 {
   gap: 8px;
+}
+
+/* Başlık: dar ekranda taşmasın */
+.page-title {
+  font-size: clamp(1.4rem, 4vw, 2.125rem);
+  line-height: 1.2;
+}
+
+.notification-actions {
+  height: 100%;
+}
+
+/* Tablet ve altı: aksiyon butonları taşmasın */
+@media (max-width: 959px) {
+  .notification-item :deep(.v-list-item__append) {
+    align-self: flex-start;
+  }
+  .notification-actions__btn {
+    white-space: nowrap;
+  }
+}
+
+/* Mobil: list-item'ı dikey akışa çevir, aksiyonlar tam genişlik alt satır */
+@media (max-width: 599px) {
+  .notification-item :deep(.v-list-item__append) {
+    width: 100%;
+    margin-top: 8px;
+    flex-basis: 100%;
+    align-self: stretch;
+  }
+  .notification-item :deep(.v-list-item) {
+    flex-wrap: wrap;
+  }
+  .notification-item :deep(.v-list-item__content) {
+    min-width: 0;
+  }
+
+  .notification-avatar {
+    margin-right: 12px !important;
+  }
+
+  .notification-actions {
+    width: 100%;
+    align-items: stretch !important;
+  }
+  .notification-actions__btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .notification-item :deep(.v-list-item-title) {
+    white-space: normal;
+  }
 }
 </style>

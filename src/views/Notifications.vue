@@ -4,14 +4,14 @@
       <!-- Page Header -->
       <v-row class="mb-6 mt-4">
         <v-col cols="12">
-          <div class="d-flex align-center justify-space-between">
-            <div>
-              <h1 class="text-h4 font-weight-bold mb-2">Sistem Bildirimleri</h1>
-              <p class="text-subtitle-1 text-medium-emphasis">
+          <div class="page-header d-flex flex-wrap align-start justify-space-between gap-3">
+            <div class="page-header__text">
+              <h1 class="page-title font-weight-bold mb-2">Sistem Bildirimleri</h1>
+              <p class="text-subtitle-1 text-medium-emphasis mb-0">
                 Tüm sistem bildirimlerini ve onay bekleyen işlemleri buradan yönetin.
               </p>
             </div>
-            <v-chip color="primary" variant="flat" size="large" v-if="unreadCount > 0">
+            <v-chip color="primary" variant="flat" size="large" class="flex-shrink-0" v-if="unreadCount > 0">
               {{ unreadCount }} Yeni Bildirim
             </v-chip>
           </div>
@@ -45,7 +45,7 @@
                     :class="{ 'unread-item': !isReadByMe(notification) }"
                 >
                   <template v-slot:prepend>
-                    <v-avatar :color="getIconColor(notification.type)" size="56" class="mr-4 text-white">
+                    <v-avatar :color="getIconColor(notification.type)" size="56" class="notification-avatar mr-4 text-white">
                       <v-icon :icon="getIcon(notification.type)" />
                     </v-avatar>
                   </template>
@@ -64,12 +64,13 @@
                   </v-list-item-subtitle>
 
                   <template v-slot:append>
-                    <div class="d-flex flex-column gap-2 align-end h-100 mt-2">
+                    <div class="notification-actions d-flex flex-column gap-2 align-end mt-2">
                       <template v-if="notification.type === 'approval_pending'">
                         <v-btn
                             color="success"
                             variant="elevated"
                             prepend-icon="mdi-check"
+                            class="notification-actions__btn"
                             @click="approveUserFromNotification(notification)"
                             :loading="processingId === notification.id"
                             :disabled="processingId !== null"
@@ -80,6 +81,7 @@
                             color="error"
                             variant="tonal"
                             prepend-icon="mdi-close"
+                            class="notification-actions__btn"
                             @click="rejectUserFromNotification(notification)"
                             :loading="processingId === notification.id"
                             :disabled="processingId !== null"
@@ -92,6 +94,7 @@
                             color="success"
                             variant="elevated"
                             prepend-icon="mdi-calendar-check"
+                            class="notification-actions__btn"
                             @click="approveReservation(notification)"
                             :loading="processingId === notification.id"
                             :disabled="processingId !== null"
@@ -102,6 +105,7 @@
                             color="error"
                             variant="tonal"
                             prepend-icon="mdi-calendar-remove"
+                            class="notification-actions__btn"
                             @click="rejectReservation(notification)"
                             :loading="processingId === notification.id"
                             :disabled="processingId !== null"
@@ -115,6 +119,7 @@
                             color="primary"
                             variant="tonal"
                             size="small"
+                            class="notification-actions__btn"
                             @click="markAsRead(notification)"
                         >
                           Okundu İşaretle
@@ -124,6 +129,7 @@
                             color="grey"
                             variant="text"
                             size="small"
+                            class="notification-actions__btn"
                             prepend-icon="mdi-eye-off-outline"
                             @click="markAsUnread(notification)"
                         >
@@ -133,6 +139,7 @@
                             color="error"
                             variant="text"
                             size="small"
+                            class="notification-actions__btn"
                             prepend-icon="mdi-delete-outline"
                             @click="deleteNotification(notification)"
                         >
@@ -520,5 +527,71 @@ onUnmounted(() => {
 }
 .gap-2 {
   gap: 8px;
+}
+
+/* Başlık: dar ekranda taşmasın, kelimeler sarılsın */
+.page-title {
+  font-size: clamp(1.4rem, 4vw, 2.125rem);
+  line-height: 1.2;
+}
+.page-header__text {
+  min-width: 0;
+}
+
+/* Aksiyon butonları aksiyon kolonu (append slot içeriği) */
+.notification-actions {
+  height: 100%;
+}
+
+/* Tablet ve altı: aksiyon butonlarının taşmasını engelle */
+@media (max-width: 959px) {
+  .notification-item :deep(.v-list-item__append) {
+    align-self: flex-start;
+  }
+  .notification-actions__btn {
+    white-space: nowrap;
+  }
+}
+
+/* Mobil: list-item'ı dikey akışa çevir, aksiyonlar tam genişlik alt satır */
+@media (max-width: 599px) {
+  .notification-item :deep(.v-list-item__content),
+  .notification-item :deep(> .v-list-item__overlay + *),
+  .notification-item :deep(.v-list-item) {
+    /* güvence: içerik daralırsa sarılsın */
+    min-width: 0;
+  }
+
+  /* Vuetify list-item kök flex satırını dikeye çevir */
+  .notification-item :deep(.v-list-item__append) {
+    width: 100%;
+    margin-top: 8px;
+    /* prepend+content satırından sonra tam genişlik bloğa düşür */
+    flex-basis: 100%;
+    align-self: stretch;
+  }
+  .notification-item :deep(.v-list-item) {
+    flex-wrap: wrap;
+  }
+
+  /* Avatar mobilde biraz küçülsün ve daha az boşluk bıraksın */
+  .notification-avatar {
+    margin-right: 12px !important;
+  }
+
+  /* Aksiyon butonları tam genişlik + touch hedefi >=44px */
+  .notification-actions {
+    width: 100%;
+    align-items: stretch !important;
+  }
+  .notification-actions__btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Başlık satırı: "Yeni" chip alt satıra düşebilsin */
+  .notification-item :deep(.v-list-item-title) {
+    white-space: normal;
+  }
 }
 </style>
