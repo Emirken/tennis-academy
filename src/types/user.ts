@@ -22,6 +22,11 @@ export interface User {
     level?: PlayerLevel
     address?: string
     emergencyContact?: string
+    // Veli bilgileri: yalnızca çocuk/yaş grubu üyelik türlerinde (tennis_school_age,
+    // premium, vip, court_rental_equipment) doldurulur ve listede ⓘ ile gösterilir.
+    parentFirstName?: string
+    parentLastName?: string
+    parentPhone?: string
     createdAt: Date
     updatedAt: Date
     lastLoginAt?: Date

@@ -205,8 +205,24 @@
                     </span>
                   </v-avatar>
                   <div>
-                    <div class="font-weight-bold text-body-1">
+                    <div class="font-weight-bold text-body-1 d-flex align-center">
                       {{ item.firstName }} {{ item.lastName }}
+                      <!-- Veli bilgisi ikonu (yalnızca uygun üyelik türünde) -->
+                      <v-icon
+                          v-if="needsParentInfo(item.membershipType)"
+                          icon="mdi-information-outline"
+                          size="16"
+                          color="info"
+                          class="ml-2"
+                      >
+                        <v-tooltip activator="parent" location="top">
+                          <template v-if="item.parentFirstName || item.parentLastName || item.parentPhone">
+                            Veli: {{ `${item.parentFirstName || ''} ${item.parentLastName || ''}`.trim() || '—' }}<br>
+                            Tel: {{ item.parentPhone || '—' }}
+                          </template>
+                          <template v-else>Veli bilgisi girilmemiş</template>
+                        </v-tooltip>
+                      </v-icon>
                     </div>
                     <div class="text-body-2 text-grey-600">{{ item.phone_number }}</div>
                   </div>
@@ -366,10 +382,26 @@
                         <label class="info-label">Adres:</label>
                         <span class="info-value">{{ selectedStudent?.address }}</span>
                       </div>
-                      <div class="info-item">
+                      <div class="info-item" :class="{ 'mb-3': needsParentInfo(selectedStudent?.membershipType) }">
                         <label class="info-label">Acil Durum İletişim:</label>
                         <span class="info-value">{{ selectedStudent?.emergencyContact }}</span>
                       </div>
+                      <!-- Veli bilgileri (yalnızca uygun üyelik türünde) -->
+                      <template v-if="needsParentInfo(selectedStudent?.membershipType)">
+                        <v-divider class="my-2" />
+                        <div class="info-item mb-3">
+                          <label class="info-label">Veli Ad Soyad:</label>
+                          <span class="info-value">
+                            {{ (selectedStudent?.parentFirstName || selectedStudent?.parentLastName)
+                              ? `${selectedStudent?.parentFirstName || ''} ${selectedStudent?.parentLastName || ''}`.trim()
+                              : '—' }}
+                          </span>
+                        </div>
+                        <div class="info-item">
+                          <label class="info-label">Veli Telefon:</label>
+                          <span class="info-value">{{ selectedStudent?.parentPhone || '—' }}</span>
+                        </div>
+                      </template>
                     </div>
                     <div v-else>
                       <v-text-field
@@ -413,7 +445,33 @@
                           label="Acil Durum İletişim"
                           variant="outlined"
                           density="compact"
+                          :class="{ 'mb-3': needsParentInfo(editForm.membershipType) }"
                       />
+                      <!-- Veli bilgileri (yalnızca uygun üyelik türünde gösterilir) -->
+                      <template v-if="needsParentInfo(editForm.membershipType)">
+                        <v-divider class="mb-3" />
+                        <div class="text-subtitle-2 font-weight-bold mb-2 text-grey-700">Veli Bilgileri</div>
+                        <v-text-field
+                            v-model="editForm.parentFirstName"
+                            label="Veli Adı"
+                            variant="outlined"
+                            density="compact"
+                            class="mb-3"
+                        />
+                        <v-text-field
+                            v-model="editForm.parentLastName"
+                            label="Veli Soyadı"
+                            variant="outlined"
+                            density="compact"
+                            class="mb-3"
+                        />
+                        <v-text-field
+                            v-model="editForm.parentPhone"
+                            label="Veli Telefon"
+                            variant="outlined"
+                            density="compact"
+                        />
+                      </template>
                     </div>
                   </v-card-text>
                 </v-card>
@@ -1176,6 +1234,7 @@ import {
 import { syncGroupSchedule } from '@/services/groupScheduleSync'
 import { normalizeForComparison, groupToStudentFormat } from '@/utils/scheduleFormats'
 import { resolveGroupExitOnSave } from '@/utils/studentGroupExit'
+import { needsParentInfo } from '@/utils/parentInfo'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 import {
@@ -1202,6 +1261,10 @@ interface Student {
   email: string
   address: string
   emergencyContact: string
+  // Veli bilgileri (yalnızca needsParentInfo() türlerinde dolu)
+  parentFirstName?: string
+  parentLastName?: string
+  parentPhone?: string
   membershipType: string
   groupAssignment?: string
   groupSchedule?: {
@@ -1309,6 +1372,9 @@ const editForm = ref({
   email: '',
   address: '',
   emergencyContact: '',
+  parentFirstName: '',
+  parentLastName: '',
+  parentPhone: '',
   membershipType: '',
   groupAssignment: '',
   weeklyPlan: [] as WeeklyPlan[],
@@ -2621,6 +2687,9 @@ const toggleEditMode = async () => {
       email: selectedStudent.value.email,
       address: selectedStudent.value.address,
       emergencyContact: selectedStudent.value.emergencyContact,
+      parentFirstName: selectedStudent.value.parentFirstName || '',
+      parentLastName: selectedStudent.value.parentLastName || '',
+      parentPhone: selectedStudent.value.parentPhone || '',
       membershipType: selectedStudent.value.membershipType,
       groupAssignment: selectedStudent.value.groupAssignment || '',
       weeklyPlan,
@@ -2644,6 +2713,9 @@ const cancelEdit = () => {
     email: '',
     address: '',
     emergencyContact: '',
+    parentFirstName: '',
+    parentLastName: '',
+    parentPhone: '',
     membershipType: '',
     groupAssignment: '',
     weeklyPlan: [],
@@ -2799,6 +2871,10 @@ const saveStudentChanges = async (): Promise<void> => {
       email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
+      // Veli bilgileri: yalnızca uygun üyelik türünde sakla; tür dışına çıkarsa temizle
+      parentFirstName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentFirstName || '') : '',
+      parentLastName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentLastName || '') : '',
+      parentPhone: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentPhone || '') : '',
       membershipType: effectiveMembershipType,
       groupAssignment,
       groupSchedule,
@@ -2885,6 +2961,9 @@ const saveStudentChanges = async (): Promise<void> => {
       email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
+      parentFirstName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentFirstName || '') : '',
+      parentLastName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentLastName || '') : '',
+      parentPhone: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentPhone || '') : '',
       membershipType: effectiveMembershipType,
       groupAssignment,
       groupSchedule,
