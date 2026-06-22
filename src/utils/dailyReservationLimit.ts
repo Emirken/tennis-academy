@@ -61,6 +61,24 @@ export function isSlotBlockingReservation(doc: RawReservationDoc): boolean {
   return true
 }
 
+/**
+ * Bir rezervasyon ADMIN TAKVİMİNE event olarak düşmeli mi?
+ *
+ * DİKKAT: Bu "görünürlük" kuralıdır, "doluluk" DEĞİL. İki kavram ayrı tutulur:
+ *  - Doluluk → isSlotBlockingReservation (pending DOLU sayılır; başkası o slotu
+ *    alamaz). Bu DEĞİŞMEZ.
+ *  - Görünürlük → bu fonksiyon. Onay BEKLEYEN (pending) rezervasyon admin
+ *    takviminde GÖSTERİLMEZ; yalnızca admin onayladıktan (confirmed) sonra
+ *    düşer. Onay/red Notifications.vue'dan yapılır.
+ *
+ * Gizlenenler: cancelled (iptal) ve pending (onay bekliyor). Geri kalan her
+ * durum (confirmed/completed/no_show/legacy statü-suz) takvimde görünür.
+ */
+export function isAdminCalendarEvent(doc: RawReservationDoc): boolean {
+  const status = doc.status
+  return status !== 'cancelled' && status !== 'pending'
+}
+
 // Bir dokümanı "ders" yapan işaretler. type veya reservationType bu
 // değerlerden biriyse ya da grup alanlarından biri doluysa, bu bir derstir.
 const LESSON_TYPE_VALUES = ['group-lesson', 'private-lesson', 'lesson'] as const

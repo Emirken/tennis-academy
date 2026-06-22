@@ -594,7 +594,7 @@ import { useAuthStore } from '@/store/modules/auth'
 import { notificationService } from '@/services/notificationService'
 import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
 import { getReservationTypeColor } from '@/utils/reservationTypeColor'
-import { isPastReservationDoc, type RawReservationDoc } from '@/utils/dailyReservationLimit'
+import { isPastReservationDoc, isAdminCalendarEvent, type RawReservationDoc } from '@/utils/dailyReservationLimit'
 import { resolveStudentDisplay } from '@/utils/reservationDisplayName'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
 
@@ -1052,8 +1052,10 @@ const fetchReservations = async (force = false) => {
     for (const docSnap of querySnapshot.docs) {
       const data = docSnap.data()
 
-      // İptal edilen rezervasyonları gösterme
-      if (data.status === 'cancelled') continue
+      // İptal edilen VE onay bekleyen (pending) rezervasyonları takvimde gösterme.
+      // pending slotu DOLU tutmaya devam eder (isSlotBlockingReservation) ama
+      // admin takvimine event olarak DÜŞMEZ; onay Notifications.vue'dan yapılır.
+      if (!isAdminCalendarEvent(data)) continue
 
       // Tarihi geçmiş KORT REZERVASYONLARI (dersler hariç) iptal edilmiş gibi
       // gizle → slot boşalır. Dersler (grup/özel) isPastReservationDoc tarafından

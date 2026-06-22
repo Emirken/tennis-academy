@@ -4,6 +4,7 @@ import {
   normalizeReservationDate,
   isLessonDoc,
   isSlotBlockingReservation,
+  isAdminCalendarEvent,
   isPastReservationDoc,
   ACTIVE_RESERVATION_STATUSES,
   type RawReservationDoc,
@@ -225,6 +226,41 @@ describe('dailyReservationLimit — günde en fazla bir rezervasyon', () => {
           groupId: 'grp_1',
         }),
       ).toBe(true)
+    })
+  })
+
+  // GÖRÜNÜRLÜK ölçütü (doluluk DEĞİL): admin takvimine event olarak hangi
+  // rezervasyonların düşeceği. pending onay beklediği için GİZLENİR (slotu yine
+  // DOLU tutar; bkz. isSlotBlockingReservation pending=true). cancelled de gizli.
+  describe('isAdminCalendarEvent — admin takvimi görünürlük ölçütü', () => {
+    it('pending admin takviminde GÖRÜNMEZ (onay bekliyor)', () => {
+      expect(isAdminCalendarEvent({ status: 'pending' })).toBe(false)
+    })
+
+    it('cancelled admin takviminde GÖRÜNMEZ', () => {
+      expect(isAdminCalendarEvent({ status: 'cancelled' })).toBe(false)
+    })
+
+    it('confirmed admin takviminde GÖRÜNÜR', () => {
+      expect(isAdminCalendarEvent({ status: 'confirmed' })).toBe(true)
+    })
+
+    it('completed admin takviminde GÖRÜNÜR', () => {
+      expect(isAdminCalendarEvent({ status: 'completed' })).toBe(true)
+    })
+
+    it('no_show admin takviminde GÖRÜNÜR', () => {
+      expect(isAdminCalendarEvent({ status: 'no_show' })).toBe(true)
+    })
+
+    it('status alanı OLMAYAN (legacy) doküman GÖRÜNÜR', () => {
+      expect(isAdminCalendarEvent({ courtId: 'K1', startTime: '18:00' })).toBe(true)
+    })
+
+    it('DEĞİŞMEZ: pending takvimde gizli AMA slotu hâlâ DOLU tutar', () => {
+      const pending: RawReservationDoc = { status: 'pending', courtId: 'court-1', startTime: '18:00' }
+      expect(isAdminCalendarEvent(pending)).toBe(false) // görünmez
+      expect(isSlotBlockingReservation(pending)).toBe(true) // ama slot dolu
     })
   })
 
