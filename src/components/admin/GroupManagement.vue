@@ -819,16 +819,13 @@ const saveGroup = async () => {
     //---------------------------------------------------------
     // REZERVASYON SENKRONİZASYONU - Merkezi sync servisi
     //---------------------------------------------------------
-    
-    let currentMembers = groupFormData.value.members
-    if (isUpdate && groupId) {
-      const currentGroup = groups.value.find(g => g.id === groupId)
-      if (currentGroup) {
-        currentMembers = currentGroup.members
-      }
-    }
 
-    if (isUpdate && groupId && groupFormData.value.schedule.length > 0 && currentMembers && currentMembers.length > 0) {
+    // Güncellemede program/üye boş olsa BİLE sync çalışmalı: syncGroupSchedule
+    // önce gelecek grup rezervasyonlarını koşulsuz siler (eski ders kalmaz),
+    // sonra program+üye varsa yeniden üretir. Koşul önceden schedule.length>0 &&
+    // members.length>0 idi; bu yüzden program boşaltılınca veya üye okunamayınca
+    // silme HİÇ çalışmıyor, eski kayıtlar takvimde kalıyordu.
+    if (isUpdate && groupId) {
       console.log('🔄 Grup programı sync servisi ile güncelleniyor...')
       await syncGroupSchedule(groupId, groupFormData.value.schedule, {
         fromToday: false,

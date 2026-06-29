@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { dayToTurkish, courtToKFormat, groupToStudentFormat, type ScheduleSlotBase } from '@/utils/scheduleFormats'
+import { normalizeReservationDate } from '@/utils/dailyReservationLimit'
 
 const BATCH_LIMIT = 450
 const RESERVATION_WINDOW_MONTHS = 3
@@ -87,22 +88,75 @@ function toGroupFormat(slots: ScheduleSlotBase[]): GroupScheduleSlot[] {
 }
 
 /**
+ * Bir gruba ait GELECEK rezervasyon dokümanlarını seçer (saf, test edilebilir).
+ *
+ * NEDEN ayrı bir yardımcı: Silme sorgusu eskiden yalnızca `groupId` eşitliğiyle
+ * çalışıyordu. Oysa app genelinde bir kayıt `groupId` VEYA `groupAssignment` ile
+ * gruba bağlı sayılır (getReservationGroupId / isLessonDoc / AdminCalendar). Bu
+ * yüzden `groupId` boş/eksik ama `groupAssignment` dolu olan eski kayıtlar
+ * takvimde GÖRÜNÜR ama silmede BULUNAMAZDI → program değişince eski ders
+ * hayalet gibi kalırdı. Ayrıca `date` Firestore Timestamp yerine string olarak
+ * saklanmış olabilir; bu durumda `where('date','>=',today)` aralık filtresi onu
+ * KAÇIRIR. Bu yüzden tarih filtresi de bellekte normalizeReservationDate ile
+ * yapılır.
+ *
+ * @param docs     Aday dokümanlar (iki sorgunun birleşimi; tekrarlı olabilir)
+ * @param groupId  Hedef grup id
+ * @param todayStr Bugün (YYYY-MM-DD, yerel)
+ * @returns        Silinecek doc id'leri (tekilleştirilmiş)
+ */
+export function selectFutureGroupReservationIds(
+  docs: Array<{ id: string; data: { groupId?: unknown; groupAssignment?: unknown; date?: unknown } }>,
+  groupId: string,
+  todayStr: string,
+): string[] {
+  const selected = new Set<string>()
+  for (const d of docs) {
+    const gid = d.data?.groupId
+    const ga = d.data?.groupAssignment
+    const belongs = gid === groupId || ga === groupId
+    if (!belongs) continue
+    const ds = normalizeReservationDate(d.data?.date)
+    if (ds !== null && ds >= todayStr) selected.add(d.id)
+  }
+  return [...selected]
+}
+
+/**
  * Delete future group reservations and clear court schedule.
  * Uses writeBatch and aggregates courtSchedule updates per date.
+ *
+ * Silme kapsamı: `groupId` VEYA `groupAssignment` eşleşen TÜM gelecek kayıtlar
+ * (bkz. selectFutureGroupReservationIds). Firestore tek sorguda OR yapamadığı
+ * için iki sorgu çalıştırılıp birleştirilir; tarih filtresi bellekte uygulanır
+ * (string-tarihli legacy kayıtlar da yakalanır).
  */
 export async function deleteFutureGroupReservations(groupId: string): Promise<void> {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  const todayStr = normalizeReservationDate(today)!
 
   const reservationsRef = collection(db, 'reservations')
-  const q = query(
-    reservationsRef,
-    where('groupId', '==', groupId),
-    where('date', '>=', today)
-  )
+  // Tek sorguda OR yok → groupId ve groupAssignment için ayrı ayrı çek, birleştir.
+  const [byGroupId, byAssignment] = await Promise.all([
+    getDocs(query(reservationsRef, where('groupId', '==', groupId))),
+    getDocs(query(reservationsRef, where('groupAssignment', '==', groupId))),
+  ])
 
-  const snapshot = await getDocs(q)
-  if (snapshot.empty) {
+  // Aday dokümanları doc.id ile tekilleştir (iki sorgu çakışabilir).
+  const byId = new Map<string, typeof byGroupId.docs[number]>()
+  for (const d of [...byGroupId.docs, ...byAssignment.docs]) byId.set(d.id, d)
+
+  const futureIds = new Set(
+    selectFutureGroupReservationIds(
+      [...byId.values()].map(d => ({ id: d.id, data: d.data() })),
+      groupId,
+      todayStr,
+    ),
+  )
+  const docs = [...byId.values()].filter(d => futureIds.has(d.id))
+
+  if (docs.length === 0) {
     console.log('✅ Silinecek gelecek grup rezervasyonu yok')
     return
   }
@@ -111,7 +165,7 @@ export async function deleteFutureGroupReservations(groupId: string): Promise<vo
   // dateString -> courtId -> Set<time>
   const slotsToClear = new Map<string, Map<string, Set<string>>>()
 
-  for (const resDoc of snapshot.docs) {
+  for (const resDoc of docs) {
     const data = resDoc.data()
     if (!data.date) continue
     try {
@@ -172,7 +226,7 @@ export async function deleteFutureGroupReservations(groupId: string): Promise<vo
     }
   }
 
-  for (const resDoc of snapshot.docs) {
+  for (const resDoc of docs) {
     batch.delete(resDoc.ref)
     opCount++
     if (opCount >= BATCH_LIMIT) await flushBatch()
@@ -191,7 +245,7 @@ export async function deleteFutureGroupReservations(groupId: string): Promise<vo
 
   await flushBatch()
 
-  console.log(`✅ ${snapshot.docs.length} gelecek grup rezervasyonu silindi`)
+  console.log(`✅ ${docs.length} gelecek grup rezervasyonu silindi`)
 }
 
 function getDatesByDayOfWeek(dayName: string, startDate: Date, endDate: Date): Date[] {
