@@ -108,6 +108,21 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    // Tournaments — herkes (öğrenci dahil) okur (read-only bracket görünümü),
+    // yalnız admin/boss yönetir (oluştur, oyuncu ata, skor gir, karıştır).
+    match /tournaments/{tournamentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminOrBoss();
+    }
+    match /tournamentParticipants/{participantId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminOrBoss();
+    }
+    match /tournamentMatches/{matchId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminOrBoss();
+    }
+
     // Password resets (geçici şifre) collection — ARTIK KULLANILMIYOR.
     // Geçici şifre atama işi setTempPassword Cloud Function'ına (Admin SDK)
     // taşındı; öğrencinin gerçek Auth şifresi doğrudan güncelleniyor ve geçici

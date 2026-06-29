@@ -48,7 +48,10 @@ export const COLLECTIONS = {
     PRICING: 'pricing',
     NOTIFICATIONS: 'notifications',
     SETTINGS: 'settings',
-    REPORTS: 'reports'
+    REPORTS: 'reports',
+    TOURNAMENTS: 'tournaments',
+    TOURNAMENT_PARTICIPANTS: 'tournamentParticipants',
+    TOURNAMENT_MATCHES: 'tournamentMatches'
 } as const
 
 // Generic query options interface

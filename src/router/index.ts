@@ -72,6 +72,11 @@ const routes: Array<RouteRecordRaw> = [
         path: 'dues',
         name: 'Dues',
         component: () => import('@/views/DuesTracking.vue')
+      },
+      {
+        path: 'tournaments',
+        name: 'StudentTournaments',
+        component: () => import('@/views/StudentTournaments.vue')
       }
     ]
   },
@@ -120,6 +125,11 @@ const routes: Array<RouteRecordRaw> = [
         path: 'notifications',
         name: 'Notifications',
         component: () => import('@/views/Notifications.vue')
+      },
+      {
+        path: 'tournaments',
+        name: 'TournamentManagement',
+        component: () => import('@/views/admin/TournamentManagement.vue')
       }
     ]
   },

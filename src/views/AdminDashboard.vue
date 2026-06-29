@@ -514,6 +514,13 @@ const managementActions: ManagementAction[] = [
     icon: 'mdi-currency-try',
     gradient: 'warning-gradient',
     route: { name: 'Pricing' }
+  },
+  {
+    title: 'Turnuvalar',
+    description: 'Turnuva oluştur ve eşleşmeleri yönet',
+    icon: 'mdi-tournament',
+    gradient: 'primary-gradient',
+    route: { name: 'TournamentManagement' }
   }
 ]
 
