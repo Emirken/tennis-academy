@@ -307,7 +307,8 @@
       </v-card>
 
       <!-- Event Details Dialog -->
-      <v-dialog v-model="detailsDialog" max-width="500">
+      <!-- scrollable: içerik uzasa da aksiyon butonları altta sabit kalır (mobilde iptal erişilebilir) -->
+      <v-dialog v-model="detailsDialog" max-width="500" scrollable>
         <v-card v-if="selectedEvent">
           <v-card-title class="d-flex align-center">
             <v-icon left :color="selectedEvent.color">mdi-calendar</v-icon>
@@ -415,19 +416,21 @@
             </div>
           </v-card-text>
           <v-divider></v-divider>
-          <v-card-actions>
+          <!-- Mobilde butonlar alt alta tam genişlik; uzun iptal metni satırdan taşmasın -->
+          <v-card-actions :class="smAndDown ? 'flex-column align-stretch ga-1' : ''">
             <v-btn
               v-if="canCancelEvent(selectedEvent)"
               color="error"
               variant="text"
               prepend-icon="mdi-cancel"
               :loading="isCancelling"
+              :block="smAndDown"
               @click="cancelSelectedReservation"
             >
               {{ selectedEvent.isGroup ? 'Dersi İptal Et' : 'Rezervasyonu İptal Et' }}
             </v-btn>
-            <v-spacer></v-spacer>
-            <v-btn color="primary" variant="text" @click="detailsDialog = false">
+            <v-spacer v-if="!smAndDown"></v-spacer>
+            <v-btn color="primary" variant="text" :block="smAndDown" @click="detailsDialog = false">
               Kapat
             </v-btn>
           </v-card-actions>
@@ -586,6 +589,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useDisplay } from 'vuetify'
 import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
@@ -626,6 +630,8 @@ interface CalendarEvent {
 const membershipTypesStore = useMembershipTypesStore()
 const groupsStore = useGroupsStore()
 const authStore = useAuthStore()
+// Mobil kırılım: detay dialog aksiyonlarını alt alta dizmek için
+const { smAndDown } = useDisplay()
 const currentView = ref<'day' | 'week' | 'month'>('week')
 const selectedDate = ref(new Date())
 const detailsDialog = ref(false)
