@@ -925,6 +925,9 @@ const courtSortIndex = (courtId: string): number => {
 // alanları (membershipType dahil) ve store'un isGroupType resolver'ını veririz;
 // karar membershipType'a göre verilir (grup üyeliği değilse → özel ders/yeşil).
 const getEventTypeColor = (event: CalendarEvent): string => {
+  // Periyodik kapatma pseudo-event'i: tür renk haritasına girmez, kutu KIRMIZI
+  // (event.color) boyanır — yeni projedeki bakım/kapalı görünümüyle birebir.
+  if (event.status === 'blocked') return event.color
   return getReservationTypeColor(
     {
       type: event.type,
@@ -1221,10 +1224,10 @@ const buildRecurringBlockEvents = (rangeStart: Date, rangeEnd: Date): CalendarEv
   const out: CalendarEvent[] = []
   if (recurringRules.value.length === 0) return out
 
-  // Tüm gün: ilk slot saatinden son slot saatinin bitişine kadar.
+  // Yeni projedeki (tenis-project-new) takvim paritesi: bloklu günde HER saat
+  // slotu × kort için ayrı kırmızı "Bakım/Kapalı" kutusu üretilir (tüm-gün tek
+  // event değil) — getHourEvents saat başına eşleştirdiği için her satırda görünür.
   const slots = timeSlots.value
-  const firstHour = slots.length ? parseInt(slots[0].split(':')[0], 10) : 7
-  const lastHour = slots.length ? parseInt(slots[slots.length - 1].split(':')[0], 10) + 1 : 23
 
   const cursor = new Date(rangeStart)
   cursor.setHours(0, 0, 0, 0)
@@ -1240,30 +1243,34 @@ const buildRecurringBlockEvents = (rangeStart: Date, rangeEnd: Date): CalendarEv
       for (const rawId of targets) {
         if (!ruleCoversCourt(rule, rawId)) continue
         const courtId = normalizeCourtId(rawId)
-        const start = new Date(cursor)
-        start.setHours(firstHour, 0, 0, 0)
-        const end = new Date(cursor)
-        end.setHours(lastHour, 0, 0, 0)
         const label = rule.status === 'closed' ? 'Kapalı' : 'Bakım'
-        out.push({
-          id: `recurring-block-${rule.id || 'kural'}-${ymd}-${courtId}`,
-          title: rule.reason ? `${label} — ${rule.reason}` : `${label} (tüm gün)`,
-          start,
-          end,
-          courtId,
-          courtName: getCourtName(rawId),
-          studentName: '',
-          membershipType: '',
-          type: 'court_blocked',
-          status: 'blocked',
-          color: rule.status === 'closed' ? '#607d8b' : '#f59e0b',
-          isGroup: false,
-          extendedProps: {
-            reservationId: '',
-            studentId: '',
-            notes: `Periyodik kapatma: Her ${DAY_INDEX_LABEL_TR[rule.dayOfWeek]} (${rule.startDate} → ${rule.endDate}). /courts sayfasındaki Periyodik Kapatma panelinden yönetilir.`,
-          },
-        })
+        for (const slot of slots) {
+          const [h, m] = slot.split(':').map(Number)
+          const start = new Date(cursor)
+          start.setHours(h, m || 0, 0, 0)
+          const end = new Date(start)
+          end.setHours(h + 1, m || 0, 0, 0)
+          out.push({
+            id: `recurring-block-${rule.id || 'kural'}-${ymd}-${courtId}-${slot}`,
+            title: label,
+            start,
+            end,
+            courtId,
+            courtName: getCourtName(rawId),
+            studentName: '',
+            membershipType: '',
+            type: 'court_blocked',
+            status: 'blocked',
+            // Ekran paritesi: bloklu slot kutuları kırmızı (yeni projedeki gibi).
+            color: '#ef4444',
+            isGroup: false,
+            extendedProps: {
+              reservationId: '',
+              studentId: '',
+              notes: `Periyodik kapatma: Her ${DAY_INDEX_LABEL_TR[rule.dayOfWeek]} (${rule.startDate} → ${rule.endDate})${rule.reason ? ` — ${rule.reason}` : ''}. /courts sayfasındaki Periyodik Kapatma panelinden yönetilir.`,
+            },
+          })
+        }
       }
     }
     cursor.setDate(cursor.getDate() + 1)
