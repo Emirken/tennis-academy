@@ -101,6 +101,16 @@ export interface BuildCourtScheduleInput {
    * uyumlu). Dersler (grup/özel) her durumda korunur. (Bkz. isPastReservationDoc)
    */
   now?: Date
+  /**
+   * Periyodik kapatma kurallarından (recurringCourtBlocks) o güne çözülmüş
+   * admin blokları: courtId -> time -> 'maintenance' | 'closed'.
+   * Snapshot'tan BAĞIMSIZDIR ve `adminParity` açıkken bile uygulanır — öğrenci
+   * takvimi snapshot'ı yok sayar ama periyodik kapatmayı GÖRMEK ZORUNDADIR
+   * (aksi hâlde kapalı kort öğrenciye boş görünür). Canlı rezervasyon bu
+   * durumların üzerine yazmaz (ADMIN_SLOT_STATES koruması).
+   * (Bkz. utils/recurringCourtBlocks.ts → resolveRecurringBlocksForDate)
+   */
+  adminBlocks?: Record<string, Record<string, string>>
 }
 
 // AdminCalendar'ın slot bloke kriteri: iptal edilen rezervasyonlar gizlenir,
@@ -168,10 +178,19 @@ export function buildCourtSchedule(input: BuildCourtScheduleInput): CourtSchedul
   //    adminParity modunda snapshot HİÇ okunmaz (AdminCalendar gibi yalnızca
   //    canlı rezervasyonlar): taban tamamen 'available' olur.
   const result: CourtScheduleMap = {}
+  const adminBlocks = input.adminBlocks || {}
   for (const courtId of courtIds) {
     result[courtId] = {}
     const stored = storedSchedule[courtId] || {}
+    const blocked = adminBlocks[courtId] || {}
     for (const time of timeSlots) {
+      // Periyodik kapatma bloğu (recurringCourtBlocks) snapshot'tan bağımsızdır
+      // ve adminParity'de bile uygulanır — en yüksek öncelikli admin durumu.
+      const blockStatus = blocked[time]
+      if (blockStatus && ADMIN_SLOT_STATES.has(blockStatus)) {
+        result[courtId][time] = blockStatus
+        continue
+      }
       if (adminParity) {
         result[courtId][time] = 'available'
         continue

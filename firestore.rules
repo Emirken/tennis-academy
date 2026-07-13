@@ -46,6 +46,14 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
     }
+
+    // Periyodik kort kapatma kuralları ("her X günü bakım/kapalı").
+    // Öğrenci takvimi/rezervasyon formu da okuduğundan read tüm girişliler,
+    // write yalnız admin/boss.
+    match /recurringCourtBlocks/{blockId} {
+      allow read: if request.auth != null;
+      allow write: if isAdminOrBoss();
+    }
     
     // Reservations collection
     match /reservations/{reservationId} {

@@ -601,6 +601,13 @@ import { getReservationTypeColor } from '@/utils/reservationTypeColor'
 import { isPastReservationDoc, isAdminCalendarEvent, type RawReservationDoc } from '@/utils/dailyReservationLimit'
 import { resolveStudentDisplay } from '@/utils/reservationDisplayName'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
+import {
+  ruleAppliesToDate,
+  ruleCoversCourt,
+  DAY_INDEX_LABEL_TR,
+  type RecurringCourtBlock,
+} from '@/utils/recurringCourtBlocks'
+import { fetchRecurringBlocks } from '@/services/recurringBlocks'
 
 interface CalendarEvent {
   id: string
@@ -971,6 +978,13 @@ const fetchReservations = async (force = false) => {
       clearReservationsCache()
     }
 
+    // Periyodik kapatma kurallarını tazele (pseudo-event üretimi için).
+    try {
+      recurringRules.value = await fetchRecurringBlocks()
+    } catch (e) {
+      console.error('Periyodik kapatma kuralları yüklenemedi:', e)
+    }
+
     const reservationsQuery = query(
       collection(db, 'reservations'),
       where('date', '>=', startDate),
@@ -1167,6 +1181,11 @@ const fetchReservations = async (force = false) => {
       events.push(event)
     }
 
+    // Periyodik kapatma kuralları (recurringCourtBlocks): görünür aralığın her
+    // günü için kurala uyan kortlara TÜM GÜN "Bakım/Kapalı" pseudo-event'i ekle.
+    // Rezervasyon değildir; iptal edilemez (canCancelEvent 'blocked' dışlar).
+    events.push(...buildRecurringBlockEvents(startDate, endDate))
+
     calendarEvents.value = events
 
     // Sonucu önbelleğe al (kısa TTL). Önbellek büyümesin diye en eski girişi at.
@@ -1182,6 +1201,74 @@ const fetchReservations = async (force = false) => {
   } finally {
     loading.value = false
   }
+}
+
+// ---------------------------------------------------------------------------
+// Periyodik kort kapatma: kurallar (recurringCourtBlocks) takvimde tüm gün
+// süren "Bakım/Kapalı" pseudo-event'leri olarak gösterilir.
+// ---------------------------------------------------------------------------
+const recurringRules = ref<RecurringCourtBlock[]>([])
+const RAW_COURT_IDS = ['court-1', 'court-2', 'court-3']
+
+const localYmdOf = (d: Date): string => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const buildRecurringBlockEvents = (rangeStart: Date, rangeEnd: Date): CalendarEvent[] => {
+  const out: CalendarEvent[] = []
+  if (recurringRules.value.length === 0) return out
+
+  // Tüm gün: ilk slot saatinden son slot saatinin bitişine kadar.
+  const slots = timeSlots.value
+  const firstHour = slots.length ? parseInt(slots[0].split(':')[0], 10) : 7
+  const lastHour = slots.length ? parseInt(slots[slots.length - 1].split(':')[0], 10) + 1 : 23
+
+  const cursor = new Date(rangeStart)
+  cursor.setHours(0, 0, 0, 0)
+  const endDay = new Date(rangeEnd)
+  endDay.setHours(0, 0, 0, 0)
+
+  while (cursor <= endDay) {
+    const ymd = localYmdOf(cursor)
+    for (const rule of recurringRules.value) {
+      if (!ruleAppliesToDate(rule, ymd)) continue
+      const targets =
+        Array.isArray(rule.courtIds) && rule.courtIds.length > 0 ? rule.courtIds : RAW_COURT_IDS
+      for (const rawId of targets) {
+        if (!ruleCoversCourt(rule, rawId)) continue
+        const courtId = normalizeCourtId(rawId)
+        const start = new Date(cursor)
+        start.setHours(firstHour, 0, 0, 0)
+        const end = new Date(cursor)
+        end.setHours(lastHour, 0, 0, 0)
+        const label = rule.status === 'closed' ? 'Kapalı' : 'Bakım'
+        out.push({
+          id: `recurring-block-${rule.id || 'kural'}-${ymd}-${courtId}`,
+          title: rule.reason ? `${label} — ${rule.reason}` : `${label} (tüm gün)`,
+          start,
+          end,
+          courtId,
+          courtName: getCourtName(rawId),
+          studentName: '',
+          membershipType: '',
+          type: 'court_blocked',
+          status: 'blocked',
+          color: rule.status === 'closed' ? '#607d8b' : '#f59e0b',
+          isGroup: false,
+          extendedProps: {
+            reservationId: '',
+            studentId: '',
+            notes: `Periyodik kapatma: Her ${DAY_INDEX_LABEL_TR[rule.dayOfWeek]} (${rule.startDate} → ${rule.endDate}). /courts sayfasındaki Periyodik Kapatma panelinden yönetilir.`,
+          },
+        })
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return out
 }
 
 const getEventColor = (status: string, type: string, isGroup: boolean): string => {
@@ -1292,6 +1379,9 @@ const showEventDetails = async (event: CalendarEvent) => {
 // Sadece slotu meşgul eden (iptal/tamamlanmamış) etkinlikler iptal edilebilir.
 const canCancelEvent = (event: CalendarEvent | null): boolean => {
   if (!event) return false
+  // 'blocked': periyodik kapatma pseudo-event'i — rezervasyon değildir,
+  // buradan iptal edilemez (/courts Periyodik Kapatma panelinden yönetilir).
+  if (event.status === 'blocked') return false
   return event.status !== 'cancelled' && event.status !== 'completed' && event.status !== 'no_show'
 }
 
@@ -1413,7 +1503,8 @@ const getStatusLabel = (status: string): string => {
     'pending': 'Beklemede',
     'cancelled': 'İptal',
     'completed': 'Tamamlandı',
-    'no_show': 'Gelmedi'
+    'no_show': 'Gelmedi',
+    'blocked': 'Kort Kapalı/Bakımda'
   }
   return labels[status] || status
 }
@@ -1425,7 +1516,8 @@ const getStatusColor = (status: string): string => {
     'pending': 'warning',
     'cancelled': 'error',
     'completed': 'grey',
-    'no_show': 'pink'
+    'no_show': 'pink',
+    'blocked': 'blue-grey'
   }
   return colors[status] || 'grey'
 }

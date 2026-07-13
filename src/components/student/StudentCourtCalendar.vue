@@ -235,6 +235,11 @@ import { RESERVATION_TYPE_COLORS } from '@/utils/reservationTypeColor'
 import { useGroupsStore } from '@/store/modules/groups'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
+import {
+  resolveRecurringBlocksForDate,
+  type RecurringCourtBlock,
+} from '@/utils/recurringCourtBlocks'
+import { fetchRecurringBlocks } from '@/services/recurringBlocks'
 
 const groupsStore = useGroupsStore()
 const membershipTypesStore = useMembershipTypesStore()
@@ -250,6 +255,13 @@ const courts = [
   { id: 'K3', name: 'Kort 3' }
 ]
 const courtIds = courts.map(c => c.id)
+// HAM Firestore kort id evreni — periyodik kapatma kuralları ham id saklar.
+const RAW_COURT_IDS = ['court-1', 'court-2', 'court-3']
+
+// Periyodik kort kapatma kuralları. adminParity snapshot'ı yok sayar ama bu
+// kurallar snapshot'tan BAĞIMSIZDIR ve öğrenci dolulukta görünmek zorundadır
+// (kapalı kort öğrenciye boş görünmesin) — buildCourtSchedule adminBlocks girdisi.
+const recurringRules = ref<RecurringCourtBlock[]>([])
 
 // Saatler ve saat dilimleri ders saatleri config'inden (settings/schedule).
 // firstHour dahil, lastHour HARİÇ. Admin değiştirince takvim canlı güncellenir.
@@ -460,6 +472,13 @@ const fetchSchedule = async (force = false) => {
 
   loading.value = true
   try {
+    // Periyodik kapatma kurallarını tazele (grid önbelleğiyle aynı yaşam döngüsü).
+    try {
+      recurringRules.value = await fetchRecurringBlocks()
+    } catch (e) {
+      console.error('Periyodik kapatma kuralları yüklenemedi:', e)
+    }
+
     // Aralık için tek sorgu (Courts/AdminCalendar paterni).
     const reservationsQuery = query(
       collection(db, 'reservations'),
@@ -507,6 +526,15 @@ const fetchSchedule = async (force = false) => {
         adminParity: true,
         // Tarihi geçmiş kort rezervasyonları (dersler hariç) boş görünsün.
         now: new Date(),
+        // Periyodik kapatma kuralları — adminParity'de bile uygulanır; bloklu
+        // slot öğrenciye dolu (busy) görünür.
+        adminBlocks: resolveRecurringBlocksForDate({
+          rules: recurringRules.value,
+          date: key,
+          allCourtIds: RAW_COURT_IDS,
+          timeSlots: timeSlots.value,
+          mapCourtId,
+        }),
       })
 
       grids[key] = buildBusyFreeGrid(built, courtIds, timeSlots.value)

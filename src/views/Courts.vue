@@ -69,6 +69,153 @@
           </v-col>
         </v-row>
 
+        <!-- Periyodik Kapatma (admin/boss): "her Pazar tüm kortlar kapalı, şu
+             tarihe kadar" gibi tekrarlayan bakım/kapalı kuralları -->
+        <v-row v-if="authStore.isAdmin" class="mb-6">
+          <v-col cols="12">
+            <v-card class="modern-card admin-controls-card" elevation="0">
+              <v-card-text class="pa-4">
+                <div class="d-flex align-center justify-space-between">
+                  <div>
+                    <h3 class="text-h6 font-weight-bold mb-2">Periyodik Kapatma</h3>
+                    <p class="text-body-2 text-grey-darken-1 mb-0">
+                      Haftanın bir gününü, seçtiğiniz bitiş tarihine kadar tek seferde bakıma alın veya kapatın.
+                    </p>
+                  </div>
+                  <v-btn variant="outlined" @click="recurringPanelOpen = !recurringPanelOpen">
+                    {{ recurringPanelOpen ? 'Gizle' : 'Yönet' }}
+                    <v-chip
+                        v-if="!recurringPanelOpen && recurringRules.length"
+                        size="small"
+                        class="ml-2"
+                    >
+                      {{ recurringRules.length }} kural
+                    </v-chip>
+                  </v-btn>
+                </div>
+
+                <div v-if="recurringPanelOpen" class="mt-4">
+                  <v-row dense>
+                    <v-col cols="12" sm="6" md="3">
+                      <v-select
+                          v-model="recurringForm.dayOfWeek"
+                          :items="dayOptions"
+                          item-title="label"
+                          item-value="value"
+                          label="Gün"
+                          density="comfortable"
+                          hide-details
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="6" md="3">
+                      <v-select
+                          v-model="recurringForm.status"
+                          :items="statusOptions"
+                          item-title="label"
+                          item-value="value"
+                          label="Durum"
+                          density="comfortable"
+                          hide-details
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="6" md="3">
+                      <v-text-field
+                          v-model="recurringForm.startDate"
+                          type="date"
+                          label="Başlangıç"
+                          density="comfortable"
+                          hide-details
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="6" md="3">
+                      <v-text-field
+                          v-model="recurringForm.endDate"
+                          type="date"
+                          label="Bitiş (dahil)"
+                          :min="recurringForm.startDate"
+                          density="comfortable"
+                          hide-details
+                      />
+                    </v-col>
+                  </v-row>
+
+                  <div class="d-flex align-center flex-wrap mt-2">
+                    <v-checkbox
+                        v-model="recurringForm.allCourts"
+                        label="Tüm kortlar"
+                        density="compact"
+                        hide-details
+                        class="mr-4"
+                    />
+                    <template v-if="!recurringForm.allCourts">
+                      <v-checkbox
+                          v-for="court in courts"
+                          :key="court.id"
+                          v-model="recurringForm.courtIds"
+                          :value="rawCourtIdFor(court.id)"
+                          :label="court.name"
+                          density="compact"
+                          hide-details
+                          class="mr-4"
+                      />
+                    </template>
+                  </div>
+
+                  <v-row dense class="mt-1" align="center">
+                    <v-col cols="12" md="8">
+                      <v-text-field
+                          v-model="recurringForm.reason"
+                          label="Sebep (opsiyonel)"
+                          maxlength="200"
+                          density="comfortable"
+                          hide-details
+                      />
+                    </v-col>
+                    <v-col cols="12" md="4" class="text-md-right">
+                      <v-btn
+                          color="success"
+                          variant="flat"
+                          prepend-icon="mdi-check"
+                          :loading="recurringSaving"
+                          :disabled="!recurringFormValid"
+                          @click="createRecurringRule"
+                      >
+                        Uygula
+                      </v-btn>
+                    </v-col>
+                  </v-row>
+
+                  <v-divider class="my-3" />
+                  <p v-if="recurringRules.length === 0" class="text-body-2 text-grey-darken-1 mb-0">
+                    Tanımlı periyodik kapatma kuralı yok.
+                  </p>
+                  <v-list v-else density="compact" class="bg-transparent py-0">
+                    <v-list-item v-for="rule in recurringRules" :key="rule.id" class="px-0">
+                      <v-list-item-title class="text-body-2">
+                        <strong>Her {{ DAY_INDEX_LABEL_TR[rule.dayOfWeek] }}</strong>
+                        — {{ rule.status === 'closed' ? 'Kapalı' : 'Bakım' }}
+                        — {{ formatRuleDate(rule.startDate) }} → {{ formatRuleDate(rule.endDate) }}
+                        — {{ ruleCourtsLabel(rule) }}
+                        <span v-if="rule.reason"> — {{ rule.reason }}</span>
+                      </v-list-item-title>
+                      <template #append>
+                        <v-btn
+                            icon="mdi-delete"
+                            size="small"
+                            variant="text"
+                            color="error"
+                            :loading="recurringDeletingId === rule.id"
+                            @click="removeRecurringRule(rule)"
+                        />
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+
         <!-- Enhanced Court Overview Cards (sadece admin) -->
         <v-row v-if="authStore.isAdmin" class="mb-6">
           <v-col v-for="court in courts" :key="court.id" cols="12" md="4" class="mb-4">
@@ -337,6 +484,17 @@ import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import { notificationService } from '@/services/notificationService'
 import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
+import {
+  DAY_INDEX_LABEL_TR,
+  resolveRecurringBlocksForDate,
+  type RecurringCourtBlock,
+  type RecurringBlockStatus,
+} from '@/utils/recurringCourtBlocks'
+import {
+  addRecurringBlock,
+  deleteRecurringBlock,
+  fetchRecurringBlocks,
+} from '@/services/recurringBlocks'
 
 const authStore = useAuthStore()
 const membershipTypesStore = useMembershipTypesStore()
@@ -360,6 +518,132 @@ const snackbar = ref({ show: false, message: '', color: 'success' })
 // Saat dilimleri ders saatleri config'inden (settings/schedule). firstHour dahil,
 // lastHour HARİÇ (son slot başlangıcı lastHour-1). Doluluk paydası timeSlots.length.
 const { timeSlots } = useScheduleSettings()
+
+// ---------------------------------------------------------------------------
+// Periyodik Kapatma: "her <hafta günü> <bitiş>e kadar bakım/kapalı" kuralları.
+// Kurallar Firestore recurringCourtBlocks'ta durur; her görünüm okuma anında
+// resolveRecurringBlocksForDate ile çözer ve buildCourtSchedule'a adminBlocks
+// olarak verir (materyalizasyon yok → silme anında etkili).
+// ---------------------------------------------------------------------------
+const RAW_COURT_IDS = ['court-1', 'court-2', 'court-3']
+const rawCourtIdFor = (displayId: string): string => {
+  const mapping: Record<string, string> = { K1: 'court-1', K2: 'court-2', K3: 'court-3' }
+  return mapping[displayId] || displayId
+}
+
+// Yerel YYYY-MM-DD — hafta günü hesabı için tz kayması yaşamamak adına
+// toISOString yerine yerel bileşenler kullanılır (rezervasyon sorgusu da
+// yerel gün sınırlarıyla çalışıyor).
+const localYmd = (d: Date): string => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const recurringPanelOpen = ref(false)
+const recurringRules = ref<RecurringCourtBlock[]>([])
+const recurringSaving = ref(false)
+const recurringDeletingId = ref<string | null>(null)
+// Seçili güne çözülmüş bloklar (courtId -> time -> status); hem grid'e hem
+// düzenleme kilidine hizmet eder.
+const recurringAdminBlocks = ref<Record<string, Record<string, RecurringBlockStatus>>>({})
+
+const defaultRecurringEnd = (): string => {
+  const d = new Date()
+  d.setDate(d.getDate() + 60)
+  return localYmd(d)
+}
+const recurringForm = ref({
+  dayOfWeek: 0, // Pazar
+  status: 'closed' as RecurringBlockStatus,
+  startDate: localYmd(new Date()),
+  endDate: defaultRecurringEnd(),
+  allCourts: true,
+  courtIds: [] as string[],
+  reason: '',
+})
+
+const dayOptions = DAY_INDEX_LABEL_TR.map((label, value) => ({ label, value }))
+const statusOptions = [
+  { label: 'Kapalı', value: 'closed' },
+  { label: 'Bakım', value: 'maintenance' },
+]
+
+const recurringFormValid = computed(
+  () =>
+    !!recurringForm.value.startDate &&
+    !!recurringForm.value.endDate &&
+    recurringForm.value.endDate >= recurringForm.value.startDate &&
+    (recurringForm.value.allCourts || recurringForm.value.courtIds.length > 0)
+)
+
+const loadRecurringRules = async () => {
+  try {
+    recurringRules.value = await fetchRecurringBlocks()
+  } catch (error) {
+    console.error('Periyodik kapatma kuralları yüklenemedi:', error)
+    recurringRules.value = []
+  }
+}
+
+const createRecurringRule = async () => {
+  if (!recurringFormValid.value || recurringSaving.value) return
+  recurringSaving.value = true
+  try {
+    await addRecurringBlock({
+      dayOfWeek: recurringForm.value.dayOfWeek,
+      status: recurringForm.value.status,
+      startDate: recurringForm.value.startDate,
+      endDate: recurringForm.value.endDate,
+      courtIds: recurringForm.value.allCourts ? [] : [...recurringForm.value.courtIds],
+      reason: recurringForm.value.reason.trim(),
+      createdBy: authStore.user?.id || '',
+    })
+    recurringForm.value.reason = ''
+    await loadRecurringRules()
+    await fetchCourtSchedule(selectedDate.value)
+    showSnackbar('Periyodik kapatma kuralı oluşturuldu')
+  } catch (error) {
+    console.error('Periyodik kapatma kuralı oluşturulamadı:', error)
+    showSnackbar('Kural oluşturulamadı', 'error')
+  } finally {
+    recurringSaving.value = false
+  }
+}
+
+const removeRecurringRule = async (rule: RecurringCourtBlock) => {
+  if (!rule.id || recurringDeletingId.value) return
+  const label = `Her ${DAY_INDEX_LABEL_TR[rule.dayOfWeek]} — ${rule.status === 'closed' ? 'Kapalı' : 'Bakım'}`
+  if (!confirm(`"${label}" kuralı kaldırılsın mı? Bu kuralın kapattığı slotlar tekrar açılır.`)) return
+  recurringDeletingId.value = rule.id
+  try {
+    await deleteRecurringBlock(rule.id)
+    await loadRecurringRules()
+    await fetchCourtSchedule(selectedDate.value)
+    showSnackbar('Kural kaldırıldı')
+  } catch (error) {
+    console.error('Periyodik kapatma kuralı silinemedi:', error)
+    showSnackbar('Kural kaldırılamadı', 'error')
+  } finally {
+    recurringDeletingId.value = null
+  }
+}
+
+const formatRuleDate = (ymd: string): string =>
+  new Date(`${ymd}T00:00:00`).toLocaleDateString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
+const ruleCourtsLabel = (rule: RecurringCourtBlock): string => {
+  const ids = Array.isArray(rule.courtIds) ? rule.courtIds : []
+  if (ids.length === 0 || ids.length >= RAW_COURT_IDS.length) return 'Tüm kortlar'
+  return ids
+    .map((raw) => courts.value.find((c) => c.id === mapCourtId(raw))?.name || raw)
+    .join(', ')
+}
 
 // Courts data
 const courts = ref([
@@ -632,6 +916,15 @@ const fetchCourtSchedule = async (date: Date) => {
     // 3) Hangi grupların hâlâ var olduğunu ve adlarını topla (canlı + snapshot)
     const { existingGroupIds, groupNames } = await resolveGroups(reservations, storedSchedule)
 
+    // 3.5) Periyodik kapatma kurallarını bu güne çöz (hafta günü yerel tarihle).
+    recurringAdminBlocks.value = resolveRecurringBlocksForDate({
+      rules: recurringRules.value,
+      date: localYmd(date),
+      allCourtIds: RAW_COURT_IDS,
+      timeSlots: timeSlots.value,
+      mapCourtId,
+    })
+
     // 4) Programı canlı veriyi taban alarak oluştur
     schedule.value = buildCourtSchedule({
       courtIds: courts.value.map(c => c.id),
@@ -648,7 +941,9 @@ const fetchCourtSchedule = async (date: Date) => {
       // dolu). maintenance/closed admin durumları yine korunur.
       ignoreSnapshotGroupFallback: true,
       // Tarihi geçmiş kort rezervasyonları (dersler hariç) boş görünsün.
-      now: new Date()
+      now: new Date(),
+      // Periyodik kapatma kuralları — snapshot'tan bağımsız, en yüksek öncelik.
+      adminBlocks: recurringAdminBlocks.value
     })
 
     updateCourtStats()
@@ -897,6 +1192,16 @@ const cancelEdit = () => {
 const toggleSlotStatus = (courtId: string, timeSlot: string) => {
   if (!editMode.value) return
 
+  // Periyodik kuralla kapatılmış slot elle değiştirilemez — kural, snapshot'ı
+  // her okumada yeniden ezer; kullanıcıya kuralı kaldırmasını söyle.
+  if (recurringAdminBlocks.value[courtId]?.[timeSlot]) {
+    showSnackbar(
+      'Bu slot periyodik kapatma kuralıyla kilitli. Önce Periyodik Kapatma panelinden kuralı kaldırın.',
+      'warning'
+    )
+    return
+  }
+
   const currentSlotData = schedule.value[courtId]?.[timeSlot]
   const currentStatus = getSlotStatusValue(currentSlotData)
 
@@ -932,6 +1237,8 @@ onMounted(async () => {
   // Paylaşılan groups önbelleğini başlat (N+1 getDoc yerine). İlk veri asenkron
   // gelir; gelene kadar resolveGroups güvenli per-id getDoc fallback'ini kullanır.
   groupsStore.initialize()
+  // Kurallar programdan ÖNCE yüklenir ki ilk çizimde bloklar görünsün.
+  await loadRecurringRules()
   fetchCourtSchedule(selectedDate.value)
   setupRealTimeListener()
 })

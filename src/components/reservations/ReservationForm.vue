@@ -142,6 +142,11 @@ import {
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
 import { useGroupsStore } from '@/store/modules/groups'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
+import {
+  resolveRecurringBlocksForDate,
+  type RecurringCourtBlock,
+} from '@/utils/recurringCourtBlocks'
+import { fetchRecurringBlocks } from '@/services/recurringBlocks'
 
 // Rezervasyon başarıyla oluşturulduğunda ebeveyne haber verir (sayfa kendi
 // başarı dialogunu açar; dashboard dialog'u kapatıp takvimi yeniler).
@@ -179,6 +184,10 @@ const availableCourts = ref([
 
 // Saat dilimleri ders saatleri config'inden (settings/schedule) gelir.
 const { timeSlots } = useScheduleSettings()
+
+// Periyodik kort kapatma kuralları (recurringCourtBlocks) — bir kez yüklenir,
+// loadCourtSchedule her tarih için okuma anında çözer.
+const recurringRules = ref<RecurringCourtBlock[]>([])
 
 // Rezervasyon penceresi — her 30 sn tick edip 20:00'de açılan günü canlı yansıtır
 const now = ref(new Date())
@@ -324,6 +333,14 @@ const loadCourtSchedule = async (date: string) => {
       reservations,
       existingGroupIds,
       mapCourtId: firestoreToFormCourtId,
+      // Periyodik kapatma kuralları: bloklu slotlar maintenance/closed olarak
+      // düşer → aşağıdaki eşleme onları 'available' saymaz, rezervasyon engellenir.
+      adminBlocks: resolveRecurringBlocksForDate({
+        rules: recurringRules.value,
+        date,
+        allCourtIds: ['court-1', 'court-2', 'court-3'],
+        timeSlots: timeSlots.value,
+      }),
     })
 
     Object.keys(courtSchedule).forEach((courtId) => {
@@ -568,6 +585,15 @@ onMounted(async () => {
   // Paylaşılan groups önbelleğini başlat (getExistingGroupIds N+1 getDoc yerine
   // bunu kullanır; hazır olmadan güvenli per-id fallback devrededir).
   groupsStore.initialize()
+
+  // Periyodik kapatma kurallarını yükle; tarih zaten seçiliyse programı
+  // kurallar dahil yeniden kur (aksi hâlde bloklu slot bir anlığına boş görünür).
+  try {
+    recurringRules.value = await fetchRecurringBlocks()
+    if (reservationData.date) await loadCourtSchedule(reservationData.date)
+  } catch (error) {
+    console.error('Periyodik kapatma kuralları yüklenemedi:', error)
+  }
 
   // Saat tick'i — 30 sn'de bir; 20:00'de açılan gün otomatik güncellensin
   nowTimerId = setInterval(() => {

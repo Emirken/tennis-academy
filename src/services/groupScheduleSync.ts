@@ -18,8 +18,10 @@ import {
   writeBatch
 } from 'firebase/firestore'
 import { db } from '@/services/firebase'
-import { dayToTurkish, courtToKFormat, groupToStudentFormat, type ScheduleSlotBase } from '@/utils/scheduleFormats'
+import { dayToTurkish, courtToKFormat, courtFromKFormat, groupToStudentFormat, type ScheduleSlotBase } from '@/utils/scheduleFormats'
 import { normalizeReservationDate } from '@/utils/dailyReservationLimit'
+import { dateBlockStatusForCourt, type RecurringCourtBlock } from '@/utils/recurringCourtBlocks'
+import { fetchRecurringBlocks } from '@/services/recurringBlocks'
 
 const BATCH_LIMIT = 450
 const RESERVATION_WINDOW_MONTHS = 3
@@ -321,6 +323,22 @@ export async function createFutureGroupReservations(
 
   const lessonDuration = getLessonDuration(membershipType)
 
+  // Periyodik kapatma kuralları: bloklu (bakım/kapalı) güne ders YAZILMAZ —
+  // rezervasyon da snapshot 'occupied' güncellemesi de atlanır. Kural okuma
+  // hatasında güvenli tarafta kal: kural yok say (dersler üretilir).
+  let recurringRules: RecurringCourtBlock[] = []
+  try {
+    recurringRules = await fetchRecurringBlocks()
+  } catch (e) {
+    console.error('Periyodik kapatma kuralları okunamadı (guard devre dışı):', e)
+  }
+  const localYmdOf = (d: Date): string => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
   // Phase 1: Collect all reservation data and courtSchedule slot updates in memory
   const pendingReservations: Array<{ data: Record<string, any> }> = []
   // dateString -> courtId -> time -> slot metadata
@@ -333,6 +351,17 @@ export async function createFutureGroupReservations(
     const dates = getDatesByDayOfWeek(slot.day, startDate, endWindow)
 
     for (const date of dates) {
+      // Periyodik kapatma guard'ı: bu gün + kort kuralla bloklu ise ders üretme.
+      // Kurallar HAM kort id'si saklar (court-1); slot.court K-formatında
+      // olabilir → courtFromKFormat ile normalize edilir. Hafta günü yerel
+      // tarihle karşılaştırılır (toISOString UTC kaymasına karşı localYmdOf).
+      if (
+        recurringRules.length > 0 &&
+        dateBlockStatusForCourt(recurringRules, localYmdOf(date), courtFromKFormat(courtToKFormat(slot.court)))
+      ) {
+        continue
+      }
+
       const dateString = date.toISOString().split('T')[0]
       const [startHour, startMinute] = slot.time.split(':').map(Number)
 
