@@ -189,7 +189,7 @@ const { timeSlots } = useScheduleSettings()
 // loadCourtSchedule her tarih için okuma anında çözer.
 const recurringRules = ref<RecurringCourtBlock[]>([])
 
-// Rezervasyon penceresi — her 30 sn tick edip 20:00'de açılan günü canlı yansıtır
+// Rezervasyon penceresi — her 30 sn tick edip Pazartesi 13:00'te açılan haftayı canlı yansıtır
 const now = ref(new Date())
 let nowTimerId: ReturnType<typeof setInterval> | null = null
 
@@ -207,7 +207,7 @@ const openReservationInfoText = computed(() => {
       new Date(s + 'T00:00:00').toLocaleDateString('tr-TR', {
         day: 'numeric', month: 'long', year: 'numeric', weekday: 'long'
       })
-    return `Şu anda ${fmt(range.start)} – ${fmt(range.end)} aralığı için rezervasyon yapılabilir. Yeni hafta her Pazar 20:00'de açılır.`
+    return `Şu anda ${fmt(range.start)} – ${fmt(range.end)} aralığı için rezervasyon yapılabilir. Yeni hafta her Pazartesi 13:00'te açılır.`
   }
   const nextOpen = getNextOpenAt(now.value)
   const formattedNext = nextOpen.toLocaleString('tr-TR', {
@@ -233,7 +233,7 @@ const dateRules = [
   (v: string) => {
     const range = openReservationRange.value
     if (!range) {
-      return 'Rezervasyon sistemi şu an kapalı. Yeni hafta her Pazar 20:00\'de açılır.'
+      return 'Rezervasyon sistemi şu an kapalı. Yeni hafta her Pazartesi 13:00\'te açılır.'
     }
     return isReservationDateOpen(v, now.value) ||
       `Yalnızca ${range.start} – ${range.end} aralığı için rezervasyon yapılabilir.`
@@ -398,7 +398,7 @@ const submitReservation = async () => {
     const range = openReservationRange.value
     errorMessage.value = range
       ? `Yalnızca ${range.start} – ${range.end} aralığı için rezervasyon yapılabilir.`
-      : 'Rezervasyon sistemi şu an kapalı. Yeni hafta her Pazar 20:00\'de açılır.'
+      : 'Rezervasyon sistemi şu an kapalı. Yeni hafta her Pazartesi 13:00\'te açılır.'
     errorSnackbar.value = true
     return
   }
@@ -595,7 +595,7 @@ onMounted(async () => {
     console.error('Periyodik kapatma kuralları yüklenemedi:', error)
   }
 
-  // Saat tick'i — 30 sn'de bir; 20:00'de açılan gün otomatik güncellensin
+  // Saat tick'i — 30 sn'de bir; Pazartesi 13:00'te açılan hafta otomatik güncellensin
   nowTimerId = setInterval(() => {
     now.value = new Date()
   }, 30 * 1000)
