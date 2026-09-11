@@ -1,5 +1,6 @@
 import { db } from '@/services/firebase'
 import { pushNotificationService } from '@/services/pushNotificationService'
+import { docWithId } from '@/utils/docWithId'
 import {
     collection,
     addDoc,
@@ -65,7 +66,7 @@ export const notificationService = {
             (snapshot) => {
                 const notifications: UserNotification[] = []
                 snapshot.forEach((doc) => {
-                    notifications.push({ id: doc.id, ...doc.data() } as UserNotification)
+                    notifications.push(docWithId(doc) as unknown as UserNotification)
                 })
 
                 // Yeni gelen bildirimler icin tarayici bildirimi goster

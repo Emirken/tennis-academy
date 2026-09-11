@@ -265,8 +265,8 @@ export const getExpiredArchives = async (): Promise<AttendanceArchive[]> => {
 
       if (expiresAt <= now) {
         expiredArchives.push({
-          id: docSnap.id,
           ...data,
+          id: docSnap.id,
           archivedAt: data.archivedAt?.toDate ? data.archivedAt.toDate() : new Date(data.archivedAt),
           expiresAt
         } as AttendanceArchive)
@@ -447,8 +447,8 @@ export const getAllArchives = async (): Promise<AttendanceArchive[]> => {
     snapshot.forEach((docSnap) => {
       const data = docSnap.data()
       archives.push({
-        id: docSnap.id,
         ...data,
+        id: docSnap.id,
         archivedAt: data.archivedAt?.toDate ? data.archivedAt.toDate() : new Date(data.archivedAt),
         expiresAt: data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt),
         attendanceRecords: data.attendanceRecords?.map((r: any) => ({

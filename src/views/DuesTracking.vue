@@ -637,8 +637,8 @@ const fetchReservations = () => {
     console.log('📊 Total reservations for dues tracking:', snapshot.size)
 
     reservations.value = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+      ...doc.data(),
+      id: doc.id
     }))
 
     loading.value = false

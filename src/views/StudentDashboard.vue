@@ -991,8 +991,8 @@ const fetchUserReservations = () => {
           const actualDurationHours = minutesToHours(actualDurationMinutes)
 
           return {
-            id: doc.id,
             ...data,
+            id: doc.id,
             date: reservationDateTime,
             fullDateTime: reservationDateTime,
             calculatedDuration: actualDurationMinutes,

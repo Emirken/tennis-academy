@@ -101,8 +101,8 @@ export class FirestoreService {
 
             if (docSnap.exists()) {
                 return {
-                    id: docSnap.id,
                     ...docSnap.data(),
+                    id: docSnap.id,
                     createdAt: docSnap.data().createdAt?.toDate(),
                     updatedAt: docSnap.data().updatedAt?.toDate()
                 } as T
@@ -213,8 +213,8 @@ export class FirestoreService {
             const querySnapshot = await getDocs(q)
 
             return querySnapshot.docs.map(doc => ({
-                id: doc.id,
                 ...doc.data(),
+                id: doc.id,
                 createdAt: doc.data().createdAt?.toDate(),
                 updatedAt: doc.data().updatedAt?.toDate()
             })) as T[]
@@ -264,8 +264,8 @@ export class FirestoreService {
             }
 
             const results = docs.map(doc => ({
-                id: doc.id,
                 ...doc.data(),
+                id: doc.id,
                 createdAt: doc.data().createdAt?.toDate(),
                 updatedAt: doc.data().updatedAt?.toDate()
             })) as T[]
@@ -296,8 +296,8 @@ export class FirestoreService {
             return onSnapshot(docRef, (doc) => {
                 if (doc.exists()) {
                     const data = {
-                        id: doc.id,
                         ...doc.data(),
+                        id: doc.id,
                         createdAt: doc.data().createdAt?.toDate(),
                         updatedAt: doc.data().updatedAt?.toDate()
                     } as T
@@ -344,8 +344,8 @@ export class FirestoreService {
 
             return onSnapshot(q, (querySnapshot) => {
                 const docs = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
                     ...doc.data(),
+                    id: doc.id,
                     createdAt: doc.data().createdAt?.toDate(),
                     updatedAt: doc.data().updatedAt?.toDate()
                 })) as T[]

@@ -17,6 +17,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { collection, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { docsWithId } from '@/utils/docWithId'
 import type { Group } from '@/types/group'
 import { buildExistingGroupIds, getGroupName, findGroup } from '@/utils/groupCache'
 
@@ -58,7 +59,7 @@ export const useGroupsStore = defineStore('groups', () => {
     unsubscribe = onSnapshot(
       collection(db, 'groups'),
       (snapshot) => {
-        groups.value = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Group))
+        groups.value = docsWithId(snapshot.docs) as Group[]
         loadFailed.value = false
         loaded.value = true
         loading.value = false

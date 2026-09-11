@@ -480,6 +480,7 @@ import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { useGroupsStore } from '@/store/modules/groups'
 import { DEFAULT_MEMBERSHIP_TYPES } from '@/types/membershipType'
 import { buildCourtSchedule } from '@/utils/courtScheduleBuild'
+import { docsWithId } from '@/utils/docWithId'
 import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import { notificationService } from '@/services/notificationService'
@@ -909,7 +910,7 @@ const fetchCourtSchedule = async (date: Date) => {
         where('date', '<=', endOfDay)
     )
     const querySnapshot = await getDocs(reservationsQuery)
-    const reservations = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as RawReservationDocWithId)
+    const reservations = docsWithId(querySnapshot.docs) as RawReservationDocWithId[]
     // İptal işleminde grup üyelerini bulabilmek için o günün ham dokümanlarını sakla.
     dayReservations.value = reservations
 

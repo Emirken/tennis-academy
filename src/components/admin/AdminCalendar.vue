@@ -592,6 +592,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { docsWithId } from '@/utils/docWithId'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { useGroupsStore } from '@/store/modules/groups'
 import { useAuthStore } from '@/store/modules/auth'
@@ -1423,7 +1424,7 @@ const cancelSelectedReservation = async () => {
       where('date', '>=', dayStart),
       where('date', '<=', dayEnd)
     ))
-    const dayDocs: RawReservationDocWithId[] = daySnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const dayDocs: RawReservationDocWithId[] = docsWithId(daySnap.docs) as RawReservationDocWithId[]
 
     const ids = getReservationIdsToCancel(
       {

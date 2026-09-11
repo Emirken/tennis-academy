@@ -2364,8 +2364,8 @@ const getGroupReservations = async (membershipType: string, groupId: string) => 
 
     querySnapshot.forEach((doc) => {
       reservations.push({
-        id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        id: doc.id
       })
     })
 
@@ -2528,8 +2528,8 @@ const fetchGroups = async () => {
       }
 
       fetchedGroups.push({
-        id: docSnap.id,
-        ...data
+        ...data,
+        id: docSnap.id
       })
     })
 

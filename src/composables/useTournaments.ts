@@ -1,6 +1,7 @@
 import { computed, ref, onUnmounted } from 'vue'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { docWithId } from '@/utils/docWithId'
 import { useTournamentsStore } from '@/store/modules/tournaments'
 import { isActiveStudent } from '@/utils/studentCounts'
 import type { TournamentCategory } from '@/types/tournament'
@@ -35,7 +36,7 @@ export function useTournaments() {
         query(collection(db, 'users'), where('role', '==', 'student')),
       )
       students.value = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as any))
+        .map((d) => docWithId(d) as any)
         .filter((u) => u.deleted !== true && isActiveStudent(u))
         .map((u) => ({
           id: u.id,

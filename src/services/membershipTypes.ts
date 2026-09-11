@@ -28,8 +28,8 @@ export async function getAllMembershipTypes(): Promise<MembershipType[]> {
   const snapshot = await getDocs(q)
 
   return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
+    ...doc.data(),
+    id: doc.id
   } as MembershipType))
 }
 
@@ -45,8 +45,8 @@ export async function getActiveMembershipTypes(): Promise<MembershipType[]> {
   const snapshot = await getDocs(q)
 
   return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
+    ...doc.data(),
+    id: doc.id
   } as MembershipType))
 }
 
@@ -60,8 +60,8 @@ export async function getMembershipTypeById(id: string): Promise<MembershipType 
   if (!docSnap.exists()) return null
 
   return {
-    id: docSnap.id,
-    ...docSnap.data()
+    ...docSnap.data(),
+    id: docSnap.id
   } as MembershipType
 }
 
@@ -76,8 +76,8 @@ export async function getMembershipTypeByKey(key: string): Promise<MembershipTyp
 
   const doc = snapshot.docs[0]
   return {
-    id: doc.id,
-    ...doc.data()
+    ...doc.data(),
+    id: doc.id
   } as MembershipType
 }
 
@@ -168,8 +168,8 @@ export function subscribeMembershipTypes(
 
   return onSnapshot(q, (snapshot) => {
     const types = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+      ...doc.data(),
+      id: doc.id
     } as MembershipType))
 
     callback(types)

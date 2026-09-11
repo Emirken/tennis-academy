@@ -703,8 +703,8 @@ const loadGroups = async () => {
       }
 
       return {
-        id: docSnap.id,
-        ...data
+        ...data,
+        id: docSnap.id
       } as Group
     })
   } catch (error) {
@@ -722,8 +722,8 @@ const loadStudents = async () => {
     students.value = snapshot.docs
       .filter(docSnap => docSnap.data().deleted !== true)
       .map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
+        ...docSnap.data(),
+        id: docSnap.id
       })) as Student[]
   } catch (error) {
     console.error('Öğrenciler yüklenirken hata:', error)

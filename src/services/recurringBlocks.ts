@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import type { RecurringCourtBlock, RecurringBlockStatus } from '@/utils/recurringCourtBlocks'
+import { docsWithId } from '@/utils/docWithId'
 
 const COLLECTION = 'recurringCourtBlocks'
 
@@ -33,7 +34,7 @@ export interface NewRecurringCourtBlock {
 /** Tüm kuralları getirir (en yeni önce). */
 export async function fetchRecurringBlocks(): Promise<RecurringCourtBlock[]> {
   const snap = await getDocs(query(collection(db, COLLECTION), orderBy('createdAt', 'desc')))
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RecurringCourtBlock, 'id'>) }))
+  return docsWithId(snap.docs) as RecurringCourtBlock[]
 }
 
 /** Yeni kural ekler; eklenen dokümanın id'sini döner. */
