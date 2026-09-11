@@ -47,17 +47,38 @@ const kToCourt: Record<string, string> = {
 }
 
 /**
+ * Kort değerinin sayısal kort numarasını taşıyan yazımlarını yakalar:
+ * 'K2', 'k2', 'court-2', 'Kort 2', 'kort_2', '2' → hepsi 2 numaralı kort.
+ * Serbest metin kort adları ('Merkez Kort') eşleşmez, ham haliyle korunur.
+ */
+const COURT_NUMBER_PATTERN = /^(?:kort|court|k)?[\s._-]*([1-9][0-9]*)$/i
+
+/**
  * Normalize court ID to K format (K1, K2, K3)
+ *
+ * NOT: Aynı kort veritabanında birden çok yazımla durabiliyor ('K2', 'court-2',
+ * 'Kort 2' — migration ve farklı form ekranlarının mirası). Yalnızca 'court-N'
+ * eşlenirse 'Kort 2' ayrı bir kort kimliği gibi davranır: doluluk kaçar ve
+ * v-select değeri listede bulamayıp ham metni ('K2') gösterir.
  */
 export const normalizeCourtToK = (court: string): string => {
-  return courtToK[court] || court
+  if (!court) return court
+  const raw = String(court).trim()
+  const direct = courtToK[raw]
+  if (direct) return direct
+  const match = COURT_NUMBER_PATTERN.exec(raw)
+  return match ? `K${match[1]}` : raw
 }
 
 /**
  * Normalize court ID to court format (court-1, court-2, court-3)
  */
 export const normalizeCourtToCourt = (court: string): string => {
-  return kToCourt[court] || court
+  if (!court) return court
+  const k = normalizeCourtToK(court)
+  if (kToCourt[k]) return kToCourt[k]
+  const match = /^K([1-9][0-9]*)$/.exec(k)
+  return match ? `court-${match[1]}` : k
 }
 
 /**
@@ -74,81 +95,156 @@ export const normalizeDayToTurkish = (day: string): string => {
   return dayNameToTurkish[day] || day
 }
 
+// --------------------------------------------------------------------------
+// Saf doluluk kurulumu (Firestore'dan bağımsız → birim test edilebilir)
+// --------------------------------------------------------------------------
+
+export interface ScheduleSlotLike {
+  day?: string | null
+  time?: string | null
+  court?: string | null
+}
+
+export interface GroupLike {
+  id: string
+  name?: string
+  schedule?: ScheduleSlotLike[]
+  members?: Array<{ id?: string } | string>
+}
+
+export interface StudentLike {
+  id: string
+  firstName?: string
+  lastName?: string
+  deleted?: boolean
+  groupAssignment?: string | null
+  groupSchedule?: { weeklyPlan?: ScheduleSlotLike[] } | null
+}
+
+const memberIdsOf = (group: GroupLike): string[] =>
+  (group.members ?? [])
+    .map(m => (typeof m === 'string' ? m : m?.id))
+    .filter((id): id is string => !!id)
+
+/**
+ * DOLU slot listesini kurar. İKİ KURAL (tenis-project-new
+ * `buildOccupiedSlots` paritesi):
+ *
+ *  1. GRUP ÜYELERİ AYNI SLOTU PAYLAŞIR → çakışma değildir. Grup programı üye
+ *     başına `users/{id}.groupSchedule.weeklyPlan` içine kopyalanır; bunları
+ *     tek tek "dolu" saymak grubun kendi slotunu sahte çakışma yapar. Üyelik
+ *     `groups/{id}.members[]` üzerinden belirlenir — `groupAssignment` alanına
+ *     güvenmek yetmiyor: migration/öğrenci-düzenleme yollarında bu alan boş
+ *     kalabiliyor ve slot geri sızıyordu (bug raporu: "Seçilen programda
+ *     çakışma var: monday 18:00").
+ *
+ *  2. DÜZENLENEN KAYIT KENDİSİYLE ÇAKIŞAMAZ. Düzenlenen grup (excludeGroupId)
+ *     ve düzenlenen öğrencinin ÜYE OLDUĞU grup(lar) listeden düşer; öğrenci
+ *     düzenleme formu planı zaten o gruptan yüklüyor.
+ */
+export const buildOccupiedSlots = (input: {
+  groups?: GroupLike[]
+  students?: StudentLike[]
+  excludeGroupId?: string
+  excludeStudentId?: string
+}): OccupiedSlot[] => {
+  const groups = input.groups ?? []
+  const students = input.students ?? []
+  const occupiedSlots: OccupiedSlot[] = []
+
+  // Bir gruba üye olan tüm öğrenci id'leri (kural 1)
+  const groupedStudentIds = new Set<string>()
+  groups.forEach(g => memberIdsOf(g).forEach(id => groupedStudentIds.add(id)))
+
+  // Hariç tutulacak gruplar (kural 2)
+  const excludedGroupIds = new Set<string>()
+  if (input.excludeGroupId) excludedGroupIds.add(input.excludeGroupId)
+  if (input.excludeStudentId) {
+    const studentId = input.excludeStudentId
+    groups.forEach(g => {
+      if (memberIdsOf(g).includes(studentId)) excludedGroupIds.add(g.id)
+    })
+  }
+
+  // 1) Grup programları
+  groups.forEach(group => {
+    if (excludedGroupIds.has(group.id)) return
+    ;(group.schedule ?? []).forEach(slot => {
+      if (slot?.day && slot.time && slot.court) {
+        occupiedSlots.push({
+          day: normalizeDayToEnglish(slot.day),
+          time: slot.time,
+          court: normalizeCourtToK(slot.court),
+          groupId: group.id,
+          groupName: group.name,
+          isGroup: true
+        })
+      }
+    })
+  })
+
+  // 2) Bireysel (gruba üye OLMAYAN) öğrencilerin haftalık planı
+  students.forEach(student => {
+    if (student.deleted === true) return
+    if (input.excludeStudentId && student.id === input.excludeStudentId) return
+    if (student.groupAssignment) return
+    if (groupedStudentIds.has(student.id)) return
+
+    ;(student.groupSchedule?.weeklyPlan ?? []).forEach(slot => {
+      if (slot?.day && slot.time && slot.court) {
+        occupiedSlots.push({
+          day: normalizeDayToEnglish(slot.day),
+          time: slot.time,
+          court: normalizeCourtToK(slot.court),
+          studentId: student.id,
+          studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+          isGroup: false
+        })
+      }
+    })
+  })
+
+  return occupiedSlots
+}
+
 /**
  * Load all occupied weekly slots from groups and individual student schedules
  */
 export const loadOccupiedSlots = async (excludeGroupId?: string, excludeStudentId?: string): Promise<OccupiedSlot[]> => {
-  const occupiedSlots: OccupiedSlot[] = []
-
   try {
-    // 1. Load all group schedules
-    const groupsRef = collection(db, 'groups')
-    const groupsSnapshot = await getDocs(groupsRef)
-
-    groupsSnapshot.forEach((doc) => {
-      const group = doc.data()
-      const groupId = doc.id
-
-      // Skip the excluded group (when editing a group)
-      if (excludeGroupId && groupId === excludeGroupId) return
-
-      if (group.schedule && Array.isArray(group.schedule)) {
-        group.schedule.forEach((slot: { day: string; time: string; court: string }) => {
-          if (slot.day && slot.time && slot.court) {
-            occupiedSlots.push({
-              day: normalizeDayToEnglish(slot.day),
-              time: slot.time,
-              court: normalizeCourtToK(slot.court),
-              groupId,
-              groupName: group.name,
-              isGroup: true
-            })
-          }
-        })
+    const groupsSnapshot = await getDocs(collection(db, 'groups'))
+    const groups: GroupLike[] = groupsSnapshot.docs.map(d => {
+      const data = d.data() as any
+      return {
+        id: d.id,
+        name: data.name,
+        schedule: Array.isArray(data.schedule) ? data.schedule : [],
+        members: Array.isArray(data.members) ? data.members : []
       }
     })
 
-    // 2. Load individual student schedules (non-group memberships)
-    const usersRef = collection(db, 'users')
-    const studentsQuery = query(usersRef, where('role', '==', 'student'))
-    const studentsSnapshot = await getDocs(studentsQuery)
-
-    studentsSnapshot.forEach((doc) => {
-      const student = doc.data()
-      const studentId = doc.id
-
-      // Ghost cleanup: skip deleted students
-      if (student.deleted === true) return
-
-      // Skip the excluded student (when editing a student)
-      if (excludeStudentId && studentId === excludeStudentId) return
-
-      // Skip if student is in a group (their schedule is managed by the group)
-      if (student.groupAssignment) return
-
-      // Check for individual weekly plan
-      if (student.groupSchedule?.weeklyPlan && Array.isArray(student.groupSchedule.weeklyPlan)) {
-        student.groupSchedule.weeklyPlan.forEach((slot: { day: string; time: string; court: string }) => {
-          if (slot.day && slot.time && slot.court) {
-            occupiedSlots.push({
-              day: normalizeDayToEnglish(slot.day),
-              time: slot.time,
-              court: normalizeCourtToK(slot.court),
-              studentId,
-              studentName: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
-              isGroup: false
-            })
-          }
-        })
+    const studentsSnapshot = await getDocs(
+      query(collection(db, 'users'), where('role', '==', 'student'))
+    )
+    const students: StudentLike[] = studentsSnapshot.docs.map(d => {
+      const data = d.data() as any
+      return {
+        id: d.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        deleted: data.deleted === true,
+        groupAssignment: data.groupAssignment ?? null,
+        groupSchedule: data.groupSchedule ?? null
       }
     })
 
+    const occupiedSlots = buildOccupiedSlots({ groups, students, excludeGroupId, excludeStudentId })
     console.log(`✅ Loaded ${occupiedSlots.length} occupied slots`)
+    return occupiedSlots
   } catch (error) {
     console.error('❌ Error loading occupied slots:', error)
+    return []
   }
-
-  return occupiedSlots
 }
 
 /**
@@ -164,9 +260,9 @@ export const isSlotOccupied = (
   const normalizedCourt = normalizeCourtToK(court)
 
   return occupiedSlots.find(
-    slot => 
-      slot.day === normalizedDay && 
-      slot.time === time && 
+    slot =>
+      slot.day === normalizedDay &&
+      slot.time === time &&
       slot.court === normalizedCourt
   ) || null
 }
@@ -182,43 +278,89 @@ export const getOccupiedSlotInfo = (slot: OccupiedSlot): string => {
 }
 
 /**
+ * Seçenek üreticilerine verilen bağlam.
+ *
+ *  - `currentTime` / `currentCourt`: DÜZENLENEN SATIRIN kendi değeri. Bu değer
+ *    asla "dolu" işaretlenmez ve listeden düşürülmez; aksi halde v-select
+ *    modelValue'yu items içinde bulamayıp ham metni gösterir ve kullanıcı kendi
+ *    kaydettiği slotu geri seçemez.
+ *  - `allCourts` / `allTimes`: GÜN-ÖNCELİKLİ KASKAD. Kullanıcı sadece günü
+ *    seçtiğinde diğer iki liste yine de boşluğa düşsün diye kullanılır: bir saat
+ *    ancak o gün TÜM kortlarda doluysa kapanır, bir kort ancak o gün TÜM
+ *    saatlerde doluysa kapanır.
+ */
+export interface SlotOptionContext {
+  currentTime?: string
+  currentCourt?: string
+  allCourts?: string[]
+  allTimes?: string[]
+}
+
+interface OptionResult {
+  title: string
+  value: string
+  disabled?: boolean
+  subtitle?: string
+}
+
+const busyOption = (title: string, value: string, suffix: string, occupied?: OccupiedSlot): OptionResult => ({
+  title: `${title} - DOLU ${suffix}`,
+  value,
+  disabled: true,
+  subtitle: occupied ? getOccupiedSlotInfo(occupied) : 'Dolu'
+})
+
+const occupiedLabel = (occupied: OccupiedSlot): string =>
+  occupied.isGroup
+    ? `(${occupied.groupName || 'Grup'})`
+    : `(${occupied.studentName || 'Öğrenci'})`
+
+/**
  * Get available time options for a specific day and court
  */
 export const getAvailableTimeOptions = (
   occupiedSlots: OccupiedSlot[],
   day: string,
   court: string,
-  allTimeOptions: string[]
-): Array<{ title: string; value: string; disabled?: boolean; subtitle?: string }> => {
+  allTimeOptions: string[],
+  context: SlotOptionContext = {}
+): OptionResult[] => {
   const normalizedDay = normalizeDayToEnglish(day)
-  const normalizedCourt = normalizeCourtToK(court)
+  const normalizedCourt = court ? normalizeCourtToK(court) : ''
+  const candidateCourts = (context.allCourts ?? []).map(normalizeCourtToK)
 
   return allTimeOptions.map(time => {
-    const occupied = occupiedSlots.find(
-      slot => 
-        slot.day === normalizedDay && 
-        slot.time === time && 
-        slot.court === normalizedCourt
-    )
+    // Satırın kendi saati her zaman seçilebilir kalır
+    if (context.currentTime && time === context.currentTime) {
+      return { title: time, value: time, disabled: false }
+    }
 
-    if (occupied) {
-      const occupiedBy = occupied.isGroup 
-        ? `(${occupied.groupName || 'Grup'})` 
-        : `(${occupied.studentName || 'Öğrenci'})`
-      
-      return {
-        title: `${time} - DOLU ${occupiedBy}`,
-        value: time,
-        disabled: true,
-        subtitle: getOccupiedSlotInfo(occupied)
+    if (normalizedCourt) {
+      const occupied = occupiedSlots.find(
+        slot =>
+          slot.day === normalizedDay &&
+          slot.time === time &&
+          slot.court === normalizedCourt
+      )
+      if (occupied) {
+        return busyOption(time, time, occupiedLabel(occupied), occupied)
       }
+      return { title: time, value: time, disabled: false }
     }
 
-    return {
-      title: time,
-      value: time,
-      disabled: false
+    // Kort henüz seçilmedi: saat ancak TÜM aday kortlarda doluysa kapanır
+    const allCourtsBusy =
+      candidateCourts.length > 0 &&
+      candidateCourts.every(c =>
+        occupiedSlots.some(
+          slot => slot.day === normalizedDay && slot.time === time && slot.court === c
+        )
+      )
+    if (allCourtsBusy) {
+      return busyOption(time, time, '(tüm kortlar)')
     }
+
+    return { title: time, value: time, disabled: false }
   })
 }
 
@@ -230,38 +372,46 @@ export const getAvailableCourtOptions = (
   day: string,
   time: string,
   allCourtOptions: Array<{ title: string; value: string }>,
-  courtFormat: 'K' | 'court' = 'K'
-): Array<{ title: string; value: string; disabled?: boolean; subtitle?: string }> => {
+  courtFormat: 'K' | 'court' = 'K',
+  context: SlotOptionContext = {}
+): OptionResult[] => {
   const normalizedDay = normalizeDayToEnglish(day)
+  const candidateTimes = context.allTimes ?? []
 
   return allCourtOptions.map(court => {
     const normalizedCourt = normalizeCourtToK(court.value)
-    
-    const occupied = occupiedSlots.find(
-      slot => 
-        slot.day === normalizedDay && 
-        slot.time === time && 
-        slot.court === normalizedCourt
-    )
 
-    if (occupied) {
-      const occupiedBy = occupied.isGroup 
-        ? `(${occupied.groupName || 'Grup'})` 
-        : `(${occupied.studentName || 'Öğrenci'})`
-      
-      return {
-        title: `${court.title} - DOLU ${occupiedBy}`,
-        value: court.value,
-        disabled: true,
-        subtitle: getOccupiedSlotInfo(occupied)
+    // Satırın kendi kortu her zaman seçilebilir kalır
+    if (context.currentCourt && normalizeCourtToK(context.currentCourt) === normalizedCourt) {
+      return { title: court.title, value: court.value, disabled: false }
+    }
+
+    if (time) {
+      const occupied = occupiedSlots.find(
+        slot =>
+          slot.day === normalizedDay &&
+          slot.time === time &&
+          slot.court === normalizedCourt
+      )
+      if (occupied) {
+        return busyOption(court.title, court.value, occupiedLabel(occupied), occupied)
       }
+      return { title: court.title, value: court.value, disabled: false }
     }
 
-    return {
-      title: court.title,
-      value: court.value,
-      disabled: false
+    // Saat henüz seçilmedi: kort ancak gün boyu doluysa kapanır
+    const allDayBusy =
+      candidateTimes.length > 0 &&
+      candidateTimes.every(t =>
+        occupiedSlots.some(
+          slot => slot.day === normalizedDay && slot.time === t && slot.court === normalizedCourt
+        )
+      )
+    if (allDayBusy) {
+      return busyOption(court.title, court.value, '(gün boyu)')
     }
+
+    return { title: court.title, value: court.value, disabled: false }
   })
 }
 
@@ -279,9 +429,10 @@ export const getSelectableTimeOptions = (
   occupiedSlots: OccupiedSlot[],
   day: string,
   court: string,
-  allTimeOptions: string[]
+  allTimeOptions: string[],
+  context: SlotOptionContext = {}
 ): Array<{ title: string; value: string }> => {
-  return getAvailableTimeOptions(occupiedSlots, day, court, allTimeOptions)
+  return getAvailableTimeOptions(occupiedSlots, day, court, allTimeOptions, context)
     .filter(opt => !opt.disabled)
     .map(({ title, value }) => ({ title, value }))
 }
@@ -295,9 +446,10 @@ export const getSelectableCourtOptions = (
   day: string,
   time: string,
   allCourtOptions: Array<{ title: string; value: string }>,
-  courtFormat: 'K' | 'court' = 'K'
+  courtFormat: 'K' | 'court' = 'K',
+  context: SlotOptionContext = {}
 ): Array<{ title: string; value: string }> => {
-  return getAvailableCourtOptions(occupiedSlots, day, time, allCourtOptions, courtFormat)
+  return getAvailableCourtOptions(occupiedSlots, day, time, allCourtOptions, courtFormat, context)
     .filter(opt => !opt.disabled)
     .map(({ title, value }) => ({ title, value }))
 }

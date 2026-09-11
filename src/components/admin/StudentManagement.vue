@@ -732,6 +732,7 @@
                                   variant="outlined"
                                   density="compact"
                                   placeholder="Gün seçiniz"
+                                  @update:model-value="onDayPlanDayChange(index)"
                               >
                                 <template #prepend-inner>
                                   <v-icon color="blue" size="16">mdi-calendar</v-icon>
@@ -750,8 +751,9 @@
                                   variant="outlined"
                                   density="compact"
                                   placeholder="Saat seçiniz"
-                                  :disabled="!dayPlan.day || !dayPlan.court"
-                                  :hint="!dayPlan.day || !dayPlan.court ? 'Önce gün ve kort seçin' : ''"
+                                  :disabled="!dayPlan.day"
+                                  :hint="!dayPlan.day ? 'Önce gün seçin' : ''"
+                                  no-data-text="Bu gün için boş saat yok"
                               >
                                 <template #prepend-inner>
                                   <v-icon color="green" size="16">mdi-clock</v-icon>
@@ -770,6 +772,9 @@
                                   variant="outlined"
                                   density="compact"
                                   placeholder="Kort seçiniz"
+                                  :disabled="!dayPlan.day"
+                                  :hint="!dayPlan.day ? 'Önce gün seçin' : ''"
+                                  no-data-text="Bu gün için boş kort yok"
                               >
                                 <template #prepend-inner>
                                   <v-icon color="orange" size="16">mdi-tennis-ball</v-icon>
@@ -1239,6 +1244,7 @@ import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 import {
   loadOccupiedSlots,
+  normalizeCourtToCourt,
   getSelectableTimeOptions,
   getSelectableCourtOptions,
   type OccupiedSlot
@@ -1433,23 +1439,42 @@ const loadingSlots = ref(false)
 // Bir gün-planı slotu için saat seçenekleri. DOLU saatler AdminCalendar mantığıyla
 // LİSTEDEN TAMAMEN ÇIKARILIR (disabled+gösterim yerine filtreleme) — dolu saat hiç
 // görünmez ve seçilemez.
+// GÜN-ÖNCELİKLİ KASKAD: yalnızca gün seçilmişken de liste boşluğa düşer —
+// `allCourts` sayesinde bir saat ancak o gün TÜM kortlarda doluysa elenir.
+// `currentTime` satırın kendi seçimini korur.
 const getTimeOptionsForDayPlan = (slotIndex: number) => {
   const slot = editForm.value.weeklyPlan[slotIndex]
-  if (!slot?.day || !slot?.court) {
+  if (!slot?.day) {
     return timeOptions.value
   }
   // Convert time values for the service
   const timeValues = timeOptions.value.map(t => t.value)
-  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeValues)
+  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court || '', timeValues, {
+    currentTime: slot.time,
+    allCourts: courtOptions.map(c => c.value)
+  })
 }
 
 // Bir gün-planı slotu için kort seçenekleri. DOLU kortlar listeden çıkarılır.
+// Saat seçilmemişken de gün boyu dolu kortlar elenir (`allTimes`).
 const getCourtOptionsForDayPlan = (slotIndex: number) => {
   const slot = editForm.value.weeklyPlan[slotIndex]
-  if (!slot?.day || !slot?.time) {
+  if (!slot?.day) {
     return courtOptions
   }
-  return getSelectableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'court')
+  return getSelectableCourtOptions(occupiedSlots.value, slot.day, slot.time || '', courtOptions, 'court', {
+    currentCourt: slot.court,
+    allTimes: timeOptions.value.map(t => t.value)
+  })
+}
+
+// Gün değişince saat/kort sıfırlanır: kullanıcı yeni günün BOŞ seçenekleri
+// arasından seçsin.
+const onDayPlanDayChange = (slotIndex: number) => {
+  const slot = editForm.value.weeklyPlan[slotIndex]
+  if (!slot) return
+  slot.time = ''
+  slot.court = ''
 }
 
 // Load occupied slots
@@ -1458,13 +1483,28 @@ const loadOccupiedSlotsData = async () => {
   try {
     // Exclude current student when editing
     const excludeId = selectedStudent.value?.id
-    occupiedSlots.value = await loadOccupiedSlots(undefined, excludeId)
+    // Öğrencinin KENDİ grubu da doluluktan düşer: Düzenle formu grup üyesinin
+    // haftalık planını zaten o grubun schedule'ından yüklüyor; grup dolu
+    // sayılırsa öğrenci kendi programını kaydedemiyor ("Seçilen programda
+    // çakışma var"). Formda başka bir grup seçildiyse hedef grup düşer.
+    const excludeGroupId =
+      editForm.value.groupAssignment || selectedStudent.value?.groupAssignment || undefined
+    occupiedSlots.value = await loadOccupiedSlots(excludeGroupId, excludeId)
   } catch (error) {
     console.error('Error loading occupied slots:', error)
   } finally {
     loadingSlots.value = false
   }
 }
+
+// Formda grup değişince doluluk yeniden kurulur (hedef grubun kendi slotları
+// dolu görünmemeli) — tenis-project-new resolveOccupancyExcludeGroupId paritesi.
+watch(
+  () => editForm.value.groupAssignment,
+  () => {
+    if (isEditMode.value) void loadOccupiedSlotsData()
+  }
+)
 
 // Validation rules
 const nameRules = [
@@ -1817,12 +1857,11 @@ const getDayDisplayName = (day: string): string => {
 
 // Kort isimlerini görüntüleme fonksiyonu
 const getCourtDisplayName = (court: string): string => {
-  const courtMap: { [key: string]: string } = {
-    'court-1': 'Kort 1',
-    'court-2': 'Kort 2',
-    'court-3': 'Kort 3'
-  }
-  return courtMap[court] || court
+  // Kort değeri 'court-2' / 'K2' / '2' gibi farklı yazımlarla gelebiliyor
+  // (migration + iki ayrı form ekranı mirası) — hepsi tek etikete indirgenir.
+  if (!court) return ''
+  const match = /^court-([1-9][0-9]*)$/.exec(normalizeCourtToCourt(court))
+  return match ? `Kort ${match[1]}` : court
 }
 
 // Haftalık programı string olarak gösterme
@@ -2749,10 +2788,16 @@ const saveStudentChanges = async (): Promise<void> => {
   
   // Program Çakışma Kontrolü
   if (validWeeklyPlan.length > 0) {
-    const { getScheduleConflicts } = await import('@/services/courtAvailability')
+    const { getScheduleConflicts, normalizeDayToTurkish } = await import('@/services/courtAvailability')
     const conflicts = getScheduleConflicts(occupiedSlots.value, validWeeklyPlan)
     if (conflicts.length > 0) {
-      const conflictMsg = conflicts.map(c => `${c.slot.day} ${c.slot.time}`).join(', ')
+      // Kimin doldurduğu mesajda görünsün — "monday 18:00" tek başına yetersizdi.
+      const conflictMsg = conflicts
+        .map(c => {
+          const owner = c.slot.isGroup ? (c.slot.groupName || 'Grup') : (c.slot.studentName || 'Öğrenci')
+          return `${normalizeDayToTurkish(c.slot.day)} ${c.slot.time} ${getCourtDisplayName(c.slot.court)} → ${owner}`
+        })
+        .join(', ')
       successMessage.value = `Seçilen programda çakışma var: ${conflictMsg}`
       successSnackbar.value = true
       return

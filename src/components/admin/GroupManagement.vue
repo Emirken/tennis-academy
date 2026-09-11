@@ -254,6 +254,7 @@
                         variant="outlined"
                         density="compact"
                         hide-details
+                        @update:model-value="onSlotDayChange(idx)"
                     ></v-select>
                   </v-col>
                   <v-col cols="3">
@@ -266,8 +267,9 @@
                         variant="outlined"
                         density="compact"
                         hide-details
-                        :disabled="!slot.day || !slot.court"
-                        :hint="!slot.day || !slot.court ? 'Önce gün ve kort seçin' : ''"
+                        :disabled="!slot.day"
+                        :hint="!slot.day ? 'Önce gün seçin' : ''"
+                        no-data-text="Bu gün için boş saat yok"
                     ></v-select>
                   </v-col>
                   <v-col cols="3">
@@ -280,6 +282,9 @@
                         variant="outlined"
                         density="compact"
                         hide-details
+                        :disabled="!slot.day"
+                        :hint="!slot.day ? 'Önce gün seçin' : ''"
+                        no-data-text="Bu gün için boş kort yok"
                     ></v-select>
                   </v-col>
                   <v-col cols="3" class="d-flex align-center justify-end">
@@ -621,21 +626,43 @@ const isGroupFull = computed(() => {
 
 // Bir program slotu için saat seçenekleri. DOLU saatler AdminCalendar mantığıyla
 // LİSTEDEN TAMAMEN ÇIKARILIR — dolu saat hiç görünmez ve seçilemez.
+//
+// GÜN-ÖNCELİKLİ KASKAD: yalnızca gün seçilmişken de liste boşluğa düşer —
+// `allCourts` verildiği için bir saat ancak o gün TÜM kortlarda doluysa elenir.
+// `currentTime` satırın kendi seçimini korur (aksi halde v-select modelValue'yu
+// items içinde bulamayıp ham değeri gösteriyordu).
 const getTimeOptionsForSlot = (slotIndex: number) => {
   const slot = groupFormData.value.schedule[slotIndex]
-  if (!slot?.day || !slot?.court) {
+  if (!slot?.day) {
     return timeOptions.value.map(t => ({ title: t, value: t }))
   }
-  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court, timeOptions.value)
+  return getSelectableTimeOptions(occupiedSlots.value, slot.day, slot.court || '', timeOptions.value, {
+    currentTime: slot.time,
+    allCourts: courtOptions.map(c => c.value)
+  })
 }
 
 // Bir program slotu için kort seçenekleri. DOLU kortlar listeden çıkarılır.
+// Saat seçilmemişken de gün boyu dolu kortlar elenir (`allTimes`).
 const getCourtOptionsForSlot = (slotIndex: number) => {
   const slot = groupFormData.value.schedule[slotIndex]
-  if (!slot?.day || !slot?.time) {
+  if (!slot?.day) {
     return courtOptions
   }
-  return getSelectableCourtOptions(occupiedSlots.value, slot.day, slot.time, courtOptions, 'K')
+  return getSelectableCourtOptions(occupiedSlots.value, slot.day, slot.time || '', courtOptions, 'K', {
+    currentCourt: slot.court,
+    allTimes: timeOptions.value
+  })
+}
+
+// Gün değişince saat/kort sıfırlanır: kullanıcı yeni günün BOŞ seçenekleri
+// arasından seçsin, eski günden kalan (yeni günde dolu olabilecek) değer
+// taşınmasın.
+const onSlotDayChange = (slotIndex: number) => {
+  const slot = groupFormData.value.schedule[slotIndex]
+  if (!slot) return
+  slot.time = ''
+  slot.court = ''
 }
 
 // Load occupied slots when dialog opens
@@ -719,7 +746,13 @@ const openAddGroupDialog = async () => {
 
 const editGroup = async (group: Group) => {
   editingGroup.value = group
-  groupFormData.value = { ...group }
+  // schedule/members DERİN kopyalanır: yüzeysel kopyada diziler listedeki grup
+  // nesnesiyle paylaşılıyor ve dialog iptal edilse bile tablo mutasyona uğruyordu.
+  groupFormData.value = {
+    ...group,
+    schedule: (group.schedule || []).map(s => ({ ...s })),
+    members: (group.members || []).map(m => ({ ...m }))
+  }
   groupDialog.value = true
   await loadOccupiedSlotsData()
 }
@@ -755,10 +788,17 @@ const saveGroup = async () => {
   // Program Çakışma Kontrolü
   const validSchedule = groupFormData.value.schedule.filter((p: any) => p.day && p.time && p.court)
   if (validSchedule.length > 0) {
-    const { getScheduleConflicts } = await import('@/services/courtAvailability')
+    const { getScheduleConflicts, normalizeDayToTurkish } = await import('@/services/courtAvailability')
     const conflicts = getScheduleConflicts(occupiedSlots.value, validSchedule)
     if (conflicts.length > 0) {
-      const conflictMsg = conflicts.map(c => `${c.slot.day} ${c.slot.time}`).join(', ')
+      // Mesaj kimin doldurduğunu söylemeli — "monday 18:00" tek başına hatanın
+      // kaynağını göstermiyordu.
+      const conflictMsg = conflicts
+        .map(c => {
+          const owner = c.slot.isGroup ? (c.slot.groupName || 'Grup') : (c.slot.studentName || 'Öğrenci')
+          return `${normalizeDayToTurkish(c.slot.day)} ${c.slot.time} ${formatCourtLabel(c.slot.court)} → ${owner}`
+        })
+        .join(', ')
       showSnackbar(`Seçilen programda çakışma var: ${conflictMsg}`, 'error')
       return
     }
