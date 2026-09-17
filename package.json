@@ -7,7 +7,7 @@
     "build": "vue-cli-service build",
     "test:unit": "vitest run tests/unit/reservations.spec.ts",
     "test:integration": "vitest run tests/integration",
-    "test:rules": "firebase emulators:exec \"vitest run tests/unit/firestore-rules.spec.ts\"",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/unit/firestore-rules.spec.ts\"",
     "test:e2e": "playwright test tests/e2e"
   },
   "dependencies": {

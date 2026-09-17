@@ -590,8 +590,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useDisplay } from 'vuetify'
-import { collection, query, where, getDocs, orderBy, doc, getDoc, addDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '@/services/firebase'
+import { commitAdminCourtRental } from '@/services/reservationDayLock'
 import { docsWithId } from '@/utils/docWithId'
 import { useMembershipTypesStore } from '@/store/modules/membershipTypes'
 import { useGroupsStore } from '@/store/modules/groups'
@@ -1691,6 +1692,7 @@ const saveReservation = async () => {
       courtId: reservationForm.value.courtId,
       courtName: getCourtName(reservationForm.value.courtId),
       date: Timestamp.fromDate(reservationDate),
+      dateKey: reservationForm.value.date,
       startTime: reservationForm.value.startTime,
       endTime: reservationForm.value.endTime,
       duration,
@@ -1708,8 +1710,13 @@ const saveReservation = async () => {
       updatedAt: Timestamp.now()
     }
 
-    // Save to Firestore
-    await addDoc(collection(db, 'reservations'), reservation)
+    // Kayıtlı öğrenci adına açılıyorsa günün kilidi (boşsa) aynı batch'te
+    // alınır — öğrenci bu güne kuralı atlatarak ikinci kayıt ekleyemesin.
+    await commitAdminCourtRental({
+      studentId: reservationForm.value.studentId || null,
+      dateKey: reservationForm.value.date,
+      reservation
+    })
 
     showSnackbar('Rezervasyon başarıyla oluşturuldu', 'success')
     closeReservationDialog()

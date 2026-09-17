@@ -55,16 +55,146 @@ service cloud.firestore {
       allow write: if isAdminOrBoss();
     }
     
+    // ---------------------------------------------------------------------
+    // GÜNDE-BİR KORT REZERVASYONU (sunucu zorlaması)
+    //
+    // Öğrenci aynı gün için en fazla BİR aktif (pending/confirmed) kort
+    // kiralaması tutabilir; dersler sayılmaz. Kurallar sorgu/sayım
+    // yapamadığından benzersizlik reservationDayLocks/{studentId}_{YYYY-MM-DD}
+    // kilidiyle sağlanır: öğrenci rezervasyonu ve kilidi AYNI batch'te yazar
+    // (src/services/reservationDayLock.ts). Kilit başka bir aktif
+    // rezervasyonu gösteriyorsa kilit yazımı (update) reddedilir ve batch
+    // bütünüyle düşer. Kilidin gösterdiği kayıt iptal/tamamlandı/silindiyse
+    // kilit devralınır — iptal akışlarının kilide dokunması gerekmez.
+    // ---------------------------------------------------------------------
+
+    function isValidDateKey(key) {
+      return key is string && key.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    // 'YYYY-MM-DD' → o günün UTC gece yarısı (istemci: dateKeyToUtcDate).
+    function utcMidnightOf(key) {
+      return timestamp.date(int(key.split('-')[0]),
+                            int(key.split('-')[1]),
+                            int(key.split('-')[2]));
+    }
+
+    function reservationPath(id) {
+      return /databases/$(database)/documents/reservations/$(id);
+    }
+
+    function dayLockPath(lockId) {
+      return /databases/$(database)/documents/reservationDayLocks/$(lockId);
+    }
+
+    function isReservationOwner() {
+      return resource.data.get('studentId', null) == request.auth.uid ||
+             resource.data.get('userId', null) == request.auth.uid;
+    }
+
+    // Öğrencinin kendi adına açtığı, onay bekleyen kort kiralaması. Alan
+    // listesi ReservationForm.vue'nun yazdığıyla birebir; tarih dateKey'e
+    // bağlı; aynı batch'te o günün kilidi BU rezervasyonu göstermeli.
+    function isOwnLockedCourtRental(reservationId) {
+      let d = request.resource.data;
+      let lockId = request.auth.uid + '_' + d.get('dateKey', '');
+      return d.get('studentId', null) == request.auth.uid &&
+        d.keys().hasOnly(['studentId', 'courtId', 'courtName', 'date', 'dateKey',
+                          'startTime', 'endTime', 'duration', 'type', 'status',
+                          'totalCost', 'createdAt']) &&
+        d.get('status', null) == 'pending' &&
+        d.get('type', null) == 'court-rental' &&
+        isValidDateKey(d.get('dateKey', null)) &&
+        d.get('date', null) == utcMidnightOf(d.dateKey) &&
+        existsAfter(dayLockPath(lockId)) &&
+        getAfter(dayLockPath(lockId)).data.get('reservationId', null) == reservationId;
+    }
+
+    // StudentDashboard self-heal'i (createFutureGroupReservations) öğrencinin
+    // KENDİ grubunun ders kayıtlarını yeniden üretir. Dersler günde-bir
+    // limitine sayılmaz; yalnız kendi groupAssignment'ı için izinli.
+    function isOwnGroupLessonSelfHeal() {
+      let d = request.resource.data;
+      let groupId = get(/databases/$(database)/documents/users/$(request.auth.uid))
+                      .data.get('groupAssignment', '');
+      return d.get('studentId', null) == request.auth.uid &&
+        d.get('groupSchedule', false) == true &&
+        d.get('type', null) == 'lesson' &&
+        d.get('reservationType', null) == 'group-lesson' &&
+        groupId is string && groupId != '' &&
+        d.get('groupId', null) == groupId &&
+        d.get('groupAssignment', null) == groupId;
+    }
+
+    // Sahibinin yapabildiği TEK değişiklik iptal. Aksi hâlde iptal edilmiş bir
+    // kayıt (kilit devredildikten sonra) yeniden 'pending' yapılarak ya da
+    // tarihi taşınarak aynı güne ikinci aktif kayıt elde edilebilirdi.
+    function isOwnerCancellation() {
+      return request.resource.data.get('status', null) == 'cancelled' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'cancelledAt', 'cancelledBy']);
+    }
+
     // Reservations collection
     match /reservations/{reservationId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-        (resource == null ||
-         resource.data.userId == request.auth.uid ||
-         resource.data.studentId == request.auth.uid ||
-         isAdminOrBoss());
+
+      // Admin/boss serbest (dersler, elle kayıt, grup senkronu).
+      allow create: if request.auth != null &&
+        (isAdminOrBoss() ||
+         isOwnLockedCourtRental(reservationId) ||
+         isOwnGroupLessonSelfHeal());
+
+      allow update: if request.auth != null &&
+        ((isReservationOwner() && isOwnerCancellation()) || isAdminOrBoss());
+
+      allow delete: if request.auth != null &&
+        (isReservationOwner() || isAdminOrBoss());
     }
-    
+
+    function isValidDayLock(lockId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['studentId', 'dateKey', 'reservationId', 'updatedAt']) &&
+        d.get('studentId', null) is string && d.studentId != '' &&
+        isValidDateKey(d.get('dateKey', null)) &&
+        d.get('reservationId', null) is string && d.reservationId != '' &&
+        lockId == d.studentId + '_' + d.dateKey;
+    }
+
+    // Öğrencinin kendi kilidi, aynı batch'te yazılan KENDİ rezervasyonuna
+    // (aynı gün) bağlanıyor.
+    function isOwnDayLockBinding() {
+      let d = request.resource.data;
+      return d.studentId == request.auth.uid &&
+        existsAfter(reservationPath(d.reservationId)) &&
+        getAfter(reservationPath(d.reservationId)).data.get('studentId', null) == request.auth.uid &&
+        getAfter(reservationPath(d.reservationId)).data.get('dateKey', null) == d.dateKey;
+    }
+
+    // Kilidin şu an gösterdiği rezervasyon günü artık tutmuyor mu (yok ya da
+    // pending/confirmed değil)? — isDayLockHeld (istemci) paritesi.
+    function isDayLockReleased(reservationId) {
+      return !exists(reservationPath(reservationId)) ||
+        !(get(reservationPath(reservationId)).data.get('status', '') in ['pending', 'confirmed']);
+    }
+
+    // Günde-bir kort rezervasyonu kilitleri. Öğrenci kilidini SİLEMEZ — aksi
+    // hâlde aktif rezervasyonu dururken kilidi silip ikinci kayıt açabilirdi.
+    match /reservationDayLocks/{lockId} {
+      allow read: if request.auth != null &&
+        ((resource != null && resource.data.get('studentId', null) == request.auth.uid) ||
+         isAdminOrBoss());
+
+      allow create: if request.auth != null && isValidDayLock(lockId) &&
+        (isOwnDayLockBinding() || isAdminOrBoss());
+
+      allow update: if request.auth != null && isValidDayLock(lockId) &&
+        ((isOwnDayLockBinding() && isDayLockReleased(resource.data.get('reservationId', ''))) ||
+         isAdminOrBoss());
+
+      allow delete: if isAdminOrBoss();
+    }
+
     // Students collection - admin can read/write, students can read their own
     match /students/{studentId} {
       allow read: if isAuthenticated() &&

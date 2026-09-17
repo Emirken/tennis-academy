@@ -118,7 +118,6 @@ import { useAuthStore } from '@/store/modules/auth'
 import {
   doc,
   getDoc,
-  setDoc,
   collection,
   query,
   where,
@@ -127,6 +126,13 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { notificationService } from '@/services/notificationService'
+import { commitStudentCourtRental } from '@/services/reservationDayLock'
+import {
+  SAME_DAY_LIMIT_MESSAGE,
+  dateKeyToUtcDate,
+  isDayLockConflictError,
+  isValidDateKey
+} from '@/utils/reservationDayLock'
 import {
   getOpenReservationRange,
   isReservationDateOpen,
@@ -390,11 +396,22 @@ const getCourtnameById = (courtId: string): string => {
 }
 
 const submitReservation = async () => {
-  if (!valid.value) return
+  // Çift gönderim koruması: Enter + tık ya da hızlı çift dokunuş ikinci bir
+  // gönderim başlatmasın. Sunucudaki gün kilidi ikinciyi zaten reddeder; bu
+  // koruma kullanıcıya yanıltıcı hata göstermemek içindir.
+  if (!valid.value || loading.value) return
+
+  const studentId = authStore.user?.id
+  const dateKey = reservationData.date
+  if (!studentId || !isValidDateKey(dateKey)) {
+    errorMessage.value = 'Rezervasyon oluşturulamadı. Lütfen tarihi kontrol edip tekrar deneyin.'
+    errorSnackbar.value = true
+    return
+  }
 
   // Rezervasyon penceresi kontrolü — tarayıcı saatini submit anında tekrar doğrula
   now.value = new Date()
-  if (!isReservationDateOpen(reservationData.date, now.value)) {
+  if (!isReservationDateOpen(dateKey, now.value)) {
     const range = openReservationRange.value
     errorMessage.value = range
       ? `Yalnızca ${range.start} – ${range.end} aralığı için rezervasyon yapılabilir.`
@@ -410,21 +427,21 @@ const submitReservation = async () => {
   loading.value = true
 
   try {
-    // 0. Aynı öğrencinin aynı gün için zaten aktif rezervasyonu var mı (günde bir kuralı)
-    if (authStore.user?.id) {
-      const sameDayQuery = query(
-        collection(db, 'reservations'),
-        where('studentId', '==', authStore.user.id)
-      )
-      const sameDaySnapshot = await getDocs(sameDayQuery)
-      const docs = sameDaySnapshot.docs.map((docSnap) => docSnap.data() as RawReservationDoc)
+    // 0. Aynı öğrencinin aynı gün için zaten aktif rezervasyonu var mı (günde bir kuralı).
+    // Bu ön kontrol kullanıcıya erken ve anlaşılır mesaj içindir; asıl zorlama
+    // yazımdaki gün kilididir (commitStudentCourtRental + firestore.rules).
+    const sameDayQuery = query(
+      collection(db, 'reservations'),
+      where('studentId', '==', studentId)
+    )
+    const sameDaySnapshot = await getDocs(sameDayQuery)
+    const docs = sameDaySnapshot.docs.map((docSnap) => docSnap.data() as RawReservationDoc)
 
-      if (hasActiveReservationOnDate(docs, authStore.user.id, reservationData.date)) {
-        errorMessage.value = 'Aynı gün içinde yalnızca bir rezervasyon yapabilirsiniz. Lütfen farklı bir tarih seçin.'
-        errorSnackbar.value = true
-        loading.value = false
-        return
-      }
+    if (hasActiveReservationOnDate(docs, studentId, dateKey)) {
+      errorMessage.value = SAME_DAY_LIMIT_MESSAGE
+      errorSnackbar.value = true
+      loading.value = false
+      return
     }
 
     // 1. Yerel courtSchedule'da grup dersi veya dolu slot kontrolü
@@ -506,11 +523,14 @@ const submitReservation = async () => {
       return
     }
 
+    // Alan listesi firestore.rules'taki öğrenci beyaz listesiyle birebir
+    // eşleşmeli (isOwnLockedCourtRental) — yeni alan eklerken kuralı da güncelle.
     const reservationDoc = {
-      studentId: authStore.user?.id,
+      studentId,
       courtId: reservationData.courtId,
       courtName: getCourtnameById(reservationData.courtId),
-      date: new Date(reservationData.date),
+      date: dateKeyToUtcDate(dateKey),
+      dateKey,
       startTime: reservationData.startTime,
       endTime: endTime,
       duration: 1,
@@ -520,9 +540,14 @@ const submitReservation = async () => {
       createdAt: serverTimestamp()
     }
 
-    // Save reservation
-    const reservationRef = doc(collection(db, 'reservations'))
-    await setDoc(reservationRef, reservationDoc)
+    // Rezervasyon + günün kilidi TEK batch'te: aynı güne eşzamanlı ikinci
+    // gönderim (iki sekme/cihaz) ya da kuralı atlatan doğrudan yazım burada
+    // sunucu tarafından reddedilir.
+    const reservationId = await commitStudentCourtRental({
+      studentId,
+      dateKey,
+      reservation: reservationDoc
+    })
 
     // Admin'e rezervasyon onay bildirimi gönder
     const studentName = `${authStore.user?.firstName || ''} ${authStore.user?.lastName || ''}`.trim()
@@ -534,7 +559,7 @@ const submitReservation = async () => {
       'Yeni Rezervasyon Talebi',
       `${studentNameWithPhone}, ${formattedDate} tarihinde ${courtName} için ${reservationData.startTime} saatinde rezervasyon talebinde bulundu.`,
       'reservation_pending',
-      { reservationId: reservationRef.id, studentId: authStore.user?.id, studentName }
+      { reservationId, studentId, studentName }
     )
 
     // Reset form
@@ -549,7 +574,9 @@ const submitReservation = async () => {
 
   } catch (error) {
     console.error('Rezervasyon hatası:', error)
-    errorMessage.value = 'Rezervasyon oluşturulurken hata oluştu. Lütfen tekrar deneyin.'
+    errorMessage.value = isDayLockConflictError(error)
+      ? SAME_DAY_LIMIT_MESSAGE
+      : 'Rezervasyon oluşturulurken hata oluştu. Lütfen tekrar deneyin.'
     errorSnackbar.value = true
   } finally {
     loading.value = false
