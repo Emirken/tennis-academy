@@ -415,3 +415,241 @@ describe('Firestore Rules - Günde-bir kort rezervasyonu kilidi', () => {
         })
     })
 })
+
+// users/{uid}: kullanıcı kendi belgesinde yalnız profil alanlarını yazabilir.
+// Eskiden serbest yazım vardı → öğrenci `role: 'admin'` yazıp isAdminOrBoss()'u
+// (ve rolü Firestore'dan doğrulayan Cloud Function'ları) kendine açabiliyordu.
+describe('Firestore Rules - users yetki alanları', () => {
+    const STUDENT = 'student_1'
+    const OTHER = 'student_2'
+    const DELETED = 'student_deleted'
+    const ADMIN = 'admin_1'
+    const BOSS = 'boss_1'
+    const NEW_USER = 'new_user_1'
+
+    const dbAs = (uid: string) => testEnv.authenticatedContext(uid).firestore()
+    const me = () => dbAs(STUDENT).doc(`users/${STUDENT}`)
+
+    const seed = (fn: (db: any) => Promise<unknown>) =>
+        testEnv.withSecurityRulesDisabled(async (ctx) => { await fn(ctx.firestore()) })
+
+    const readAsAdmin = async (path: string) => {
+        let data: any
+        await seed(async (db) => { data = (await db.doc(path).get()).data() })
+        return data
+    }
+
+    // Auth store register() ile yazılan belge.
+    const storeRegistration = (uid: string, overrides: Record<string, unknown> = {}) => ({
+        id: uid,
+        phone_number: '05551112233',
+        firstName: 'Yeni',
+        lastName: 'Öğrenci',
+        role: 'student',
+        status: 'pending',
+        email: 'yeni@example.com',
+        birthDate: '2010-05-10',
+        level: 'başlangıç',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...overrides
+    })
+
+    // AuthService.createUserDocument ile yazılan belge.
+    const serviceRegistration = (uid: string) => ({
+        id: uid,
+        phone_number: '05551112244',
+        firstName: 'Servis',
+        lastName: 'Kaydı',
+        role: 'student',
+        status: 'pending',
+        phone: '',
+        address: '',
+        emergencyContact: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastLoginAt: new Date()
+    })
+
+    beforeEach(async () => {
+        await seed(async (db) => {
+            await db.doc(`users/${STUDENT}`).set({
+                id: STUDENT,
+                role: 'student',
+                status: 'active',
+                deleted: false,
+                firstName: 'Didem',
+                lastName: 'Birgi',
+                phone_number: '05550000001',
+                membershipType: 'basic',
+                groupAssignment: 'group_A',
+                level: 'orta',
+                balance: 0,
+                mustResetPassword: true
+            })
+            await db.doc(`users/${OTHER}`).set({ role: 'student', status: 'active', firstName: 'Ayşe' })
+            await db.doc(`users/${DELETED}`).set({ role: 'student', status: 'deleted', deleted: true })
+            await db.doc(`users/${ADMIN}`).set({ role: 'admin', status: 'approved' })
+            await db.doc(`users/${BOSS}`).set({ role: 'boss', status: 'approved' })
+        })
+    })
+
+    describe('rol yükseltme', () => {
+        it('öğrenci kendi rolünü admin ya da boss yapamaz (update, merge, üzerine yazma)', async () => {
+            await assertFails(me().update({ role: 'admin' }))
+            await assertFails(me().update({ role: 'boss' }))
+            await assertFails(me().set({ role: 'admin' }, { merge: true }))
+            await assertFails(me().set({ id: STUDENT, role: 'admin', status: 'active', firstName: 'Didem' }))
+            expect(await readAsAdmin(`users/${STUDENT}`)).toMatchObject({ role: 'student' })
+        })
+
+        it('profil alanıyla birlikte rol gönderilirse güncellemenin tamamı reddedilir', async () => {
+            await assertFails(me().update({ firstName: 'Değişti', role: 'admin', updatedAt: new Date() }))
+            expect(await readAsAdmin(`users/${STUDENT}`)).toMatchObject({ firstName: 'Didem', role: 'student' })
+        })
+
+        it('reddedilen yükseltmeden sonra admin yetkisi kullanılamaz', async () => {
+            await assertFails(me().update({ role: 'admin' }))
+            // Başka kullanıcının belgesi
+            await assertFails(dbAs(STUDENT).doc(`users/${OTHER}`).update({ status: 'deleted' }))
+            await assertFails(dbAs(STUDENT).doc(`users/${OTHER}`).get())
+            // Başka öğrenci adına onaylı rezervasyon (admin yolu)
+            await assertFails(dbAs(STUDENT).doc('reservations/x1').set({
+                studentId: OTHER, status: 'confirmed', type: 'court_rental', courtId: 'court-1'
+            }))
+        })
+
+        it('öğrenci onay/silinme/üyelik/grup/telefon/seviye/bakiye alanlarını değiştiremez', async () => {
+            await assertFails(me().update({ status: 'approved' }))
+            await assertFails(me().update({ deleted: true }))
+            await assertFails(me().update({ membershipType: 'premium' }))
+            await assertFails(me().update({ groupAssignment: 'group_B' }))
+            await assertFails(me().update({ groupSchedule: { weeklyPlan: [] } }))
+            await assertFails(me().update({ phone_number: '05559999999' }))
+            await assertFails(me().update({ level: 'ileri' }))
+            await assertFails(me().update({ balance: 1000 }))
+            await assertFails(me().update({ id: 'baska-id' }))
+            await assertFails(me().update({ yeniAlan: 'x' }))
+        })
+
+        it('silinmiş kullanıcı kendini geri açamaz', async () => {
+            await assertFails(dbAs(DELETED).doc(`users/${DELETED}`).update({ deleted: false, status: 'active' }))
+        })
+    })
+
+    describe('izin verilen kendi yazımları', () => {
+        it('profil formu (AuthService.updateProfile) alanları güncellenir', async () => {
+            await assertSucceeds(me().update({
+                firstName: 'Didem',
+                lastName: 'Birgi Yılmaz',
+                phone: '05551234567',
+                email: 'didem@example.com',
+                birthDate: '2011-03-04',
+                address: 'Urla',
+                emergencyContact: 'Anne 0555',
+                updatedAt: new Date()
+            }))
+        })
+
+        it('son giriş zamanı (AuthService.updateLastLogin) güncellenir', async () => {
+            await assertSucceeds(me().update({ lastLoginAt: new Date(), updatedAt: new Date() }))
+        })
+
+        it('zorunlu şifre bayrağı kaldırılabilir (clearMustResetPassword) ama geri açılamaz', async () => {
+            await assertSucceeds(me().update({ mustResetPassword: false, updatedAt: new Date() }))
+            await assertFails(me().update({ mustResetPassword: true }))
+        })
+
+        it('kendi belgesini okuyabilir, başkasınınkini okuyamaz', async () => {
+            await assertSucceeds(me().get())
+            await assertFails(dbAs(STUDENT).doc(`users/${OTHER}`).get())
+        })
+
+        it('kendi belgesini silemez', async () => {
+            await assertFails(me().delete())
+        })
+    })
+
+    describe('kayıt', () => {
+        it('onay bekleyen öğrenci belgesi oluşturulur (store register)', async () => {
+            await assertSucceeds(dbAs(NEW_USER).doc(`users/${NEW_USER}`).set(storeRegistration(NEW_USER)))
+        })
+
+        it('opsiyonel alanlar olmadan da kayıt olur', async () => {
+            const minimal: Record<string, unknown> = storeRegistration(NEW_USER)
+            delete minimal.email
+            delete minimal.birthDate
+            delete minimal.level
+            await assertSucceeds(dbAs(NEW_USER).doc(`users/${NEW_USER}`).set(minimal))
+        })
+
+        it('AuthService.createUserDocument biçimi kabul edilir', async () => {
+            await assertSucceeds(dbAs(NEW_USER).doc(`users/${NEW_USER}`).set(serviceRegistration(NEW_USER)))
+        })
+
+        it('admin/boss rolüyle, onaylı durumla ya da yetki alanıyla kayıt reddedilir', async () => {
+            const ref = dbAs(NEW_USER).doc(`users/${NEW_USER}`)
+            await assertFails(ref.set(storeRegistration(NEW_USER, { role: 'admin', status: 'approved' })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { role: 'admin' })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { role: 'boss' })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { status: 'approved' })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { status: 'active' })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { membershipType: 'premium' })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { groupAssignment: 'group_A' })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { mustResetPassword: false })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { deleted: false })))
+            await assertFails(ref.set(storeRegistration(NEW_USER, { id: 'baska-id' })))
+        })
+
+        it('başkası adına belge oluşturulamaz; girişsiz kullanıcı hiç oluşturamaz', async () => {
+            await assertFails(dbAs(STUDENT).doc('users/yeni_kurban').set(storeRegistration('yeni_kurban')))
+            const anon = testEnv.unauthenticatedContext().firestore()
+            await assertFails(anon.doc(`users/${NEW_USER}`).set(storeRegistration(NEW_USER)))
+            await assertFails(anon.doc(`users/${STUDENT}`).get())
+        })
+    })
+
+    describe('admin ve boss', () => {
+        it('admin öğrenciyi onaylar, rol/grup/üyelik değiştirir (Notifications, GroupManagement)', async () => {
+            const ref = dbAs(ADMIN).doc(`users/${STUDENT}`)
+            await assertSucceeds(ref.update({ status: 'active' }))
+            await assertSucceeds(ref.update({ membershipType: 'premium', groupAssignment: 'group_B' }))
+            await assertSucceeds(ref.update({ role: 'admin' }))
+        })
+
+        it('admin öğrenci belgesi oluşturur (StudentManagement) ve siler (kayıt reddi)', async () => {
+            await assertSucceeds(dbAs(ADMIN).doc('users/admin_created').set({
+                firstName: 'Admin',
+                lastName: 'Ekledi',
+                phone_number: '05553334455',
+                email: '',
+                birthDate: '',
+                level: 'başlangıç',
+                address: '',
+                emergencyContact: '',
+                membershipType: 'basic',
+                role: 'student',
+                status: 'active',
+                balance: 0,
+                deleted: false,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }))
+            await assertSucceeds(dbAs(ADMIN).doc(`users/${OTHER}`).delete())
+        })
+
+        it('admin ve boss tüm kullanıcıları okur ve sorgular', async () => {
+            await assertSucceeds(dbAs(ADMIN).doc(`users/${STUDENT}`).get())
+            await assertSucceeds(dbAs(BOSS).doc(`users/${STUDENT}`).get())
+            await assertSucceeds(dbAs(ADMIN).collection('users').where('role', '==', 'student').get())
+        })
+
+        it('boss admin-eşidir: öğrenci belgesine yazabilir', async () => {
+            await assertSucceeds(dbAs(BOSS).doc(`users/${STUDENT}`).update({ membershipType: 'vip' }))
+        })
+
+        it('öğrenci kullanıcı listesini sorgulayamaz', async () => {
+            await assertFails(dbAs(STUDENT).collection('users').where('role', '==', 'student').get())
+        })
+    })
+})
