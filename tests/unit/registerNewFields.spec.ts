@@ -33,8 +33,9 @@ vi.mock('@/services/firebase', () => ({
   db: {},
 }))
 
+const createAdminNotificationMock = vi.fn().mockResolvedValue(undefined)
 vi.mock('@/services/notificationService', () => ({
-  notificationService: { createAdminNotification: vi.fn().mockResolvedValue(undefined) },
+  notificationService: { createAdminNotification: (...args: any[]) => createAdminNotificationMock(...args) },
 }))
 
 import { useAuthStore } from '@/store/modules/auth'
@@ -91,53 +92,58 @@ describe('Auth store register — yeni alanlar (email, birthDate, level)', () =>
     expect('birthDate' in payload).toBe(false)
     expect('level' in payload).toBe(false)
   })
+
+  it('kayıt formu profili belgeye yazılır ve bildirim "Ad Soyad (telefon)" biçimindedir', async () => {
+    createUserMock.mockResolvedValueOnce({ user: { uid: 'uid-3' } })
+    createAdminNotificationMock.mockClear()
+    const now = new Date(2026, 8, 25, 10, 0)
+
+    const store = useAuthStore()
+    const ok = await store.register({
+      phone_number: '05551234567',
+      password: 'secret123',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      role: 'student',
+      email: 'ada@example.com',
+      birthDate: '2014-03-01',
+      level: 'temel',
+      profile: {
+        isMinor: true,
+        parentFirstName: 'Ayşe',
+        parentLastName: 'Lovelace',
+        parentPhone: '05559876543',
+        trainingTypes: ['tennis_school'],
+        hasHealthCondition: false,
+        referralSource: 'friend',
+        referralDetail: 'Mehmet Kaya',
+        waiverAcceptedAt: now,
+        dataConsentAcceptedAt: now,
+        marketingConsent: false,
+      },
+    })
+
+    expect(ok).toBe(true)
+    const [, payload] = setDocMock.mock.calls[0]
+    expect(payload).toMatchObject({
+      isMinor: true,
+      parentPhone: '05559876543',
+      trainingTypes: ['tennis_school'],
+      referralSource: 'friend',
+      referralDetail: 'Mehmet Kaya',
+      waiverAcceptedAt: now,
+      status: 'pending',
+    })
+    expect(createAdminNotificationMock).toHaveBeenCalledWith(
+      'Yeni Öğrenci Kaydı',
+      'Ada Lovelace (0555 123 45 67) kayıt olmak istiyor.',
+      'approval_pending',
+      'uid-3',
+    )
+  })
 })
 
-describe('Form validasyon kuralları', () => {
-  const emailRules = [
-    (v: string) => !!v || 'E-posta gereklidir',
-    (v: string) => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz',
-  ]
-
-  const birthDateRules = [
-    (v: string) => !!v || 'Doğum tarihi gereklidir',
-    (v: string) => {
-      if (!v) return true
-      const d = new Date(v)
-      if (isNaN(d.getTime())) return 'Geçerli bir tarih giriniz'
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      if (d > today) return 'Doğum tarihi gelecekte olamaz'
-      return true
-    },
-  ]
-
-  const levelRules = [(v: string) => !!v || 'Seviye seçiniz']
-
-  const runAll = (rules: Array<(v: string) => true | string>, v: string) =>
-    rules.map((r) => r(v))
-
-  it('emailRules: boş reddedilir, geçersiz reddedilir, geçerli kabul edilir', () => {
-    expect(runAll(emailRules, '')[0]).toBe('E-posta gereklidir')
-    expect(runAll(emailRules, 'yanlisformat')[1]).toBe('Geçerli bir e-posta adresi giriniz')
-    expect(runAll(emailRules, 'ok@mail.com').every((r) => r === true)).toBe(true)
-  })
-
-  it('birthDateRules: boş reddedilir, gelecek tarih reddedilir, geçmiş tarih kabul edilir', () => {
-    expect(runAll(birthDateRules, '')[0]).toBe('Doğum tarihi gereklidir')
-
-    const future = new Date()
-    future.setFullYear(future.getFullYear() + 1)
-    const futureStr = future.toISOString().slice(0, 10)
-    expect(runAll(birthDateRules, futureStr)[1]).toBe('Doğum tarihi gelecekte olamaz')
-
-    expect(runAll(birthDateRules, '1995-03-15').every((r) => r === true)).toBe(true)
-  })
-
-  it('levelRules: boş reddedilir, seçilen değer kabul edilir', () => {
-    expect(levelRules[0]('')).toBe('Seviye seçiniz')
-    expect(levelRules[0]('temel')).toBe(true)
-    expect(levelRules[0]('orta')).toBe(true)
-    expect(levelRules[0]('ileri')).toBe(true)
-  })
-})
+// Not: Register.vue'nun eski kural dizilerinin kopyası olan "Form validasyon kuralları"
+// testleri kaldırıldı; aynı iddialar (e-posta zorunlu/geçerli, doğum tarihi zorunlu /
+// gelecekte olamaz, seviye zorunlu) artık gerçek fonksiyonu sınayan
+// tests/unit/registrationForm.spec.ts içinde.

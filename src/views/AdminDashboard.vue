@@ -343,6 +343,7 @@ import {
 } from '@/services/attendanceArchive'
 import type { PendingArchiveNotification, AttendanceArchive } from '@/types/attendanceArchive'
 import { computeStudentCounts } from '@/utils/studentCounts'
+import { registrationWipePatch } from '@/utils/studentRegistrationAdmin'
 import { countCourtReservationsByPeriod } from '@/utils/bossMetrics'
 import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
 
@@ -374,7 +375,8 @@ const deleteAllStudents = async () => {
     cleanupLog.value = `${studentIds.length} öğrenci bulundu. Siliniyor...`
 
     // 2. users soft delete (Firebase Auth client SDK'dan silinemiyor; kişisel alanları
-    // anonimleştirip deleted=true işaretliyoruz, phone_number reaktivasyon kontrolü için kalıyor)
+    // anonimleştirip deleted=true işaretliyoruz, phone_number reaktivasyon kontrolü için kalıyor).
+    // Veli ve kayıt formu alanları (sağlık notları dahil) da boşaltılır.
     for (const id of studentIds) {
       await updateDoc(doc(db, 'users', id), {
         deleted: true,
@@ -390,6 +392,7 @@ const deleteAllStudents = async () => {
         membershipType: '',
         groupAssignment: '',
         status: 'deleted',
+        ...registrationWipePatch(),
       })
     }
     cleanupLog.value += `\n✅ ${studentIds.length} kullanıcı işaretlendi (soft delete).`

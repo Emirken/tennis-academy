@@ -1,6 +1,7 @@
 import { db } from '@/services/firebase'
 import { pushNotificationService } from '@/services/pushNotificationService'
 import { docWithId } from '@/utils/docWithId'
+import { isAdminAudience } from '@/utils/notificationAudience'
 import {
     collection,
     addDoc,
@@ -41,8 +42,9 @@ export const notificationService = {
         const notificationsRef = collection(db, COLLECTION_NAME)
 
         let q;
-        const normalizedRole = userRole?.toLowerCase?.() || userRole
-        if (normalizedRole === 'admin') {
+        // Boss admin-eşidir: admin'e giden bildirimleri (kayıt/rezervasyon onayı) o da dinler.
+        const adminAudience = isAdminAudience(userRole)
+        if (adminAudience) {
             q = query(
                 notificationsRef,
                 where('targetType', 'in', ['admin', 'all']),
@@ -82,7 +84,7 @@ export const notificationService = {
                                     {
                                         notificationId: notif.id,
                                         type: notif.type,
-                                        clickAction: userRole === 'admin' ? '/admin/notifications' : '/student/notifications'
+                                        clickAction: adminAudience ? '/admin/notifications' : '/student/notifications'
                                     }
                                 )
                             }

@@ -172,6 +172,7 @@ import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
 import type { NotificationType } from '@/services/notificationService'
+import { registrationNotificationMessage, REGISTRATION_NOTIFICATION_TITLE } from '@/utils/registrationForm'
 
 const authStore = useAuthStore()
 
@@ -182,9 +183,9 @@ const processingId = ref<string | null>(null)
 let unsubscribe: (() => void) | null = null
 let unsubscribeUsers: (() => void) | null = null
 
-// Firestore bildirimleri + users'dan bekleyen öğrenciler (sadece admin için)
+// Firestore bildirimleri + users'dan bekleyen öğrenciler (admin ve boss için)
 const displayedNotifications = computed(() => {
-  if (authStore.user?.role !== 'admin') {
+  if (!authStore.isAdmin) {
     return notifications.value
   }
   const firestoreIds = new Set(
@@ -197,8 +198,8 @@ const displayedNotifications = computed(() => {
     .map((s) => ({
       id: `pending-${s.id}`,
       type: 'approval_pending' as const,
-      title: 'Yeni Öğrenci Kaydı',
-      message: `${s.firstName} ${s.lastName} kayıt oldu, onayınızı bekliyor.`,
+      title: REGISTRATION_NOTIFICATION_TITLE,
+      message: registrationNotificationMessage(s),
       relatedData: s.id,
       createdAt: s.createdAt || new Date(),
       isRead: false
@@ -467,7 +468,7 @@ const rejectReservation = async (notification: UserNotification) => {
 }
 
 const loadPendingStudents = () => {
-  if (authStore.user?.role !== 'admin') return
+  if (!authStore.isAdmin) return
   try {
     const usersRef = collection(db, 'users')
     if (unsubscribeUsers) unsubscribeUsers()
@@ -494,7 +495,8 @@ const loadPendingStudents = () => {
 
 onMounted(() => {
   fetchNotifications()
-  if (authStore.user?.role === 'admin') {
+  // Boss admin-eşidir: bekleyen kayıtları o da görür ve onaylar.
+  if (authStore.isAdmin) {
     loadPendingStudents()
   }
 })

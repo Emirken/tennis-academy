@@ -79,6 +79,7 @@ vi.mock('@/services/pushNotificationService', () => ({
 import { useAuthStore } from '@/store/modules/auth'
 import { AuthService } from '@/services/auth'
 import { clearMustResetPassword } from '@/services/passwordResetService'
+import { buildRegistrationProfile, emptyRegistrationForm } from '@/utils/registrationForm'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -132,6 +133,39 @@ describe('istemcinin kendi belgesine yazdıkları kurala uyar', () => {
     expect(ref._path).toBe('users/uid-new')
     expectKeysWithin(payload, REGISTRATION_FIELDS)
     expect(payload).toMatchObject({ id: 'uid-new', role: 'student', status: 'pending' })
+  })
+
+  it('kayıt (auth store register) — kayıt formunun TÜM alanlarıyla', async () => {
+    createUserMock.mockResolvedValueOnce({ user: { uid: 'uid-form' } })
+    const now = new Date()
+    // Her isteğe bağlı alan dolu: profil anahtarlarının tamamı beyaz listede olmalı.
+    const profile = buildRegistrationProfile({
+      ...emptyRegistrationForm(),
+      heightCm: '150', weightKg: '40', address: 'Urla', occupation: 'Öğrenci',
+      isMinor: true, parentFirstName: 'Ayşe', parentLastName: 'Y', parentPhone: '05559876543',
+      parentEmail: 'veli@example.com', parentRelation: 'mother',
+      trainingTypes: ['tennis_school', 'other'], trainingTypeOther: 'Kondisyon',
+      hasHealthCondition: true, healthConditionNote: 'Astım', specialCareNote: 'Sprey',
+      coachNote: 'Utangaç', referralSource: 'friend', referralDetail: 'Mehmet',
+      marketingConsent: true,
+    }, now)
+
+    const ok = await useAuthStore().register({
+      phone_number: '05551234567',
+      password: 'secret123',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      role: 'student',
+      email: 'ada@example.com',
+      birthDate: '2014-03-01',
+      level: 'temel',
+      profile,
+    })
+
+    expect(ok).toBe(true)
+    const [, payload] = setDocMock.mock.calls[0]
+    expect(Object.keys(payload)).toEqual(expect.arrayContaining(Object.keys(profile)))
+    expectKeysWithin(payload, REGISTRATION_FIELDS)
   })
 
   it('kayıt kurtarma yolu (auth hesabı var, belge yok)', async () => {

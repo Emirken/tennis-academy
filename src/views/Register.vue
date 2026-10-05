@@ -28,144 +28,381 @@
 
       <v-container class="auth-container">
         <v-row justify="center">
-          <v-col cols="12" sm="8" md="6" lg="5">
+          <v-col cols="12" sm="10" md="8" lg="6">
             <v-card class="auth-card register-card modern-card" elevation="0">
               <div class="stat-card-overlay"></div>
-              <v-card-text class="pa-6">
+              <v-card-text class="pa-4 pa-sm-6">
                 <!-- Form Header -->
-                <div class="auth-form-header mb-6">
+                <div class="auth-form-header mb-4">
                   <div class="auth-form-icon-wrapper success-gradient">
                     <v-icon icon="mdi-account-plus" size="28" color="white" />
                   </div>
                   <div class="auth-form-content">
-                    <h2 class="auth-form-title">Hesap Oluştur</h2>
-                    <p class="auth-form-subtitle">Ücretsiz hesabınızı hemen oluşturun</p>
+                    <h2 class="auth-form-title">Üye Kayıt Formu</h2>
+                    <p class="auth-form-subtitle">Bilgilerinizi 4 kısa adımda doldurun</p>
                   </div>
                 </div>
 
-                <!-- Register Form -->
-                <v-form
-                    ref="registerForm"
-                    v-model="valid"
-                    @submit.prevent="handleRegister"
+                <!-- Kayıt sihirbazı: adımlar arası geçiş yalnız alttaki Geri/İleri ile -->
+                <v-stepper
+                    v-model="step"
+                    :items="stepTitles"
+                    alt-labels
+                    flat
+                    hide-actions
+                    mobile-breakpoint="sm"
+                    class="register-stepper"
                 >
-                  <!-- Name Fields -->
-                  <v-row class="mb-4">
-                    <v-col cols="6">
-                      <v-text-field
-                          v-model="registerData.firstName"
-                          label="Ad"
-                          variant="outlined"
-                          :rules="nameRules"
-                          prepend-inner-icon="mdi-account"
-                          class="auth-input"
-                          required
+                  <!-- 1. Hesap -->
+                  <template #item.1>
+                    <h3 class="register-section-title">Hesap Bilgileri</h3>
+                    <v-row dense>
+                      <v-col cols="12" sm="6">
+                        <v-text-field
+                            v-model="form.firstName"
+                            label="Ad *"
+                            variant="outlined"
+                            prepend-inner-icon="mdi-account"
+                            autocomplete="given-name"
+                            class="auth-input"
+                            :error-messages="err('firstName')"
+                        />
+                      </v-col>
+                      <v-col cols="12" sm="6">
+                        <v-text-field
+                            v-model="form.lastName"
+                            label="Soyad *"
+                            variant="outlined"
+                            autocomplete="family-name"
+                            class="auth-input"
+                            :error-messages="err('lastName')"
+                        />
+                      </v-col>
+                    </v-row>
+                    <v-text-field
+                        v-model="form.phone_number"
+                        label="Telefon Numarası *"
+                        type="tel"
+                        inputmode="numeric"
+                        maxlength="11"
+                        placeholder="05XXXXXXXXX"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-phone"
+                        autocomplete="tel"
+                        class="mb-1 auth-input"
+                        hint="Giriş yaparken bu numarayı kullanacaksınız"
+                        persistent-hint
+                        :error-messages="err('phone_number')"
+                    />
+                    <v-text-field
+                        v-model="form.email"
+                        label="E-posta *"
+                        type="email"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-email"
+                        placeholder="ornek@mail.com"
+                        autocomplete="email"
+                        class="mt-2 auth-input"
+                        :error-messages="err('email')"
+                    />
+                    <v-text-field
+                        v-model="form.password"
+                        label="Şifre *"
+                        :type="showPassword ? 'text' : 'password'"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-lock"
+                        :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
+                        autocomplete="new-password"
+                        class="auth-input"
+                        :error-messages="err('password')"
+                        @click:append-inner="showPassword = !showPassword"
+                    />
+                    <v-text-field
+                        v-model="form.confirmPassword"
+                        label="Şifre Tekrar *"
+                        :type="showConfirmPassword ? 'text' : 'password'"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-lock-check"
+                        :append-inner-icon="showConfirmPassword ? 'mdi-eye' : 'mdi-eye-off'"
+                        autocomplete="new-password"
+                        class="auth-input"
+                        :error-messages="err('confirmPassword')"
+                        @click:append-inner="showConfirmPassword = !showConfirmPassword"
+                    />
+                  </template>
+
+                  <!-- 2. Kişisel / Veli -->
+                  <template #item.2>
+                    <h3 class="register-section-title">Öğrenci Bilgileri</h3>
+                    <v-text-field
+                        v-model="form.birthDate"
+                        label="Doğum Tarihi *"
+                        type="date"
+                        :max="todayYmd"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-cake-variant"
+                        class="auth-input"
+                        :error-messages="err('birthDate')"
+                    />
+                    <v-row dense>
+                      <v-col cols="6">
+                        <v-text-field
+                            v-model="form.heightCm"
+                            label="Boy (cm)"
+                            type="number"
+                            inputmode="numeric"
+                            variant="outlined"
+                            prepend-inner-icon="mdi-human-male-height"
+                            class="auth-input"
+                            :error-messages="err('heightCm')"
+                        />
+                      </v-col>
+                      <v-col cols="6">
+                        <v-text-field
+                            v-model="form.weightKg"
+                            label="Kilo (kg)"
+                            type="number"
+                            inputmode="numeric"
+                            variant="outlined"
+                            prepend-inner-icon="mdi-weight-kilogram"
+                            class="auth-input"
+                            :error-messages="err('weightKg')"
+                        />
+                      </v-col>
+                    </v-row>
+                    <v-textarea
+                        v-model="form.address"
+                        label="Adres"
+                        rows="2"
+                        auto-grow
+                        counter="300"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-map-marker"
+                        autocomplete="street-address"
+                        class="auth-input"
+                        :error-messages="err('address')"
+                    />
+                    <v-text-field
+                        v-model="form.occupation"
+                        label="Meslek"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-briefcase"
+                        class="auth-input"
+                        :error-messages="err('occupation')"
+                    />
+
+                    <div class="register-question__label">Öğrenci 18 yaşından küçük mü? *</div>
+                    <v-radio-group
+                        v-model="form.isMinor"
+                        inline
+                        :error-messages="err('isMinor')"
+                        @update:model-value="isMinorTouched = true"
+                    >
+                      <v-radio label="Evet" :value="true" />
+                      <v-radio label="Hayır" :value="false" />
+                    </v-radio-group>
+
+                    <v-expand-transition>
+                      <div v-if="form.isMinor === true" class="register-subsection">
+                        <div class="register-subsection__title">
+                          <v-icon icon="mdi-account-child" size="20" />
+                          Veli Bilgileri
+                        </div>
+                        <v-row dense>
+                          <v-col cols="12" sm="6">
+                            <v-text-field
+                                v-model="form.parentFirstName"
+                                label="Veli Adı *"
+                                variant="outlined"
+                                class="auth-input"
+                                :error-messages="err('parentFirstName')"
+                            />
+                          </v-col>
+                          <v-col cols="12" sm="6">
+                            <v-text-field
+                                v-model="form.parentLastName"
+                                label="Veli Soyadı *"
+                                variant="outlined"
+                                class="auth-input"
+                                :error-messages="err('parentLastName')"
+                            />
+                          </v-col>
+                        </v-row>
+                        <v-text-field
+                            v-model="form.parentPhone"
+                            label="Veli Telefon *"
+                            type="tel"
+                            inputmode="numeric"
+                            maxlength="11"
+                            placeholder="05XXXXXXXXX"
+                            variant="outlined"
+                            prepend-inner-icon="mdi-phone"
+                            class="auth-input"
+                            :error-messages="err('parentPhone')"
+                        />
+                        <v-text-field
+                            v-model="form.parentEmail"
+                            label="Veli E-posta"
+                            type="email"
+                            variant="outlined"
+                            prepend-inner-icon="mdi-email"
+                            class="auth-input"
+                            :error-messages="err('parentEmail')"
+                        />
+                        <div class="register-question__label">Öğrenci ile yakınlık derecesi</div>
+                        <v-radio-group v-model="form.parentRelation" inline hide-details class="mb-2">
+                          <v-radio
+                              v-for="opt in PARENT_RELATION_OPTIONS"
+                              :key="opt.value"
+                              :label="opt.title"
+                              :value="opt.value"
+                          />
+                        </v-radio-group>
+                      </div>
+                    </v-expand-transition>
+                  </template>
+
+                  <!-- 3. Başvuru ve Sağlık -->
+                  <template #item.3>
+                    <h3 class="register-section-title">Başvuru Tercihleri</h3>
+                    <div class="register-question__label">
+                      Almak istediğiniz eğitim türü *
+                      <span class="register-question__hint">(birden fazla seçebilirsiniz)</span>
+                    </div>
+                    <div class="register-options">
+                      <v-checkbox
+                          v-for="opt in TRAINING_TYPE_OPTIONS"
+                          :key="opt.value"
+                          v-model="form.trainingTypes"
+                          :value="opt.value"
+                          :label="opt.title"
+                          density="compact"
+                          hide-details
                       />
-                    </v-col>
-                    <v-col cols="6">
+                    </div>
+                    <div v-if="errors.trainingTypes" class="register-error">{{ errors.trainingTypes }}</div>
+                    <v-expand-transition>
                       <v-text-field
-                          v-model="registerData.lastName"
-                          label="Soyad"
+                          v-if="form.trainingTypes.includes('other')"
+                          v-model="form.trainingTypeOther"
+                          label="Diğer eğitim türü *"
                           variant="outlined"
-                          :rules="nameRules"
-                          class="auth-input"
-                          required
+                          class="mt-2 auth-input"
+                          :error-messages="err('trainingTypeOther')"
                       />
-                    </v-col>
-                  </v-row>
+                    </v-expand-transition>
+                    <v-select
+                        v-model="form.level"
+                        label="Seviye *"
+                        :items="LEVEL_OPTIONS"
+                        item-title="title"
+                        item-value="value"
+                        variant="outlined"
+                        prepend-inner-icon="mdi-tennis-ball"
+                        class="mt-3 auth-input"
+                        :error-messages="err('level')"
+                    />
 
-                  <!-- Phone Number Field -->
-                  <v-text-field
-                      v-model="registerData.phone_number"
-                      label="Telefon Numarası"
-                      type="tel"
-                      variant="outlined"
-                      :rules="phoneRules"
-                      prepend-inner-icon="mdi-phone"
-                      placeholder="05XX XXX XX XX"
-                      class="mb-4 auth-input"
-                      required
-                  />
+                    <v-divider class="my-4" />
 
-                  <!-- Email Field -->
-                  <v-text-field
-                      v-model="registerData.email"
-                      label="E-posta"
-                      type="email"
-                      variant="outlined"
-                      :rules="emailRules"
-                      prepend-inner-icon="mdi-email"
-                      placeholder="ornek@mail.com"
-                      class="mb-4 auth-input"
-                      required
-                  />
+                    <h3 class="register-section-title">Sağlık ve Özel Durumlar</h3>
+                    <div class="register-question__label">
+                      Derslere katılımı etkileyebilecek bir sağlık durumu / fiziksel kısıtlılık var mı? *
+                    </div>
+                    <v-radio-group v-model="form.hasHealthCondition" inline :error-messages="err('hasHealthCondition')">
+                      <v-radio label="Hayır" :value="false" />
+                      <v-radio label="Evet" :value="true" />
+                    </v-radio-group>
+                    <v-expand-transition>
+                      <v-textarea
+                          v-if="form.hasHealthCondition === true"
+                          v-model="form.healthConditionNote"
+                          label="Açıklama *"
+                          rows="2"
+                          auto-grow
+                          counter="1000"
+                          variant="outlined"
+                          class="auth-input"
+                          :error-messages="err('healthConditionNote')"
+                      />
+                    </v-expand-transition>
+                    <v-textarea
+                        v-model="form.specialCareNote"
+                        label="Düzenli dikkat edilmesi gereken bir durum var mı? (açıklama)"
+                        rows="2"
+                        auto-grow
+                        counter="1000"
+                        variant="outlined"
+                        class="auth-input"
+                        :error-messages="err('specialCareNote')"
+                    />
+                    <v-textarea
+                        v-model="form.coachNote"
+                        label="Antrenörün bilmesini istediğiniz özel bir bilgi var mı? (açıklama)"
+                        rows="2"
+                        auto-grow
+                        counter="1000"
+                        variant="outlined"
+                        class="auth-input"
+                        :error-messages="err('coachNote')"
+                    />
+                  </template>
 
-                  <!-- Birth Date Field -->
-                  <v-text-field
-                      v-model="registerData.birthDate"
-                      label="Doğum Tarihi"
-                      type="date"
-                      variant="outlined"
-                      :rules="birthDateRules"
-                      prepend-inner-icon="mdi-cake-variant"
-                      class="mb-4 auth-input"
-                      required
-                  />
+                  <!-- 4. Nereden duydunuz + Onaylar -->
+                  <template #item.4>
+                    <h3 class="register-section-title">Bize Nasıl Ulaştınız?</h3>
+                    <div class="register-question__label">Urla Tenis Akademisi'ne nasıl ulaştınız? *</div>
+                    <v-radio-group v-model="form.referralSource" :error-messages="err('referralSource')">
+                      <v-radio
+                          v-for="opt in REFERRAL_SOURCE_OPTIONS"
+                          :key="opt.value"
+                          :label="opt.title"
+                          :value="opt.value"
+                      />
+                    </v-radio-group>
+                    <v-expand-transition>
+                      <v-text-field
+                          v-if="needsReferralDetail"
+                          v-model="form.referralDetail"
+                          :label="referralDetailLabel"
+                          variant="outlined"
+                          class="auth-input"
+                          :error-messages="err('referralDetail')"
+                      />
+                    </v-expand-transition>
 
-                  <!-- Level Field -->
-                  <v-select
-                      v-model="registerData.level"
-                      label="Seviye"
-                      :items="levelOptions"
-                      variant="outlined"
-                      :rules="levelRules"
-                      prepend-inner-icon="mdi-tennis-ball"
-                      class="mb-4 auth-input"
-                      required
-                  />
+                    <v-divider class="my-4" />
 
-                  <!-- Password Fields -->
-                  <v-text-field
-                      v-model="registerData.password"
-                      label="Şifre"
-                      :type="showPassword ? 'text' : 'password'"
-                      variant="outlined"
-                      :rules="passwordRules"
-                      prepend-inner-icon="mdi-lock"
-                      :append-inner-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
-                      @click:append-inner="showPassword = !showPassword"
-                      class="mb-4 auth-input"
-                      required
-                  />
-
-                  <v-text-field
-                      v-model="registerData.confirmPassword"
-                      label="Şifre Tekrar"
-                      :type="showConfirmPassword ? 'text' : 'password'"
-                      variant="outlined"
-                      :rules="confirmPasswordRules"
-                      prepend-inner-icon="mdi-lock-check"
-                      :append-inner-icon="showConfirmPassword ? 'mdi-eye' : 'mdi-eye-off'"
-                      @click:append-inner="showConfirmPassword = !showConfirmPassword"
-                      class="mb-6 auth-input"
-                      required
-                  />
-
-                  <!-- Submit Button -->
-                  <v-btn
-                      type="submit"
-                      color="success"
-                      variant="flat"
-                      size="large"
-                      :loading="authStore.loading"
-                      :disabled="!valid"
-                      block
-                      class="auth-submit-btn register-submit-btn mb-4"
-                  >
-                    <v-icon icon="mdi-account-plus" class="mr-2" />
-                    Hesap Oluştur
-                  </v-btn>
-                </v-form>
+                    <h3 class="register-section-title">Onaylar</h3>
+                    <div class="consent-box" :class="{ 'consent-box--error': !!errors.waiverAccepted }">
+                      <p class="consent-box__text">{{ WAIVER_TEXT }}</p>
+                      <v-checkbox
+                          v-model="form.waiverAccepted"
+                          label="Okudum, kabul ediyorum *"
+                          density="compact"
+                          :error-messages="err('waiverAccepted')"
+                      />
+                    </div>
+                    <div class="consent-box" :class="{ 'consent-box--error': !!errors.dataConsentAccepted }">
+                      <p class="consent-box__text">{{ DATA_CONSENT_TEXT }}</p>
+                      <v-checkbox
+                          v-model="form.dataConsentAccepted"
+                          label="Okudum, kabul ediyorum *"
+                          density="compact"
+                          :error-messages="err('dataConsentAccepted')"
+                      />
+                    </div>
+                    <div class="consent-box consent-box--optional">
+                      <v-checkbox
+                          v-model="form.marketingConsent"
+                          :label="MARKETING_CONSENT_TEXT"
+                          density="compact"
+                          hide-details
+                      />
+                      <p class="consent-box__hint">İsteğe bağlıdır; kaydınızı etkilemez.</p>
+                    </div>
+                  </template>
+                </v-stepper>
 
                 <!-- Error Alert -->
                 <v-alert
@@ -175,6 +412,43 @@
                     class="mb-4 auth-alert"
                     :text="authStore.error"
                 />
+
+                <!-- Adım gezinme -->
+                <div class="register-nav mb-4">
+                  <v-btn
+                      v-if="step > 1"
+                      variant="outlined"
+                      size="large"
+                      :disabled="authStore.loading"
+                      @click="goBack"
+                  >
+                    <v-icon icon="mdi-chevron-left" class="mr-1" />
+                    Geri
+                  </v-btn>
+                  <v-spacer />
+                  <v-btn
+                      v-if="step < lastStep"
+                      color="primary"
+                      variant="flat"
+                      size="large"
+                      @click="goNext"
+                  >
+                    İleri
+                    <v-icon icon="mdi-chevron-right" class="ml-1" />
+                  </v-btn>
+                  <v-btn
+                      v-else
+                      color="success"
+                      variant="flat"
+                      size="large"
+                      :loading="authStore.loading"
+                      class="auth-submit-btn register-submit-btn"
+                      @click="handleRegister"
+                  >
+                    <v-icon icon="mdi-account-plus" class="mr-2" />
+                    Kayıt Ol
+                  </v-btn>
+                </div>
 
                 <!-- Auth Links -->
                 <div class="auth-links">
@@ -227,83 +501,132 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
 import type { PlayerLevel } from '@/types/user'
+import {
+  DATA_CONSENT_TEXT,
+  LEVEL_OPTIONS,
+  MARKETING_CONSENT_TEXT,
+  PARENT_RELATION_OPTIONS,
+  REFERRAL_SOURCE_OPTIONS,
+  REGISTRATION_STEPS,
+  TRAINING_TYPE_OPTIONS,
+  WAIVER_TEXT,
+  buildRegistrationProfile,
+  emptyRegistrationForm,
+  isUnder18,
+  toYmd,
+  validateRegistrationForm,
+  validateRegistrationStep,
+  type RegistrationErrors,
+  type RegistrationFormState,
+  type RegistrationStep,
+} from '@/utils/registrationForm'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-// Form data - role sabit olarak student
-const registerData = reactive({
-  firstName: '',
-  lastName: '',
-  phone_number: '',
-  email: '',
-  birthDate: '',
-  level: '' as PlayerLevel | '',
-  password: '',
-  confirmPassword: '',
-  role: 'student' as const
-})
+// Formun tamamı tek nesnede; adımlar arası geçişte değerler korunur.
+const form = reactive<RegistrationFormState>(emptyRegistrationForm())
+const step = ref<RegistrationStep>(1)
+const stepTitles = REGISTRATION_STEPS.map((s) => s.title)
+const lastStep = REGISTRATION_STEPS[REGISTRATION_STEPS.length - 1].step
+const todayYmd = toYmd(new Date())
 
-const levelOptions = [
-  { title: 'Temel', value: 'temel' },
-  { title: 'Orta', value: 'orta' },
-  { title: 'İleri', value: 'ileri' }
-]
-
-// Form validation
-const valid = ref(false)
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
-const showPendingOverlay = ref(false)
 
-// Validation rules - Türkçe hata mesajları
-const nameRules = [
-  (v: string) => !!v || 'Ad/Soyad gereklidir',
-  (v: string) => v.length >= 2 || 'Ad/Soyad en az 2 karakter olmalıdır'
-]
+// Hatalar, kullanıcı o adımda "İleri"ye ya da "Kayıt Ol"a bastıktan sonra görünür;
+// boş form açılır açılmaz kırmızıya boyanmaz.
+const attemptedSteps = ref<RegistrationStep[]>([])
+const errors = computed<RegistrationErrors>(() =>
+  attemptedSteps.value.reduce<RegistrationErrors>(
+    (all, s) => ({ ...all, ...validateRegistrationStep(s, form) }),
+    {},
+  ),
+)
+const err = (field: keyof RegistrationFormState): string | string[] => errors.value[field] ?? []
+const markAttempted = (...steps: RegistrationStep[]) => {
+  attemptedSteps.value = Array.from(new Set([...attemptedSteps.value, ...steps]))
+}
 
-const phoneRules = [
-  (v: string) => !!v || 'Telefon numarası gereklidir',
-  (v: string) => /^[0-9]+$/.test(v) || 'Telefon numarası sadece rakamlardan oluşmalıdır',
-  (v: string) => v.length === 11 || 'Telefon numarası 11 haneli olmalıdır',
-  (v: string) => v.startsWith('0') || 'Telefon numarası 0 ile başlamalıdır'
-]
+// Doğum tarihi girilince "18 yaşından küçük mü?" sorusu, kullanıcı elle seçmediyse
+// otomatik işaretlenir; çelişki yine de 2. adım doğrulamasında yakalanır.
+const isMinorTouched = ref(false)
+watch(
+  () => form.birthDate,
+  (value) => {
+    if (isMinorTouched.value) return
+    const under = isUnder18(value)
+    if (under !== null) form.isMinor = under
+  },
+)
 
-const emailRules = [
-  (v: string) => !!v || 'E-posta gereklidir',
-  (v: string) => /.+@.+\..+/.test(v) || 'Geçerli bir e-posta adresi giriniz'
-]
+const needsReferralDetail = computed(() => form.referralSource === 'friend' || form.referralSource === 'other')
+const referralDetailLabel = computed(() => (form.referralSource === 'friend' ? 'Referans ismi *' : 'Açıklama *'))
 
-const birthDateRules = [
-  (v: string) => !!v || 'Doğum tarihi gereklidir',
-  (v: string) => {
-    if (!v) return true
-    const d = new Date(v)
-    if (isNaN(d.getTime())) return 'Geçerli bir tarih giriniz'
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    if (d > today) return 'Doğum tarihi gelecekte olamaz'
-    return true
+const scrollToStepper = () => {
+  document.querySelector('.register-stepper')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const scrollToFirstError = async () => {
+  await nextTick()
+  document
+    .querySelector('.register-page .v-input--error, .register-page .register-error')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+const goNext = async () => {
+  markAttempted(step.value)
+  if (Object.keys(validateRegistrationStep(step.value, form)).length > 0) {
+    await scrollToFirstError()
+    return
   }
-]
+  authStore.clearError()
+  step.value = (step.value + 1) as RegistrationStep
+  scrollToStepper()
+}
 
-const levelRules = [
-  (v: string) => !!v || 'Seviye seçiniz'
-]
+const goBack = () => {
+  if (step.value === 1) return
+  step.value = (step.value - 1) as RegistrationStep
+  scrollToStepper()
+}
 
-const passwordRules = [
-  (v: string) => !!v || 'Şifre gereklidir',
-  (v: string) => v.length >= 6 || 'Şifre en az 6 karakter olmalıdır',
-]
+const handleRegister = async () => {
+  markAttempted(...REGISTRATION_STEPS.map((s) => s.step))
+  const { firstInvalidStep } = validateRegistrationForm(form)
+  if (firstInvalidStep !== null) {
+    step.value = firstInvalidStep
+    await scrollToFirstError()
+    return
+  }
 
-const confirmPasswordRules = [
-  (v: string) => !!v || 'Şifre tekrarı gereklidir',
-  (v: string) => v === registerData.password || 'Şifreler eşleşmiyor'
-]
+  const success = await authStore.register({
+    phone_number: form.phone_number,
+    password: form.password,
+    firstName: form.firstName,
+    lastName: form.lastName,
+    role: 'student',
+    email: form.email.trim(),
+    birthDate: form.birthDate,
+    level: form.level as PlayerLevel,
+    profile: buildRegistrationProfile(form, new Date()),
+  })
+
+  // Kayıt oturumu açık bırakır; öğrenci panelde "Hesap Onayı Bekleniyor" uyarısını görür.
+  if (success) {
+    router.push({ name: 'StudentDashboard' })
+    return
+  }
+  // Telefonla ilgili hata (zaten kayıtlı / silinmiş hesap) 1. adımda düzeltilir.
+  if (authStore.error && /telefon/i.test(authStore.error)) {
+    step.value = 1
+    scrollToStepper()
+  }
+}
 
 // Benefits data
 const benefits = [
@@ -332,72 +655,87 @@ const benefits = [
     gradient: 'warning-gradient'
   }
 ]
-
-// Registration steps
-const registrationSteps = [
-  {
-    title: 'Hesap Oluştur',
-    description: 'Kişisel bilgilerinizi girin ve hesabınızı oluşturun',
-    color: 'step-primary'
-  },
-  {
-    title: 'Paket Seç',
-    description: 'Size uygun ders paketini seçin',
-    color: 'step-success'
-  },
-  {
-    title: 'Derslere Başla',
-    description: 'Rezervasyon yapın ve tenise başlayın',
-    color: 'step-info'
-  }
-]
-
-// Handle register
-const handleRegister = async () => {
-  if (!valid.value) return
-
-  const success = await authStore.register({
-    phone_number: registerData.phone_number,
-    password: registerData.password,
-    firstName: registerData.firstName,
-    lastName: registerData.lastName,
-    role: registerData.role,
-    email: registerData.email,
-    birthDate: registerData.birthDate,
-    level: registerData.level as PlayerLevel
-  })
-
-  // Do NOT logout the user. Registration automatically logs in,
-  // we redirect them to dashboard where they will see the pending overlay.
-  if (success) {
-    router.push({ name: 'StudentDashboard' })
-  }
-}
-
-const goToHome = () => {
-  router.push('/')
-}
 </script>
 
 <style scoped>
-/* Styles are handled in main.css */
-.pending-overlay {
-  background: linear-gradient(135deg, #1A1A2E 0%, #16213E 100%) !important;
-  color: white !important;
-  text-align: center;
-  padding: 2rem;
+.register-stepper {
+  background: transparent;
 }
-.pending-text {
-  max-width: 600px;
-  opacity: 0.9;
-  line-height: 1.6;
+.register-stepper :deep(.v-stepper-header) {
+  box-shadow: none;
 }
-.pulse-animation {
-  animation: pulse 2s infinite;
+.register-stepper :deep(.v-stepper-window) {
+  margin: 16px 0 8px;
 }
-@keyframes pulse {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.8; }
+.register-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0 0 12px;
+  color: rgb(var(--v-theme-primary));
+}
+.register-question__label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  margin: 4px 0;
+  color: rgba(var(--v-theme-on-surface), 0.87);
+}
+.register-question__hint {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.register-subsection {
+  border: 1px solid rgba(var(--v-theme-primary), 0.25);
+  border-radius: 12px;
+  padding: 16px 16px 4px;
+  margin-bottom: 16px;
+  background: rgba(var(--v-theme-primary), 0.04);
+}
+.register-subsection__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.register-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  column-gap: 8px;
+}
+.register-error {
+  color: rgb(var(--v-theme-error));
+  font-size: 0.75rem;
+  margin: 4px 0 8px 16px;
+}
+.consent-box {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 12px;
+  padding: 14px 16px 0;
+  margin-bottom: 12px;
+}
+.consent-box--error {
+  border-color: rgb(var(--v-theme-error));
+}
+.consent-box--optional {
+  background: rgba(var(--v-theme-on-surface), 0.02);
+  padding-bottom: 12px;
+}
+.consent-box__text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.consent-box__hint {
+  font-size: 0.75rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin: 0 0 0 40px;
+}
+.register-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>

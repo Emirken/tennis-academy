@@ -22,6 +22,14 @@ describe('needsParentInfo', () => {
     expect(needsParentInfo(null)).toBe(false)
   })
 
+  it('öğrenci 18 yaş altıysa üyelik türünden bağımsız olarak true döner', () => {
+    expect(needsParentInfo('basic', true)).toBe(true)
+    expect(needsParentInfo(undefined, true)).toBe(true)
+    expect(needsParentInfo('basic', false)).toBe(false)
+    expect(needsParentInfo('basic', null)).toBe(false)
+    expect(needsParentInfo('premium', false)).toBe(true)
+  })
+
   it('sabit listesi tam olarak 4 türü içerir', () => {
     expect([...PARENT_REQUIRED_MEMBERSHIPS]).toEqual([
       'tennis_school_age',

@@ -538,7 +538,8 @@ const setupNotificationsListener = () => {
       }
     )
 
-    if (authStore.user.role === 'admin') {
+    // Boss admin-eşidir: bekleyen kayıt rozetini o da görür.
+    if (authStore.isAdmin) {
       // Okuma optimizasyonu: tüm users koleksiyonunu dinlemek yerine yalnızca
       // bekleyen öğrencileri sorgula. Böylece herhangi bir user yazımında değil,
       // sadece bekleyen-öğrenci dokümanları değiştiğinde yeniden okuma olur.

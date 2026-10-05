@@ -7,11 +7,17 @@ import {
     sendPasswordResetEmail,
     User as FirebaseUser
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, type Unsubscribe } from 'firebase/firestore'
+import { doc, setDoc, getDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { auth, db } from '@/services/firebase'
-import type { User, PlayerLevel, UserRole } from '@/types/user'
+import type { User } from '@/types/user'
 import { notificationService } from '@/services/notificationService'
 import { pushNotificationService } from '@/services/pushNotificationService'
+import {
+    buildUserRegistrationDoc,
+    registrationNotificationMessage,
+    REGISTRATION_NOTIFICATION_TITLE,
+    type RegisterInput
+} from '@/utils/registrationForm'
 
 // Pinia state'inde function tutulamaz; listener'ı modül seviyesinde saklıyoruz
 let userDocUnsubscribe: Unsubscribe | null = null
@@ -129,132 +135,94 @@ export const useAuthStore = defineStore('auth', {
             this.resetPhone = null
         },
 
-        async register(userData: {
-            phone_number: string
-            password: string
-            firstName: string
-            lastName: string
-            role: UserRole
-            email?: string
-            birthDate?: string
-            level?: PlayerLevel
-        }) {
+        async register(userData: RegisterInput) {
             this.loading = true
             this.error = null
 
             try {
-                // Önce: aynı telefon numarasıyla soft-deleted bir doc var mı kontrol et.
-                // Spark planda Firebase Auth user'ı client SDK'dan silinemediği için
-                // silinen kullanıcılar Firestore'da deleted=true olarak işaretli kalır;
-                // burada net bir hata mesajı vererek kullanıcıyı yönlendiriyoruz.
-                const existingDeletedQuery = query(
-                    collection(db, 'users'),
-                    where('phone_number', '==', userData.phone_number),
-                    where('deleted', '==', true),
-                )
-                const existingDeletedSnap = await getDocs(existingDeletedQuery)
-                if (!existingDeletedSnap.empty) {
-                    this.error = 'Bu telefon numarası daha önce sistemde kayıtlıydı ve silindi. Yeniden kayıt için lütfen yöneticiyle iletişime geçin (Firebase Console üzerinden auth kaydının kaldırılması gerekiyor).'
-                    return false
-                }
-
+                // NOT: Eskiden burada GİRİŞ YAPMADAN users koleksiyonu sorgulanıyordu
+                // ("bu telefon daha önce silinmiş mi?"). Kurallar girişsiz okumaya izin
+                // vermediği için sorgu reddediliyor ve kayıt her seferinde hata veriyordu.
+                // Silme akışı Auth kaydını siler ve telefonu temizler; Auth kaydı hâlâ
+                // duruyorsa email-already-in-use yolu (resumeExistingAccount) durumu ele alır.
                 const dummyEmail = phoneToEmail(userData.phone_number)
                 console.log('📝 Kullanıcı kaydediliyor:', userData.phone_number)
-                const userCredential = await createUserWithEmailAndPassword(
-                    auth,
-                    dummyEmail,
-                    userData.password
-                )
-
-                const user: User = {
-                    id: userCredential.user.uid,
-                    phone_number: userData.phone_number,
-                    firstName: userData.firstName,
-                    lastName: userData.lastName,
-                    role: userData.role,
-                    status: userData.role === 'admin' ? 'approved' : 'pending',
-                    ...(userData.email ? { email: userData.email } : {}),
-                    ...(userData.birthDate ? { birthDate: userData.birthDate } : {}),
-                    ...(userData.level ? { level: userData.level } : {}),
-                    createdAt: new Date(),
-                    updatedAt: new Date()
-                }
-
-                console.log('💾 Firestore\'a kullanıcı verisi yazılıyor...')
-                await setDoc(doc(db, 'users', user.id), user)
-
-                if (user.role === 'student' && user.status === 'pending') {
-                    await notificationService.createAdminNotification(
-                        'Yeni Öğrenci Kaydı',
-                        `${user.firstName} ${user.lastName} kayıt oldu, onayınızı bekliyor.`,
-                        'approval_pending',
-                        user.id
-                    )
-
-                    // Yeni kayıt eden öğrenciye hoş geldin maili (mail varsa, EmailJS yapılandırılmışsa)
-                    if (userData.email) {
-                        try {
-                        } catch (mailErr) {
-                            console.warn('Welcome email gönderilemedi:', mailErr)
-                        }
-                    }
-                }
-
-                this.user = user
-                this.isAuthenticated = true
-                console.log('✅ Kayıt başarılı:', user)
-
+                const userCredential = await createUserWithEmailAndPassword(auth, dummyEmail, userData.password)
+                await this.completeRegistration(userCredential.user.uid, userData)
                 return true
             } catch (error: any) {
-                if (error.code === 'auth/email-already-in-use') {
-                    console.log('🔄 Telefon numarası zaten kullanımda hatası. Acaba Firestore dokümanı silinmiş mi kontrol ediliyor...')
-                    try {
-                        const dummyEmail = phoneToEmail(userData.phone_number)
-                        // Kendi önceden girdiği şifreyle girmeyi dener
-                        const signinCredential = await signInWithEmailAndPassword(auth, dummyEmail, userData.password)
-
-                        const userDoc = await getDoc(doc(db, 'users', signinCredential.user.uid))
-                        if (!userDoc.exists()) {
-                            console.log('📝 Firestore üzerinde kullanıcı bulunamadı (Önceden reddedilmiş). Yeniden Firestore dokümanı oluşturuluyor...')
-                            const user: User = {
-                                id: signinCredential.user.uid,
-                                phone_number: userData.phone_number,
-                                firstName: userData.firstName,
-                                lastName: userData.lastName,
-                                role: userData.role,
-                                status: userData.role === 'admin' ? 'approved' : 'pending',
-                                ...(userData.email ? { email: userData.email } : {}),
-                                ...(userData.birthDate ? { birthDate: userData.birthDate } : {}),
-                                ...(userData.level ? { level: userData.level } : {}),
-                                createdAt: new Date(),
-                                updatedAt: new Date()
-                            }
-                            await setDoc(doc(db, 'users', user.id), user)
-
-                            if (user.role === 'student' && user.status === 'pending') {
-                                await notificationService.createAdminNotification(
-                                    'Yeni Öğrenci Kaydı',
-                                    `${user.firstName} ${user.lastName} kayıt oldu, onayınızı bekliyor.`,
-                                    'approval_pending',
-                                    user.id
-                                )
-                            }
-
-                            this.user = user
-                            this.isAuthenticated = true
-                            console.log('✅ Kurtarma başarılı:', user)
-                            return true
-                        }
-                    } catch (recoveryError) {
-                        console.error('❌ Kurtarma başarısız (Yanlış şifre girilmiş olabilir):', recoveryError)
-                    }
+                if (error?.code === 'auth/email-already-in-use') {
+                    return await this.resumeExistingAccount(userData)
                 }
-
                 console.error('❌ Kayıt hatası:', error)
                 this.error = this.getErrorMessage(error)
                 return false
             } finally {
                 this.loading = false
+            }
+        },
+
+        // Kayıt belgesini yazar, admin/boss'a bildirim gönderir; oturum açık kalır
+        // (öğrenci panelde "Hesap Onayı Bekleniyor" uyarısını görür).
+        async completeRegistration(uid: string, userData: RegisterInput) {
+            const user = buildUserRegistrationDoc(uid, userData, new Date())
+            console.log('💾 Firestore\'a kullanıcı verisi yazılıyor...')
+            await setDoc(doc(db, 'users', uid), user)
+
+            if (user.role === 'student' && user.status === 'pending') {
+                // Bildirim yazılamasa da kayıt geçerlidir: admin bekleyen öğrencileri
+                // users koleksiyonundan da görür (Notifications.vue sentetik kayıtları).
+                try {
+                    await notificationService.createAdminNotification(
+                        REGISTRATION_NOTIFICATION_TITLE,
+                        registrationNotificationMessage(user),
+                        'approval_pending',
+                        uid
+                    )
+                } catch (notifyError) {
+                    console.warn('Kayıt bildirimi yazılamadı:', notifyError)
+                }
+            }
+
+            this.user = user
+            this.isAuthenticated = true
+            // Canlı dinleyici belge yazılmadan önce "belge yok" görüp hata yazmış olabilir.
+            this.error = null
+            console.log('✅ Kayıt başarılı:', uid)
+        },
+
+        // Telefonun Auth hesabı zaten var. Girilen şifreyle giriş yapılabilirse: belge
+        // yoksa (kayıt reddedilmiş) yeniden yazılır; belge varsa kayıt yapılmaz, oturum
+        // kapatılır ve kullanıcı yönlendirilir.
+        async resumeExistingAccount(userData: RegisterInput): Promise<boolean> {
+            const alreadyRegistered = 'Bu telefon numarası zaten kayıtlı. Giriş sayfasından giriş yapabilirsiniz.'
+            let uid: string
+            try {
+                const credential = await signInWithEmailAndPassword(auth, phoneToEmail(userData.phone_number), userData.password)
+                uid = credential.user.uid
+            } catch (signInError) {
+                console.warn('Mevcut hesaba girilen şifreyle girilemedi:', signInError)
+                this.error = alreadyRegistered
+                return false
+            }
+
+            try {
+                const existing = await getDoc(doc(db, 'users', uid))
+                if (!existing.exists()) {
+                    console.log('📝 Belge yok (kayıt reddedilmiş) — yeniden oluşturuluyor')
+                    await this.completeRegistration(uid, userData)
+                    return true
+                }
+                const data = existing.data() as Partial<User>
+                await this.logout()
+                this.error = (data.deleted === true || data.status === 'deleted')
+                    ? 'Bu telefon numarasıyla açılmış hesap silinmiş. Yeniden kayıt için lütfen yöneticiyle iletişime geçin.'
+                    : alreadyRegistered
+                return false
+            } catch (error: any) {
+                console.error('❌ Kayıt kurtarma hatası:', error)
+                this.error = this.getErrorMessage(error)
+                return false
             }
         },
 

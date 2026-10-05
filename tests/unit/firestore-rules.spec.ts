@@ -669,6 +669,44 @@ describe('Firestore Rules - users yetki alanları', () => {
             await assertSucceeds(dbAs(NEW_USER).doc(`users/${NEW_USER}`).set(serviceRegistration(NEW_USER)))
         })
 
+        // Üye kayıt formu (src/utils/registrationForm.ts buildRegistrationProfile) alanları.
+        const formFields = {
+            heightCm: 150, weightKg: 40, occupation: 'Öğrenci', address: 'Urla',
+            isMinor: true, parentFirstName: 'Ayşe', parentLastName: 'Yılmaz',
+            parentPhone: '05559876543', parentEmail: 'ayse@example.com', parentRelation: 'mother',
+            trainingTypes: ['tennis_school', 'other'], trainingTypeOther: 'Kondisyon',
+            hasHealthCondition: true, healthConditionNote: 'Astım', specialCareNote: 'Sprey yanında',
+            coachNote: 'Utangaç', referralSource: 'friend', referralDetail: 'Mehmet Kaya',
+            waiverAcceptedAt: new Date(), dataConsentAcceptedAt: new Date(),
+            marketingConsent: true, marketingConsentAt: new Date()
+        }
+
+        it('üye kayıt formunun tüm alanlarıyla kayıt olur', async () => {
+            await assertSucceeds(dbAs(NEW_USER).doc(`users/${NEW_USER}`).set(storeRegistration(NEW_USER, formFields)))
+        })
+
+        it('kayıt formu alanlarında tip/seçenek/uzunluk ihlali reddedilir', async () => {
+            const ref = dbAs(NEW_USER).doc(`users/${NEW_USER}`)
+            const bad: Record<string, unknown>[] = [
+                { heightCm: '150' }, { heightCm: 20 }, { heightCm: 150.5 }, { weightKg: 400 },
+                { isMinor: 'evet' }, { parentPhone: '5559876543' }, { parentRelation: 'dayi' },
+                { trainingTypes: ['yoga'] }, { trainingTypes: 'tennis_school' },
+                { hasHealthCondition: 'hayir' }, { healthConditionNote: 'x'.repeat(1001) },
+                { referralSource: 'tiktok' }, { referralDetail: 'x'.repeat(201) },
+                { waiverAcceptedAt: 'dün' }, { marketingConsent: 'evet' }
+            ]
+            for (const override of bad) {
+                await assertFails(ref.set(storeRegistration(NEW_USER, { ...formFields, ...override })))
+            }
+        })
+
+        it('girişsiz kullanıcı users koleksiyonunu sorgulayamaz (eski kayıt ön kontrolü bu yüzden düşüyordu)', async () => {
+            const anon = testEnv.unauthenticatedContext().firestore()
+            await assertFails(anon.collection('users')
+                .where('phone_number', '==', '05551112233')
+                .where('deleted', '==', true).get())
+        })
+
         it('admin/boss rolüyle, onaylı durumla ya da yetki alanıyla kayıt reddedilir', async () => {
             const ref = dbAs(NEW_USER).doc(`users/${NEW_USER}`)
             await assertFails(ref.set(storeRegistration(NEW_USER, { role: 'admin', status: 'approved' })))

@@ -40,16 +40,69 @@ service cloud.firestore {
 
     // Kayıt (store register + AuthService.createUserDocument): yalnız
     // onay bekleyen öğrenci. `id` alanı yazılırsa belge kimliğiyle aynı olmalı
-    // (alanın doküman kimliğini gölgelemesi tuzağı).
+    // (alanın doküman kimliğini gölgelemesi tuzağı). Üye kayıt formu alanları
+    // (src/utils/registrationForm.ts) tip/uzunluk/seçenek denetiminden geçer.
     function isValidSelfRegistration(userId) {
       let d = request.resource.data;
       return d.keys().hasOnly(['id', 'phone_number', 'firstName', 'lastName',
                                'role', 'status', 'email', 'birthDate', 'level',
                                'phone', 'address', 'emergencyContact',
-                               'createdAt', 'updatedAt', 'lastLoginAt']) &&
+                               'createdAt', 'updatedAt', 'lastLoginAt',
+                               'heightCm', 'weightKg', 'occupation', 'isMinor',
+                               'parentFirstName', 'parentLastName', 'parentPhone',
+                               'parentEmail', 'parentRelation',
+                               'trainingTypes', 'trainingTypeOther',
+                               'hasHealthCondition', 'healthConditionNote',
+                               'specialCareNote', 'coachNote',
+                               'referralSource', 'referralDetail',
+                               'waiverAcceptedAt', 'dataConsentAcceptedAt',
+                               'marketingConsent', 'marketingConsentAt']) &&
         d.get('role', null) == 'student' &&
         d.get('status', null) == 'pending' &&
-        d.get('id', userId) == userId;
+        d.get('id', userId) == userId &&
+        isValidRegistrationForm(d);
+    }
+
+    // Kayıt formu alanlarının tip/uzunluk denetimi (alan yoksa geçer). Onaylar burada
+    // ZORUNLU tutulmaz: kurallar uygulamadan önce yayınlanırsa eski istemcinin kaydı
+    // kırılmasın — zorunluluk kayıt formunda (Register.vue).
+    function optStr(d, key, maxLen) {
+      return !(key in d) || (d[key] is string && d[key].size() <= maxLen);
+    }
+    function optInt(d, key, lo, hi) {
+      return !(key in d) || (d[key] is int && d[key] >= lo && d[key] <= hi);
+    }
+    function optBool(d, key) {
+      return !(key in d) || d[key] is bool;
+    }
+    function optTime(d, key) {
+      return !(key in d) || d[key] is timestamp;
+    }
+    function optOneOf(d, key, values) {
+      return !(key in d) || d[key] in values;
+    }
+    function optPhone(d, key) {
+      return !(key in d) || (d[key] is string && d[key].matches('^0[0-9]{10}$'));
+    }
+    function isValidRegistrationForm(d) {
+      return optInt(d, 'heightCm', 50, 250) && optInt(d, 'weightKg', 10, 250) &&
+        optStr(d, 'occupation', 100) && optStr(d, 'address', 300) &&
+        optBool(d, 'isMinor') &&
+        optStr(d, 'parentFirstName', 64) && optStr(d, 'parentLastName', 64) &&
+        optPhone(d, 'parentPhone') && optStr(d, 'parentEmail', 254) &&
+        optOneOf(d, 'parentRelation', ['mother', 'father', 'other']) &&
+        (!('trainingTypes' in d) ||
+          (d.trainingTypes is list && d.trainingTypes.size() <= 5 &&
+           d.trainingTypes.hasOnly(['private_lesson', 'adult_group', 'tennis_school',
+                                    'court_rental', 'other']))) &&
+        optStr(d, 'trainingTypeOther', 200) &&
+        optBool(d, 'hasHealthCondition') && optStr(d, 'healthConditionNote', 1000) &&
+        optStr(d, 'specialCareNote', 1000) && optStr(d, 'coachNote', 1000) &&
+        optOneOf(d, 'referralSource', ['instagram', 'facebook', 'google', 'website',
+                                       'friend', 'existing_student', 'other']) &&
+        optStr(d, 'referralDetail', 200) &&
+        optTime(d, 'waiverAcceptedAt') && optTime(d, 'dataConsentAcceptedAt') &&
+        optBool(d, 'marketingConsent') && optTime(d, 'marketingConsentAt');
     }
 
     // Kendi belgesinde değişebilecek alanlar: profil formu

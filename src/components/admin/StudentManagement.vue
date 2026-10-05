@@ -153,6 +153,95 @@
                 />
               </v-col>
             </v-row>
+
+            <!-- Kayıt formu filtreleri -->
+            <v-row dense class="mt-1">
+              <v-col cols="12" sm="6" md="3">
+                <v-select
+                    v-model="registrationFilters.trainingType"
+                    label="Eğitim Türü"
+                    :items="TRAINING_TYPE_OPTIONS"
+                    item-title="title"
+                    item-value="value"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                    prepend-inner-icon="mdi-tennis"
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="3">
+                <v-select
+                    v-model="registrationFilters.referralSource"
+                    label="Nereden Duydu"
+                    :items="REFERRAL_SOURCE_OPTIONS"
+                    item-title="title"
+                    item-value="value"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                    prepend-inner-icon="mdi-bullhorn"
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="3">
+                <v-select
+                    v-model="registrationFilters.age"
+                    label="Yaş"
+                    :items="AGE_FILTER_OPTIONS"
+                    item-title="title"
+                    item-value="value"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                    prepend-inner-icon="mdi-account-child"
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="3">
+                <v-select
+                    v-model="registrationFilters.marketing"
+                    label="Pazarlama İzni"
+                    :items="MARKETING_FILTER_OPTIONS"
+                    item-title="title"
+                    item-value="value"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                    prepend-inner-icon="mdi-email-check"
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="3">
+                <v-text-field
+                    v-model="registrationFilters.joinedFrom"
+                    label="Kayıt tarihi (başlangıç)"
+                    type="date"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="3">
+                <v-text-field
+                    v-model="registrationFilters.joinedTo"
+                    label="Kayıt tarihi (bitiş)"
+                    type="date"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="3" class="d-flex align-center">
+                <v-checkbox
+                    v-model="registrationFilters.healthOnly"
+                    label="Sağlık durumu bildirenler"
+                    density="compact"
+                    hide-details
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="3" class="d-flex align-center justify-end">
+                <v-btn variant="text" prepend-icon="mdi-filter-remove" @click="resetRegistrationFilters">
+                  Form Filtrelerini Temizle
+                </v-btn>
+              </v-col>
+            </v-row>
           </v-card-text>
         </v-card>
 
@@ -173,6 +262,16 @@
               <v-chip color="success" variant="flat" class="mr-2 font-weight-bold">
                 {{ filteredStudents.length }} öğrenci
               </v-chip>
+              <v-btn
+                  color="primary"
+                  variant="tonal"
+                  prepend-icon="mdi-file-delimited-outline"
+                  class="mr-2"
+                  :disabled="filteredStudents.length === 0"
+                  @click="exportFilteredStudentsCsv"
+              >
+                CSV İndir
+              </v-btn>
               <v-btn
                   color="success"
                   prepend-icon="mdi-account-plus"
@@ -207,9 +306,9 @@
                   <div>
                     <div class="font-weight-bold text-body-1 d-flex align-center">
                       {{ item.firstName }} {{ item.lastName }}
-                      <!-- Veli bilgisi ikonu (yalnızca uygun üyelik türünde) -->
+                      <!-- Veli bilgisi ikonu (uygun üyelik türünde ya da 18 yaş altında) -->
                       <v-icon
-                          v-if="needsParentInfo(item.membershipType)"
+                          v-if="needsParentInfo(item.membershipType, item.isMinor)"
                           icon="mdi-information-outline"
                           size="16"
                           color="info"
@@ -382,12 +481,12 @@
                         <label class="info-label">Adres:</label>
                         <span class="info-value">{{ selectedStudent?.address }}</span>
                       </div>
-                      <div class="info-item" :class="{ 'mb-3': needsParentInfo(selectedStudent?.membershipType) }">
+                      <div class="info-item" :class="{ 'mb-3': needsParentInfo(selectedStudent?.membershipType, selectedStudent?.isMinor) }">
                         <label class="info-label">Acil Durum İletişim:</label>
                         <span class="info-value">{{ selectedStudent?.emergencyContact }}</span>
                       </div>
-                      <!-- Veli bilgileri (yalnızca uygun üyelik türünde) -->
-                      <template v-if="needsParentInfo(selectedStudent?.membershipType)">
+                      <!-- Veli bilgileri (uygun üyelik türünde ya da 18 yaş altında) -->
+                      <template v-if="needsParentInfo(selectedStudent?.membershipType, selectedStudent?.isMinor)">
                         <v-divider class="my-2" />
                         <div class="info-item mb-3">
                           <label class="info-label">Veli Ad Soyad:</label>
@@ -397,9 +496,17 @@
                               : '—' }}
                           </span>
                         </div>
-                        <div class="info-item">
+                        <div class="info-item mb-3">
                           <label class="info-label">Veli Telefon:</label>
                           <span class="info-value">{{ selectedStudent?.parentPhone || '—' }}</span>
+                        </div>
+                        <div class="info-item mb-3">
+                          <label class="info-label">Veli E-posta:</label>
+                          <span class="info-value">{{ selectedStudent?.parentEmail || '—' }}</span>
+                        </div>
+                        <div class="info-item">
+                          <label class="info-label">Yakınlık:</label>
+                          <span class="info-value">{{ parentRelationLabel(selectedStudent?.parentRelation || '') || '—' }}</span>
                         </div>
                       </template>
                     </div>
@@ -445,10 +552,10 @@
                           label="Acil Durum İletişim"
                           variant="outlined"
                           density="compact"
-                          :class="{ 'mb-3': needsParentInfo(editForm.membershipType) }"
+                          :class="{ 'mb-3': needsParentInfo(editForm.membershipType, editRegistration.isMinor) }"
                       />
-                      <!-- Veli bilgileri (yalnızca uygun üyelik türünde gösterilir) -->
-                      <template v-if="needsParentInfo(editForm.membershipType)">
+                      <!-- Veli bilgileri (uygun üyelik türünde ya da 18 yaş altında gösterilir) -->
+                      <template v-if="needsParentInfo(editForm.membershipType, editRegistration.isMinor)">
                         <v-divider class="mb-3" />
                         <div class="text-subtitle-2 font-weight-bold mb-2 text-grey-700">Veli Bilgileri</div>
                         <v-text-field
@@ -470,6 +577,24 @@
                             label="Veli Telefon"
                             variant="outlined"
                             density="compact"
+                            class="mb-3"
+                        />
+                        <v-text-field
+                            v-model="editForm.parentEmail"
+                            label="Veli E-posta"
+                            variant="outlined"
+                            density="compact"
+                            class="mb-3"
+                        />
+                        <v-select
+                            v-model="editForm.parentRelation"
+                            label="Yakınlık"
+                            :items="PARENT_RELATION_OPTIONS"
+                            item-title="title"
+                            item-value="value"
+                            variant="outlined"
+                            density="compact"
+                            clearable
                         />
                       </template>
                     </div>
@@ -817,6 +942,16 @@
                     </div>
                   </v-card-text>
                 </v-card>
+              </v-col>
+
+              <!-- Kayıt Formu (UTA dijital form) -->
+              <v-col v-if="selectedStudent" cols="12">
+                <StudentRegistrationSection
+                    v-model:form="editRegistration"
+                    :info="selectedStudent"
+                    :edit-mode="isEditMode"
+                    :errors="registrationEditErrors"
+                />
               </v-col>
 
               <!-- Şifre Sıfırlama Section -->
@@ -1240,6 +1375,32 @@ import { syncGroupSchedule } from '@/services/groupScheduleSync'
 import { normalizeForComparison, groupToStudentFormat } from '@/utils/scheduleFormats'
 import { resolveGroupExitOnSave } from '@/utils/studentGroupExit'
 import { needsParentInfo } from '@/utils/parentInfo'
+import StudentRegistrationSection from '@/components/admin/students/StudentRegistrationSection.vue'
+import {
+  PARENT_RELATION_OPTIONS,
+  REFERRAL_SOURCE_OPTIONS,
+  TRAINING_TYPE_OPTIONS,
+  toYmd
+} from '@/utils/registrationForm'
+import {
+  AGE_FILTER_OPTIONS,
+  MARKETING_FILTER_OPTIONS,
+  STUDENT_CSV_HEADERS,
+  buildRegistrationUpdate,
+  emptyRegistrationFilters,
+  matchesRegistrationFilters,
+  parentRelationLabel,
+  readRegistrationInfo,
+  registrationWipePatch,
+  studentCsvRow,
+  toRegistrationEditForm,
+  validateRegistrationEdit,
+  type RegistrationEditErrors,
+  type RegistrationEditForm,
+  type StudentRegistrationInfo
+} from '@/utils/studentRegistrationAdmin'
+import { buildCsv, downloadCsv } from '@/utils/csv'
+import type { ParentRelation } from '@/types/user'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import type { ArchiveReason, AttendanceRecord } from '@/types/attendanceArchive'
 import {
@@ -1258,19 +1419,16 @@ interface WeeklyPlan {
   court: string
 }
 
-// Define student interface
-interface Student {
+// Define student interface (kayıt formu + veli alanları StudentRegistrationInfo'dan)
+interface Student extends StudentRegistrationInfo {
   id: string
   firstName: string
   lastName: string
   phone_number: string
   email: string
+  level: string
   address: string
   emergencyContact: string
-  // Veli bilgileri (yalnızca needsParentInfo() türlerinde dolu)
-  parentFirstName?: string
-  parentLastName?: string
-  parentPhone?: string
   membershipType: string
   groupAssignment?: string
   groupSchedule?: {
@@ -1370,6 +1528,10 @@ const filters = reactive({
   status: ''
 })
 
+// Kayıt formu filtreleri (eğitim türü, kaynak, yaş, pazarlama izni, sağlık, kayıt tarihi)
+const registrationFilters = reactive(emptyRegistrationFilters())
+const resetRegistrationFilters = () => Object.assign(registrationFilters, emptyRegistrationFilters())
+
 // Edit form
 const editForm = ref({
   firstName: '',
@@ -1381,6 +1543,8 @@ const editForm = ref({
   parentFirstName: '',
   parentLastName: '',
   parentPhone: '',
+  parentEmail: '',
+  parentRelation: '' as ParentRelation | '',
   membershipType: '',
   groupAssignment: '',
   weeklyPlan: [] as WeeklyPlan[],
@@ -1388,6 +1552,10 @@ const editForm = ref({
   balance: 0,
   notes: ''
 })
+
+// Detaydaki "Kayıt Formu" bölümünün düzenleme durumu
+const editRegistration = ref<RegistrationEditForm>(toRegistrationEditForm(readRegistrationInfo({})))
+const registrationEditErrors = ref<RegistrationEditErrors>({})
 
 // Table headers
 const headers = [
@@ -1897,6 +2065,8 @@ const filteredStudents = computed(() => {
     }
   }
 
+  filtered = filtered.filter(student => matchesRegistrationFilters(student, registrationFilters))
+
   return filtered
 })
 
@@ -1938,6 +2108,17 @@ const formatDate = (date: any) => {
   if (!date) return '-'
   const d = date.toDate ? date.toDate() : new Date(date)
   return d.toLocaleDateString('tr-TR')
+}
+
+// Filtrelenmiş öğrenci listesini CSV indir (sağlık notları ve boy/kilo hariç).
+const exportFilteredStudentsCsv = () => {
+  const rows = filteredStudents.value.map(student =>
+    studentCsvRow(student, {
+      membership: getMembershipDisplayName(student.membershipType),
+      status: getStatusDisplayName(student.status)
+    })
+  )
+  downloadCsv(`ogrenciler_${toYmd(new Date())}.csv`, buildCsv(STUDENT_CSV_HEADERS, rows))
 }
 
 const getMembershipColor = (type: string | undefined) => {
@@ -2453,11 +2634,15 @@ const fetchStudents = async (): Promise<void> => {
           }
 
           const student: Student = {
+            // Kayıt formu + veli alanları (eskiden veli alanları hiç okunmuyordu; düzenleme
+            // formu boş açılıp kaydedince veli bilgisini siliyordu)
+            ...readRegistrationInfo(data),
             id: doc.id,
             firstName: data.firstName || '',
             lastName: data.lastName || '',
             phone_number: actualPhone,
             email: actualEmail,
+            level: data.level || '',
             address: data.address || '',
             emergencyContact: data.emergencyContact || '',
             membershipType: data.membershipType || 'basic',
@@ -2729,6 +2914,8 @@ const toggleEditMode = async () => {
       parentFirstName: selectedStudent.value.parentFirstName || '',
       parentLastName: selectedStudent.value.parentLastName || '',
       parentPhone: selectedStudent.value.parentPhone || '',
+      parentEmail: selectedStudent.value.parentEmail || '',
+      parentRelation: selectedStudent.value.parentRelation || '',
       membershipType: selectedStudent.value.membershipType,
       groupAssignment: selectedStudent.value.groupAssignment || '',
       weeklyPlan,
@@ -2736,7 +2923,9 @@ const toggleEditMode = async () => {
       balance: selectedStudent.value.balance,
       notes: selectedStudent.value.notes || ''
     }
-    
+    editRegistration.value = toRegistrationEditForm(selectedStudent.value)
+    registrationEditErrors.value = {}
+
     // Load occupied slots when entering edit mode
     await loadOccupiedSlotsData()
   }
@@ -2755,6 +2944,8 @@ const cancelEdit = () => {
     parentFirstName: '',
     parentLastName: '',
     parentPhone: '',
+    parentEmail: '',
+    parentRelation: '',
     membershipType: '',
     groupAssignment: '',
     weeklyPlan: [],
@@ -2762,10 +2953,21 @@ const cancelEdit = () => {
     balance: 0,
     notes: ''
   }
+  editRegistration.value = toRegistrationEditForm(readRegistrationInfo({}))
+  registrationEditErrors.value = {}
 }
 
 const saveStudentChanges = async (): Promise<void> => {
   if (!selectedStudent.value) return
+
+  // Kayıt formu alanları (boy/kilo aralığı, metin uzunlukları)
+  const registrationErrors = validateRegistrationEdit(editRegistration.value)
+  registrationEditErrors.value = registrationErrors
+  if (Object.keys(registrationErrors).length > 0) {
+    successMessage.value = 'Kayıt formu alanlarında hata var; lütfen kontrol edin.'
+    successSnackbar.value = true
+    return
+  }
 
   // Grup seçimi validasyonu
   if (editForm.value.groupAssignment) {
@@ -2909,6 +3111,19 @@ const saveStudentChanges = async (): Promise<void> => {
       await updateStudentPhone(studentId, editForm.value.phone_number)
     }
 
+    // Veli bilgileri: üyelik türü gerektiriyorsa YA DA öğrenci 18 yaş altıysa saklanır,
+    // aksi hâlde temizlenir (eskiden yalnız üyelik türüne bakılıyordu; reşit olmayan
+    // öğrencinin kayıtta girilen veli bilgisi admin düzenlemesinde siliniyordu).
+    const keepParent = needsParentInfo(effectiveMembershipType, editRegistration.value.isMinor)
+    const parentPatch = {
+      parentFirstName: keepParent ? (editForm.value.parentFirstName || '').trim() : '',
+      parentLastName: keepParent ? (editForm.value.parentLastName || '').trim() : '',
+      parentPhone: keepParent ? (editForm.value.parentPhone || '').trim() : '',
+      parentEmail: keepParent ? (editForm.value.parentEmail || '').trim() : '',
+      parentRelation: keepParent ? editForm.value.parentRelation : ''
+    }
+    const registrationPatch = buildRegistrationUpdate(editRegistration.value, oldStudent)
+
     const userDocRef = doc(db, 'users', studentId)
     await updateDoc(userDocRef, {
       firstName: editForm.value.firstName,
@@ -2916,10 +3131,8 @@ const saveStudentChanges = async (): Promise<void> => {
       email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
-      // Veli bilgileri: yalnızca uygun üyelik türünde sakla; tür dışına çıkarsa temizle
-      parentFirstName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentFirstName || '') : '',
-      parentLastName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentLastName || '') : '',
-      parentPhone: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentPhone || '') : '',
+      ...parentPatch,
+      ...registrationPatch,
       membershipType: effectiveMembershipType,
       groupAssignment,
       groupSchedule,
@@ -3006,9 +3219,7 @@ const saveStudentChanges = async (): Promise<void> => {
       email: editForm.value.email,
       address: editForm.value.address,
       emergencyContact: editForm.value.emergencyContact,
-      parentFirstName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentFirstName || '') : '',
-      parentLastName: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentLastName || '') : '',
-      parentPhone: needsParentInfo(effectiveMembershipType) ? (editForm.value.parentPhone || '') : '',
+      ...readRegistrationInfo({ ...oldStudent, ...parentPatch, ...registrationPatch }),
       membershipType: effectiveMembershipType,
       groupAssignment,
       groupSchedule,
@@ -3155,6 +3366,7 @@ const performStudentDelete = async (student: Student): Promise<void> => {
     // 2) Firestore soft delete: kişisel alanları anonimleştirip deleted=true işaretle.
     // phone_number'ı da temizliyoruz ki aynı numarayla YENİDEN KAYIT mümkün olsun
     // (Auth kaydı silindi; register'daki "bu numara silinmişti" engeli artık gereksiz).
+    // Veli ve kayıt formu alanları (sağlık notları dahil) da boşaltılır.
     const userDocRef = doc(db, 'users', student.id)
     await updateDoc(userDocRef, {
       deleted: true,
@@ -3171,6 +3383,7 @@ const performStudentDelete = async (student: Student): Promise<void> => {
       membershipType: '',
       groupAssignment: '',
       status: 'deleted',
+      ...registrationWipePatch(),
     })
 
     console.log('✅ Öğrenci silindi (Auth kaydı + soft delete)')
