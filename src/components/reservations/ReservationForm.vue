@@ -395,6 +395,13 @@ const getCourtnameById = (courtId: string): string => {
   return court?.name || courtId
 }
 
+// Öğrencinin o gün aktif (pending/confirmed) kort kiralaması var mı — günde-bir kuralı.
+const hasSameDayReservation = async (studentId: string, dateKey: string): Promise<boolean> => {
+  const snapshot = await getDocs(query(collection(db, 'reservations'), where('studentId', '==', studentId)))
+  const docs = snapshot.docs.map((docSnap) => docSnap.data() as RawReservationDoc)
+  return hasActiveReservationOnDate(docs, studentId, dateKey)
+}
+
 const submitReservation = async () => {
   // Çift gönderim koruması: Enter + tık ya da hızlı çift dokunuş ikinci bir
   // gönderim başlatmasın. Sunucudaki gün kilidi ikinciyi zaten reddeder; bu
@@ -430,14 +437,7 @@ const submitReservation = async () => {
     // 0. Aynı öğrencinin aynı gün için zaten aktif rezervasyonu var mı (günde bir kuralı).
     // Bu ön kontrol kullanıcıya erken ve anlaşılır mesaj içindir; asıl zorlama
     // yazımdaki gün kilididir (commitStudentCourtRental + firestore.rules).
-    const sameDayQuery = query(
-      collection(db, 'reservations'),
-      where('studentId', '==', studentId)
-    )
-    const sameDaySnapshot = await getDocs(sameDayQuery)
-    const docs = sameDaySnapshot.docs.map((docSnap) => docSnap.data() as RawReservationDoc)
-
-    if (hasActiveReservationOnDate(docs, studentId, dateKey)) {
+    if (await hasSameDayReservation(studentId, dateKey)) {
       errorMessage.value = SAME_DAY_LIMIT_MESSAGE
       errorSnackbar.value = true
       loading.value = false
@@ -574,9 +574,16 @@ const submitReservation = async () => {
 
   } catch (error) {
     console.error('Rezervasyon hatası:', error)
-    errorMessage.value = isDayLockConflictError(error)
-      ? SAME_DAY_LIMIT_MESSAGE
-      : 'Rezervasyon oluşturulurken hata oluştu. Lütfen tekrar deneyin.'
+    if (!isDayLockConflictError(error)) {
+      errorMessage.value = 'Rezervasyon oluşturulurken hata oluştu. Lütfen tekrar deneyin.'
+    } else {
+      // Kural reddi: o gün aktif kayıt varsa (ör. eşzamanlı ikinci gönderim)
+      // günde-bir limiti; yoksa pencere sunucu saatine göre kapalı (cihaz saati sapmış).
+      const sameDay = await hasSameDayReservation(studentId, dateKey).catch(() => true)
+      errorMessage.value = sameDay
+        ? SAME_DAY_LIMIT_MESSAGE
+        : 'Rezervasyon penceresi şu an kapalı. Yeni hafta her Pazartesi 13:00\'te (Türkiye saati) açılır. Lütfen cihazınızın saatini kontrol edin.'
+    }
     errorSnackbar.value = true
   } finally {
     loading.value = false

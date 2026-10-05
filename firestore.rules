@@ -127,6 +127,20 @@ service cloud.firestore {
                             int(key.split('-')[2]));
     }
 
+    // Öğrenci rezervasyon penceresi — src/utils/reservationWindow.ts paritesi:
+    // her PAZARTESİ 13:00'te o haftanın Pzt–Paz'ı açılır; Pzt 00:00–12:59 kapalı.
+    // `day` = rezervasyon gününün UTC gece yarısı, `instant` = request.time.
+    // İstemci saati güvenilmez (canlı olay, 5 Eki 2026: cihaz saat dilimi
+    // yüzünden Pzt 08:00'de pencere açık sanıldı) → zaman sunucudan gelir.
+    // Akademi saati Europe/Istanbul = UTC+3 (2016'dan beri yaz saati yok).
+    function isInOpenReservationWindow(day, instant) {
+      let now = instant + duration.value(3, 'h');   // İstanbul duvar saati
+      let dow = now.dayOfWeek();                    // 1 = Pazartesi … 7 = Pazar
+      let weekStart = now.date() - duration.value(dow - 1, 'd');
+      return !(dow == 1 && now.hours() < 13) &&
+        day >= weekStart && day <= weekStart + duration.value(6, 'd');
+    }
+
     function reservationPath(id) {
       return /databases/$(database)/documents/reservations/$(id);
     }
@@ -142,7 +156,8 @@ service cloud.firestore {
 
     // Öğrencinin kendi adına açtığı, onay bekleyen kort kiralaması. Alan
     // listesi ReservationForm.vue'nun yazdığıyla birebir; tarih dateKey'e
-    // bağlı; aynı batch'te o günün kilidi BU rezervasyonu göstermeli.
+    // bağlı ve sunucu saatine göre açık pencerede; aynı batch'te o günün
+    // kilidi BU rezervasyonu göstermeli.
     function isOwnLockedCourtRental(reservationId) {
       let d = request.resource.data;
       let lockId = request.auth.uid + '_' + d.get('dateKey', '');
@@ -154,6 +169,7 @@ service cloud.firestore {
         d.get('type', null) == 'court-rental' &&
         isValidDateKey(d.get('dateKey', null)) &&
         d.get('date', null) == utcMidnightOf(d.dateKey) &&
+        isInOpenReservationWindow(d.date, request.time) &&
         existsAfter(dayLockPath(lockId)) &&
         getAfter(dayLockPath(lockId)).data.get('reservationId', null) == reservationId;
     }

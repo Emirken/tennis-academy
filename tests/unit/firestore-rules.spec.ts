@@ -4,12 +4,27 @@ import { readFileSync } from 'fs'
 
 let testEnv: RulesTestEnvironment
 
+const RULES = readFileSync('firestore.rules', 'utf8')
+
+// Emülatör request.time'ı gerçek saatten alır; rezervasyon penceresi kuralı
+// testleri haftanın gününe bağımlı kılmasın diye sunucu saati bu ortamda
+// SABİT: Çarşamba 23 Eyl 2026 12:00 TR → açık pencere 21–27 Eyl.
+const FROZEN_NOW = Date.parse('2026-09-23T09:00:00Z')
+const WINDOW_CALL = 'isInOpenReservationWindow(d.date, request.time)'
+
+const withFrozenNow = (rules: string, ms: number) => {
+    if (rules.split(WINDOW_CALL).length !== 2) {
+        throw new Error(`firestore.rules içinde tam bir kez "${WINDOW_CALL}" bekleniyordu`)
+    }
+    return rules.replace(WINDOW_CALL, `isInOpenReservationWindow(d.date, timestamp.value(${ms}))`)
+}
+
 beforeAll(async () => {
     // We load the existing firestore.rules
     testEnv = await initializeTestEnvironment({
         projectId: 'tennis-academy-test',
         firestore: {
-            rules: readFileSync('firestore.rules', 'utf8')
+            rules: withFrozenNow(RULES, FROZEN_NOW)
         }
     })
 })
@@ -217,6 +232,13 @@ describe('Firestore Rules - Günde-bir kort rezervasyonu kilidi', () => {
                 data: rental(STUDENT, DAY, { dateKey: '21.09.2026' })
             }))
         })
+
+        it('açık pencere (21–27 Eyl) dışındaki güne → reddedilir, kayıt YAZILMAZ', async () => {
+            await assertSucceeds(book(STUDENT, '2026-09-27', 'r1'))     // pencerenin son günü
+            await assertFails(book(STUDENT, '2026-09-28', 'r2'))        // gelecek hafta
+            await assertFails(book(STUDENT, '2026-09-20', 'r3'))        // geçen hafta
+            expect(await readAsAdmin('reservations/r2')).toBeUndefined()
+        })
     })
 
     describe('iptal ve yeniden rezervasyon', () => {
@@ -413,6 +435,66 @@ describe('Firestore Rules - Günde-bir kort rezervasyonu kilidi', () => {
                 type: 'court-rental', groupId: null, groupAssignment: null, groupSchedule: false
             }))
         })
+    })
+})
+
+// Rezervasyon penceresi (sunucu saati). Canlı olay 5 Eki 2026: öğrenci Pazartesi
+// 08:00:04 TR'de o akşama kayıt açabildi — kural pencereyi hiç denetlemiyordu.
+// firestore.rules'taki isInOpenReservationWindow BİREBİR çekilip `instant`
+// belge alanından verilerek zamanda gezilir (request.time sahtelenemez).
+describe('Firestore Rules - Rezervasyon penceresi (isInOpenReservationWindow)', () => {
+    let probeEnv: RulesTestEnvironment
+
+    beforeAll(async () => {
+        const fn = RULES.match(/function isInOpenReservationWindow\([\s\S]*?\n {4}\}/)
+        if (!fn) throw new Error('isInOpenReservationWindow firestore.rules içinde bulunamadı')
+        probeEnv = await initializeTestEnvironment({
+            projectId: 'tennis-academy-window-probe',
+            firestore: {
+                rules: `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    ${fn[0]}
+    match /probe/{id} {
+      allow create: if isInOpenReservationWindow(request.resource.data.day, request.resource.data.at);
+    }
+  }
+}`
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await probeEnv.cleanup()
+    })
+
+    // [an (UTC), rezervasyon günü, izin?]
+    const cases: Array<[string, string, boolean, string]> = [
+        ['2026-10-05T05:00:04Z', '2026-10-05', false, 'olay: Pzt 08:00 TR, aynı gün'],
+        ['2026-10-05T05:00:04Z', '2026-10-04', false, 'olay: Pzt 08:00 TR, eski hafta da kapandı'],
+        ['2026-10-05T09:59:59Z', '2026-10-05', false, 'Pzt 12:59:59 TR'],
+        ['2026-10-05T10:00:00Z', '2026-10-05', true, 'Pzt 13:00 TR açılış günü'],
+        ['2026-10-05T10:00:00Z', '2026-10-11', true, 'Pzt 13:00 TR haftanın Pazar\'ı'],
+        ['2026-10-05T10:00:00Z', '2026-10-12', false, 'Pzt 13:00 TR gelecek hafta'],
+        ['2026-10-05T10:00:00Z', '2026-10-04', false, 'Pzt 13:00 TR geçen hafta'],
+        ['2026-10-07T12:00:00Z', '2026-10-05', true, 'Çarşamba: pencere Pazartesi\'den başlar'],
+        ['2026-10-07T12:00:00Z', '2026-10-12', false, 'Çarşamba: gelecek hafta'],
+        ['2026-10-10T22:00:00Z', '2026-10-11', true, 'Paz 01:00 TR (UTC\'de hâlâ Cumartesi)'],
+        ['2026-10-10T22:00:00Z', '2026-10-12', false, 'Paz 01:00 TR gelecek hafta'],
+        ['2026-10-04T20:59:00Z', '2026-09-28', true, 'Paz 23:59 TR pencere başı'],
+        ['2026-10-04T20:59:00Z', '2026-10-05', false, 'Paz 23:59 TR yarın açılmadı'],
+        ['2026-10-04T21:30:00Z', '2026-10-04', false, 'Pzt 00:30 TR (UTC\'de hâlâ Pazar) kapalı'],
+        ['2026-12-28T10:00:00Z', '2027-01-03', true, 'yıl geçişi: Pazar 3 Oca'],
+        ['2026-12-28T10:00:00Z', '2027-01-04', false, 'yıl geçişi: gelecek hafta'],
+    ]
+
+    it.each(cases)('%s → %s izin=%s (%s)', async (at, day, allowed) => {
+        const db = probeEnv.unauthenticatedContext().firestore()
+        const write = db.collection('probe').doc().set({
+            at: new Date(at),
+            day: new Date(`${day}T00:00:00.000Z`)
+        })
+        await (allowed ? assertSucceeds(write) : assertFails(write))
     })
 })
 

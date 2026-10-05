@@ -8,9 +8,22 @@ import {
   RESERVATION_OPEN_WEEKDAY,
 } from '../../src/utils/reservationWindow'
 
-// Yerel saatte belirli bir an. Date(Y, M-1, D, h, m) -> yerel saat.
+// AKADEMİ saatinde (İstanbul, UTC+3) belirli bir an — testler cihaz saat
+// diliminden bağımsız.
 const localDate = (y: number, m: number, d: number, h = 0, min = 0) =>
-  new Date(y, m - 1, d, h, min, 0, 0)
+  new Date(Date.UTC(y, m - 1, d, h - 3, min, 0, 0))
+
+// Süreç saat dilimini geçici değiştirir (Node TZ'yi çalışma anında uygular).
+const withTimeZone = (tz: string, fn: () => void) => {
+  // TZ silinirse Windows'ta Node UTC'ye düşer → çözülmüş dilime geri dön.
+  const prev = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  process.env.TZ = tz
+  try {
+    fn()
+  } finally {
+    process.env.TZ = prev
+  }
+}
 
 describe('reservationWindow (haftalık Pazartesi 13:00)', () => {
   describe('sabitler', () => {
@@ -19,7 +32,39 @@ describe('reservationWindow (haftalık Pazartesi 13:00)', () => {
     })
     it('açılma günü Pazartesi (getDay === 1)', () => {
       expect(RESERVATION_OPEN_WEEKDAY).toBe(1)
-      expect(localDate(2026, 6, 1).getDay()).toBe(1) // sanity: 1 Haz 2026 Pazartesi
+      expect(new Date(2026, 5, 1).getDay()).toBe(1) // sanity: 1 Haz 2026 Pazartesi
+    })
+  })
+
+  // Canlı olay (5 Eki 2026): öğrenci Pazartesi 08:00:04 TR'de (05:00:04Z) o
+  // akşama rezervasyon açabildi — pencere cihazın saat dilimine göre hesaplanıyordu.
+  describe('cihaz saat diliminden bağımsız (akademi saati)', () => {
+    const incident = new Date('2026-10-05T05:00:04Z') // Pzt 08:00:04 İstanbul
+
+    for (const tz of ['Europe/Istanbul', 'UTC', 'Asia/Singapore', 'Pacific/Kiritimati', 'America/New_York']) {
+      it(`${tz}: Pzt 08:00 TR → kapalı, 5 Eki açılmaz; açılış Pzt 13:00 TR`, () => {
+        withTimeZone(tz, () => {
+          expect(getOpenReservationRange(incident)).toBeNull()
+          expect(isReservationDateOpen('2026-10-05', incident)).toBe(false)
+
+          const next = getNextOpenAt(incident)
+          expect([next.getDate(), next.getHours(), next.getMinutes()]).toEqual([5, 13, 0])
+        })
+      })
+
+      it(`${tz}: Pzt 12:59 TR kapalı, 13:00 TR açık (5–11 Eki)`, () => {
+        withTimeZone(tz, () => {
+          expect(getOpenReservationRange(new Date('2026-10-05T09:59:59Z'))).toBeNull()
+          expect(getOpenReservationRange(new Date('2026-10-05T10:00:00Z')))
+            .toEqual({ start: '2026-10-05', end: '2026-10-11' })
+        })
+      })
+    }
+
+    it('süreç saat dilimi gerçekten değişiyor (test düzeneği sağlaması)', () => {
+      withTimeZone('Asia/Singapore', () => {
+        expect(incident.getHours()).toBe(13) // cihaz bu anı 13:00 görüyordu
+      })
     })
   })
 

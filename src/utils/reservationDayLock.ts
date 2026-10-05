@@ -79,8 +79,9 @@ export function isDayLockHeld(pointee: RawReservationDoc | null | undefined): bo
 
 /**
  * Batch kural tarafından reddedildi mi? Öğrenci akışında istemci ön kontrolü
- * geçildikten sonra gelen tek gerçekçi ret, aynı güne eşzamanlı ikinci
- * rezervasyondur (kilit başka aktif kaydı gösteriyor).
+ * geçildikten sonra iki gerçekçi ret vardır: aynı güne eşzamanlı ikinci
+ * rezervasyon (kilit başka aktif kaydı gösteriyor) ya da cihaz saati sunucudan
+ * saptığı için kapalı pencere — ReservationForm o günün aktif kaydına bakarak ayırır.
  */
 export function isDayLockConflictError(error: unknown): boolean {
   return (error as { code?: unknown } | null | undefined)?.code === 'permission-denied'

@@ -9,10 +9,32 @@
 //   Pzt 1 Haz 2026 @ 13:00 → pencere = Pzt 1 Haz … Paz 7 Haz 2026
 //   Bu pencere Paz 7 Haz'ın son slotuna (22:00) kadar açık kalır.
 //   Pzt 8 Haz 00:00–12:59 → kapalı; Pzt 8 Haz @ 13:00 → pencere 8 Haz … 14 Haz'a kayar.
+//
+// Saatler AKADEMİ saatidir (Europe/Istanbul), cihazın saat dilimi değil: telefonu
+// başka saat dilimine ayarlı öğrenci Pazartesi 08:00'de "13:00" görüp pencereyi
+// erken açabiliyordu (canlı olay, 5 Eki 2026). Asıl zorlama sunucuda:
+// firestore.rules → isInOpenReservationWindow (request.time). Bu dosya arayüz paritesidir.
 
 export const RESERVATION_OPEN_HOUR = 13
 // Pencere açılış günü: Pazartesi (Date.getDay() === 1)
 export const RESERVATION_OPEN_WEEKDAY = 1
+export const RESERVATION_TIME_ZONE = 'Europe/Istanbul'
+
+const academyClock = new Intl.DateTimeFormat('en-US', {
+  timeZone: RESERVATION_TIME_ZONE,
+  year: 'numeric', month: 'numeric', day: 'numeric',
+  hour: 'numeric', minute: 'numeric', second: 'numeric',
+  hourCycle: 'h23',
+})
+
+/**
+ * `now` anındaki akademi duvar saatini YEREL alanlarında taşıyan Date
+ * (getDay/getHours/getDate İstanbul saatini verir). Cihaz İstanbul'daysa aynı an.
+ */
+function toAcademyWallClock(now: Date): Date {
+  const p = Object.fromEntries(academyClock.formatToParts(now).map((x) => [x.type, x.value]))
+  return new Date(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second, now.getMilliseconds())
+}
 
 export interface ReservationRange {
   start: string // Pazartesi, YYYY-MM-DD
@@ -46,6 +68,7 @@ function getCurrentOpenBoundary(now: Date): Date {
  * Pazartesi 13:00'ten önce en son açılan hafta tamamen geçmişte kalır → null (kapalı).
  */
 export function getOpenReservationRange(now: Date = new Date()): ReservationRange | null {
+  now = toAcademyWallClock(now)
   const boundary = getCurrentOpenBoundary(now)
 
   const start = new Date(boundary)
@@ -80,9 +103,11 @@ export function isReservationDateOpen(dateStr: string, now: Date = new Date()): 
 }
 
 /**
- * Bir sonraki açılış anı: gelecekteki en yakın "Pazartesi 13:00".
+ * Bir sonraki açılış anı: gelecekteki en yakın "Pazartesi 13:00" (akademi saati;
+ * dönen Date'in yerel alanları İstanbul duvar saatidir — gösterim içindir).
  */
 export function getNextOpenAt(now: Date = new Date()): Date {
+  now = toAcademyWallClock(now)
   const next = new Date(now)
   next.setMinutes(0, 0, 0)
 
