@@ -484,6 +484,7 @@ import { docsWithId } from '@/utils/docWithId'
 import type { RawReservationDoc } from '@/utils/dailyReservationLimit'
 import { useScheduleSettings } from '@/composables/useScheduleSettings'
 import { notificationService } from '@/services/notificationService'
+import { deletePendingRequestNotifications } from '@/services/reservationApproval'
 import { getReservationIdsToCancel, type RawReservationDocWithId } from '@/utils/reservationCancel'
 import {
   DAY_INDEX_LABEL_TR,
@@ -1063,6 +1064,15 @@ const cancelSlotReservation = async (courtId: string, timeSlot: string) => {
       cancelledByUserId: authStore.user?.id || null,
     }
     await Promise.all(ids.map(id => updateDoc(doc(db, 'reservations', id), cancelData)))
+
+    // Bekleyen (pending) kort talebi burada iptal edildiyse "Onayla" bildirimi kalmasın.
+    if (!isGroup) {
+      try {
+        await deletePendingRequestNotifications(ids)
+      } catch (e) {
+        console.error('Bekleyen talep bildirimi silinemedi:', e)
+      }
+    }
 
     // İlgili öğrenci(ler)e iptal bildirimi gönder.
     const dateLabel = selectedDate.value.toLocaleDateString('tr-TR', {

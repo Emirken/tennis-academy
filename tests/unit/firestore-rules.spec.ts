@@ -233,6 +233,15 @@ describe('Firestore Rules - Günde-bir kort rezervasyonu kilidi', () => {
             }))
         })
 
+        // Regex biçimi geçen ama takvimde olmayan anahtar (31 Ağu+21 gün = 21 Eyl):
+        // timestamp.date taşırsa aynı güne FARKLI kilit kimliğiyle ikinci kayıt açılırdı.
+        it('takvimde olmayan tarih anahtarı (2026-08-52 ≡ 21 Eyl) ile ikinci kayıt → reddedilir', async () => {
+            await assertSucceeds(book(STUDENT, DAY, 'r1'))
+            await assertFails(book(STUDENT, '2026-08-52', 'r2', {
+                data: rental(STUDENT, DAY, { dateKey: '2026-08-52' })
+            }))
+        })
+
         it('açık pencere (21–27 Eyl) dışındaki güne → reddedilir, kayıt YAZILMAZ', async () => {
             await assertSucceeds(book(STUDENT, '2026-09-27', 'r1'))     // pencerenin son günü
             await assertFails(book(STUDENT, '2026-09-28', 'r2'))        // gelecek hafta
@@ -283,6 +292,35 @@ describe('Firestore Rules - Günde-bir kort rezervasyonu kilidi', () => {
             await dbAs(STUDENT).doc('reservations/r1').update({ status: 'cancelled', cancelledAt: new Date(), cancelledBy: 'student' })
             await assertSucceeds(book(STUDENT, DAY, 'r2'))
             await assertFails(dbAs(STUDENT).doc('reservations/r1').update({ status: 'pending' }))
+        })
+
+        // 2026-10-08 canlı olayı: öğrenci 08:00'ı iptal edip 09:00'ı aldı; iptal
+        // edilenin "Yeni Rezervasyon Talebi" bildirimi admin kuyruğunda kaldı ve
+        // admin "Onayla"ya basınca iptal edilmiş kayıt confirmed oldu → aynı güne 2 kayıt.
+        it('admin iptal edilmiş kort kiralamasını yeniden aktifleştiremez (bayat bildirimden onay)', async () => {
+            await assertSucceeds(book(STUDENT, DAY, 'r1'))
+            await dbAs(STUDENT).doc('reservations/r1').update({ status: 'cancelled', cancelledAt: new Date(), cancelledBy: 'student' })
+            await assertSucceeds(book(STUDENT, DAY, 'r2'))
+            await assertFails(dbAs(ADMIN).doc('reservations/r1').update({ status: 'confirmed' }))
+            await assertFails(dbAs(ADMIN).doc('reservations/r1').update({ status: 'pending' }))
+            expect(await readAsAdmin('reservations/r1')).toMatchObject({ status: 'cancelled' })
+        })
+
+        it('admin, admin açtığı (court_rental) iptal/tamamlanmış kiralamayı da aktifleştiremez', async () => {
+            await seed(async (db) => {
+                await db.doc('reservations/a1').set({ ...rental(STUDENT, DAY, { status: 'cancelled', type: 'court_rental' }), reservationType: 'court-rental' })
+                await db.doc('reservations/a2').set({ ...rental(STUDENT, DAY, { status: 'completed', type: 'court_rental' }), reservationType: 'court-rental' })
+            })
+            await assertFails(dbAs(ADMIN).doc('reservations/a1').update({ status: 'confirmed' }))
+            await assertFails(dbAs(ADMIN).doc('reservations/a2').update({ status: 'confirmed' }))
+        })
+
+        it('admin bekleyen talebi onaylayabilir / reddedebilir; iptal edileni yeniden iptal edebilir', async () => {
+            await assertSucceeds(book(STUDENT, DAY, 'r1'))
+            await assertSucceeds(dbAs(ADMIN).doc('reservations/r1').update({ status: 'confirmed' }))
+            await assertSucceeds(book(OTHER, DAY, 'r2'))
+            await assertSucceeds(dbAs(ADMIN).doc('reservations/r2').update({ status: 'cancelled', cancelledAt: new Date(), cancelledBy: 'admin' }))
+            await assertSucceeds(dbAs(ADMIN).doc('reservations/r2').update({ cancelledBy: 'admin' }))
         })
 
         it('öğrenci tarih taşıyamaz, kendine onay veremez, başka alan değiştiremez', async () => {
@@ -356,6 +394,17 @@ describe('Firestore Rules - Günde-bir kort rezervasyonu kilidi', () => {
             await assertSucceeds(batch.commit())
 
             await assertFails(book(STUDENT, DAY, 'r1'))
+        })
+
+        it('aktifleştirme yasağı yalnız kiralamalar için: admin iptal edilmiş DERSİ geri alabilir', async () => {
+            await seed(async (db) => {
+                await db.doc('reservations/l1').set({
+                    studentId: STUDENT, date: utcMidnight(DAY), startTime: '10:00', courtId: 'court-1',
+                    type: 'lesson', reservationType: 'group-lesson', groupId: 'group_A',
+                    groupAssignment: 'group_A', groupSchedule: true, status: 'cancelled'
+                })
+            })
+            await assertSucceeds(dbAs(ADMIN).doc('reservations/l1').update({ status: 'confirmed' }))
         })
 
         it('admin kilit silebilir (bakım/temizlik)', async () => {

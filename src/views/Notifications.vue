@@ -167,11 +167,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { collection, getDocs, doc, updateDoc, onSnapshot, deleteDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc, onSnapshot, deleteDoc } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { useAuthStore } from '@/store/modules/auth'
 import { notificationService, UserNotification } from '@/services/notificationService'
 import type { NotificationType } from '@/services/notificationService'
+import { reviewPendingReservation } from '@/services/reservationApproval'
 import { registrationNotificationMessage, REGISTRATION_NOTIFICATION_TITLE } from '@/utils/registrationForm'
 
 const authStore = useAuthStore()
@@ -216,7 +217,7 @@ const snackbar = ref(false)
 const snackbarText = ref('')
 const snackbarColor = ref('success')
 
-const showSnackbar = (text: string, color: 'success' | 'error' = 'success') => {
+const showSnackbar = (text: string, color: 'success' | 'error' | 'warning' = 'success') => {
   snackbarText.value = text
   snackbarColor.value = color
   snackbar.value = true
@@ -395,18 +396,21 @@ const rejectUserFromNotification = async (notification: UserNotification) => {
   }
 }
 
+const STALE_REQUEST_MESSAGE =
+  'Bu talep artık beklemede değil (öğrenci iptal etmiş ya da karara bağlanmış). İşlem yapılmadı, bildirim kaldırıldı.'
+
 const approveReservation = async (notification: UserNotification) => {
   if (!authStore.user || processingId.value || !notification.relatedData) return
   const { reservationId, studentId, studentName } = notification.relatedData
   processingId.value = notification.id || reservationId
 
   try {
-    // Rezervasyonu 'confirmed' olarak güncelle
-    const reservationRef = doc(db, 'reservations', reservationId)
-    await updateDoc(reservationRef, { status: 'confirmed' })
+    // Yalnız hâlâ bekleyen talep onaylanır; öğrenci arada iptal ettiyse
+    // (bildirim bayat) iptal edilmiş kayıt diriltilmez.
+    const result = await reviewPendingReservation(reservationId, 'approve')
 
     // Öğrenciye onay bildirimi gönder
-    if (studentId) {
+    if (result === 'done' && studentId) {
       await notificationService.createStudentNotification(
         studentId,
         'Rezervasyonunuz Onaylandı',
@@ -420,7 +424,8 @@ const approveReservation = async (notification: UserNotification) => {
       await deleteDoc(doc(db, 'notifications', notification.id))
     }
 
-    showSnackbar('Rezervasyon başarıyla onaylandı.')
+    if (result === 'done') showSnackbar('Rezervasyon başarıyla onaylandı.')
+    else showSnackbar(STALE_REQUEST_MESSAGE, 'warning')
   } catch (error) {
     console.error('Rezervasyon onaylama hatası:', error)
     showSnackbar('Rezervasyon onaylanırken hata oluştu.', 'error')
@@ -435,16 +440,11 @@ const rejectReservation = async (notification: UserNotification) => {
   processingId.value = notification.id || reservationId
 
   try {
-    // Rezervasyonu 'cancelled' olarak güncelle
-    const reservationRef = doc(db, 'reservations', reservationId)
-    await updateDoc(reservationRef, {
-      status: 'cancelled',
-      cancelledAt: serverTimestamp(),
-      cancelledBy: 'admin'
-    })
+    // Yalnız hâlâ bekleyen talep reddedilir (öğrencinin iptali ezilmez).
+    const result = await reviewPendingReservation(reservationId, 'reject')
 
     // Öğrenciye red bildirimi gönder
-    if (studentId) {
+    if (result === 'done' && studentId) {
       await notificationService.createStudentNotification(
         studentId,
         'Rezervasyonunuz Reddedildi',
@@ -458,7 +458,8 @@ const rejectReservation = async (notification: UserNotification) => {
       await deleteDoc(doc(db, 'notifications', notification.id))
     }
 
-    showSnackbar('Rezervasyon reddedildi.')
+    if (result === 'done') showSnackbar('Rezervasyon reddedildi.')
+    else showSnackbar(STALE_REQUEST_MESSAGE, 'warning')
   } catch (error) {
     console.error('Rezervasyon reddetme hatası:', error)
     showSnackbar('Rezervasyon reddedilirken hata oluştu.', 'error')

@@ -232,6 +232,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/services/firebase'
 import { notificationService } from '@/services/notificationService'
+import { deletePendingRequestNotifications } from '@/services/reservationApproval'
 import type { Reservation } from '@/types/reservation'
 import {
   isLessonDoc,
@@ -434,6 +435,15 @@ const cancelReservation = async (reservation: Reservation) => {
       cancelledAt: serverTimestamp(),
       cancelledBy: 'student'
     })
+
+    // İptal edilen talebin "Yeni Rezervasyon Talebi" bildirimi admin
+    // kuyruğunda "Onayla" ile kalmasın. Temizlik başarısızsa iptal yine geçerli
+    // (onay zaten yalnız bekleyen talebe uygulanır).
+    try {
+      await deletePendingRequestNotifications([reservation.id])
+    } catch (e) {
+      console.error('Bekleyen talep bildirimi silinemedi:', e)
+    }
 
     // Admin'e iptal bildirimi gönder
     const studentName = `${authStore.user?.firstName || ''} ${authStore.user?.lastName || ''}`.trim()
